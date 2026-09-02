@@ -2,12 +2,29 @@
   'use strict';
 
   var KEY = 'rawi.storybook.preferences';
-  var VERSION = 1;
+  var VERSION = 2;
   var storage = global.RawiStorage;
   var lastRestoreStatus = {
     needsRecovery: false,
     type: 'ok'
   };
+
+  function normalizeIds(values) {
+    var result = [];
+    var seen = {};
+    var list = Array.isArray(values) ? values : [];
+    var i;
+    var id;
+
+    for (i = 0; i < list.length; i += 1) {
+      id = list[i];
+      if (typeof id !== 'string' || !id || seen[id]) { continue; }
+      seen[id] = true;
+      result.push(id);
+    }
+
+    return result;
+  }
 
   function defaults() {
     return {
@@ -16,6 +33,7 @@
       lastMode: 'adult',
       childName: '',
       libraryIds: [],
+      favoriteItemIds: [],
       reducedMotion: false
     };
   }
@@ -39,25 +57,16 @@
 
   function normalize(input) {
     var source = input || {};
-    var libraryIds = [];
-    var seen = {};
-    var ids = Array.isArray(source.libraryIds) ? source.libraryIds : [];
-    var i;
-    var id;
-
-    for (i = 0; i < ids.length; i += 1) {
-      id = ids[i];
-      if (typeof id !== 'string' || !id || seen[id]) { continue; }
-      seen[id] = true;
-      libraryIds.push(id);
-    }
 
     return {
       version: VERSION,
       enabled: source.enabled === true,
       lastMode: source.lastMode === 'storybook' ? 'storybook' : 'adult',
       childName: typeof source.childName === 'string' ? source.childName.trim() : '',
-      libraryIds: libraryIds,
+      libraryIds: normalizeIds(source.libraryIds),
+      favoriteItemIds: normalizeIds(
+        source.favoriteItemIds !== undefined ? source.favoriteItemIds : source.favorites
+      ),
       reducedMotion: source.reducedMotion === true
     };
   }
@@ -90,6 +99,14 @@
         type: 'malformed'
       });
       return defaults();
+    }
+
+    if (parsed.version === 1) {
+      restoreStatus({
+        needsRecovery: false,
+        type: 'ok'
+      });
+      return normalize(parsed);
     }
 
     if (parsed.version !== VERSION) {

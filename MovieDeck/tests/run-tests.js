@@ -12,6 +12,7 @@ var DEFAULT_TEST_FILES = [
   'storybook-app.test.js',
   'storybook-preferences.test.js',
   'storybook-model.test.js',
+  'storybook-catalogue.test.js',
   'storybook-view.test.js',
   'copy.test.js'
 ];

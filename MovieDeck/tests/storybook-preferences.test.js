@@ -9,11 +9,12 @@ function clone(value) {
 
 function defaultPreferences() {
   return {
-    version: 1,
+    version: 2,
     enabled: false,
     lastMode: 'adult',
     childName: '',
     libraryIds: [],
+    favoriteItemIds: [],
     reducedMotion: false
   };
 }
@@ -41,51 +42,98 @@ function loadPreferences(stored) {
   });
 }());
 
-(function supportedVersionNormalizesMissingOptionalFieldsWithoutRecovery() {
-  var harness = loadPreferences(JSON.stringify({
-    version: 1,
-    enabled: true
-  }));
-  var result = harness.api.restore();
-
-  assert.deepStrictEqual(clone(result), {
-    version: 1,
-    enabled: true,
-    lastMode: 'adult',
-    childName: '',
-    libraryIds: [],
-    reducedMotion: false
-  });
-  assert.deepStrictEqual(clone(harness.api.getRestoreStatus()), {
-    needsRecovery: false,
-    type: 'ok'
-  });
-}());
-
-(function validPreferencesAreNormalized() {
+(function migratesVersion1PreferencesWithoutRecoveryOrImmediateRewrite() {
   var harness = loadPreferences(JSON.stringify({
     version: 1,
     enabled: true,
     lastMode: 'storybook',
     childName: ' Nova ',
-    libraryIds: ['pixar', 'pixar', 42],
-    reducedMotion: true,
-    ignored: 'value'
+    libraryIds: ['pixar', 'pixar', 7],
+    favoriteItemIds: ['bluey', 'bluey', 9],
+    reducedMotion: true
   }));
   var result = harness.api.restore();
 
   assert.deepStrictEqual(clone(result), {
-    version: 1,
+    version: 2,
     enabled: true,
     lastMode: 'storybook',
     childName: 'Nova',
     libraryIds: ['pixar'],
+    favoriteItemIds: ['bluey'],
     reducedMotion: true
   });
   assert.deepStrictEqual(clone(harness.api.getRestoreStatus()), {
     needsRecovery: false,
     type: 'ok'
   });
+  assert.strictEqual(harness.saved(), null);
+}());
+
+(function migratesLegacyFavoritesFieldIntoFavoriteItemIds() {
+  var harness = loadPreferences(JSON.stringify({
+    version: 1,
+    enabled: true,
+    favorites: ['dance', 'dance', 3]
+  }));
+
+  assert.deepStrictEqual(
+    clone(harness.api.restore().favoriteItemIds),
+    ['dance']
+  );
+  assert.strictEqual(harness.saved(), null);
+}());
+
+(function supportedVersionNormalizesMissingOptionalFieldsWithoutRecovery() {
+  var harness = loadPreferences(JSON.stringify({
+    version: 2,
+    enabled: true
+  }));
+  var result = harness.api.restore();
+
+  assert.deepStrictEqual(clone(result), {
+    version: 2,
+    enabled: true,
+    lastMode: 'adult',
+    childName: '',
+    libraryIds: [],
+    favoriteItemIds: [],
+    reducedMotion: false
+  });
+  assert.deepStrictEqual(clone(harness.api.getRestoreStatus()), {
+    needsRecovery: false,
+    type: 'ok'
+  });
+  assert.strictEqual(harness.saved(), null);
+}());
+
+(function validPreferencesAreNormalized() {
+  var harness = loadPreferences(JSON.stringify({
+    version: 2,
+    enabled: true,
+    lastMode: 'storybook',
+    childName: ' Nova ',
+    libraryIds: ['pixar', 'pixar', 42],
+    favoriteItemIds: ['bluey', 'bluey', 9],
+    reducedMotion: true,
+    ignored: 'value'
+  }));
+  var result = harness.api.restore();
+
+  assert.deepStrictEqual(clone(result), {
+    version: 2,
+    enabled: true,
+    lastMode: 'storybook',
+    childName: 'Nova',
+    libraryIds: ['pixar'],
+    favoriteItemIds: ['bluey'],
+    reducedMotion: true
+  });
+  assert.deepStrictEqual(clone(harness.api.getRestoreStatus()), {
+    needsRecovery: false,
+    type: 'ok'
+  });
+  assert.strictEqual(harness.saved(), null);
 }());
 
 (function malformedPreferencesRequireRecoveryWithoutOverwritingStorage() {
@@ -130,8 +178,19 @@ function loadPreferences(stored) {
   var result = harness.api.save({
     enabled: true,
     lastMode: 'storybook',
+    childName: ' Nova ',
+    libraryIds: ['one', 'one', 5],
+    favoriteItemIds: ['story-1', 'story-1', 8],
+    reducedMotion: false
+  });
+
+  assert.deepStrictEqual(clone(result), {
+    version: 2,
+    enabled: true,
+    lastMode: 'storybook',
     childName: 'Nova',
     libraryIds: ['one'],
+    favoriteItemIds: ['story-1'],
     reducedMotion: false
   });
   assert.strictEqual(harness.saved().key, 'rawi.storybook.preferences');
