@@ -61,6 +61,38 @@
     });
   }
 
+  function animateStorybookHome(forceReducedMotion) {
+    var doors = document.querySelectorAll('#storybook-doors .storybook-door');
+    if (!doors.length) { return; }
+    gsap.killTweensOf(doors);
+    if (forceReducedMotion || prefersReducedMotion()) {
+      gsap.set(doors, {
+        clearProps: 'opacity,visibility,transform'
+      });
+      return;
+    }
+    gsap.fromTo(doors, {
+      autoAlpha: 0,
+      y: 28
+    }, {
+      autoAlpha: 1,
+      clearProps: 'opacity,visibility',
+      duration: 0.45,
+      ease: 'back.out(1.05)',
+      stagger: 0.08,
+      y: 0
+    });
+    Array.prototype.slice.call(doors, 0, 3).forEach(function (door, index) {
+      gsap.to(door, {
+        duration: 4.2 + index * 0.35,
+        ease: 'sine.inOut',
+        repeat: -1,
+        y: index % 2 ? 7 : -7,
+        yoyo: true
+      });
+    });
+  }
+
   function completeScroll(motion) {
     if (scrollMotion !== motion) { return; }
     motion.content.style.transform = 'none';
@@ -121,6 +153,7 @@
   }
 
   global.MovieDeckAnimations = {
+    animateStorybookHome: animateStorybookHome,
     animateSelection: animateSelection,
     animateShelves: animateShelves,
     enterScreen: enterScreen,

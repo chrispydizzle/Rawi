@@ -21,8 +21,12 @@
   var availableLibraries = [];
   var availableLibrariesReady = false;
   var availableLibrariesLoading = false;
+  var currentGroups = [];
+  var currentLatest = [];
+  var currentResume = [];
   var defaultServer = 'http://192.168.1.2:8096';
   var previousScreen = 'browse-screen';
+  var storybookLibraryOpen = false;
   var storybookSettingsReturnFocusId = 'storybook-settings-button';
 
   // DOM and item helpers
@@ -44,7 +48,9 @@
       screen.classList.toggle('is-active', screen.id === id);
     });
     activeScreen = id;
-    animations.enterScreen(byId(id));
+    if (!(id === 'storybook-screen' && storybookState.lastMode === 'storybook' && isStorybookReducedMotion())) {
+      animations.enterScreen(byId(id));
+    }
     if (focusId) { focusScreenTarget(focusId); }
   }
 
@@ -157,6 +163,14 @@
     return parts.join('  •  ');
   }
 
+  function isStorybookReducedMotion() {
+    return storybookModel.isReducedMotion(
+      storybookState,
+      global.matchMedia &&
+        global.matchMedia('(prefers-reduced-motion: reduce)').matches
+    );
+  }
+
   function selectItem(item, card) {
     selectedItem = item;
     selectedCard = card || selectedCard;
@@ -246,12 +260,56 @@
     return shelf;
   }
 
+  function renderAdultGroups(groups) {
+    var definitions = [
+      [copy.get('continueWatchingTitle'), copy.get('continueWatchingCaption'), currentResume],
+      [copy.get('recentlyAddedTitle'), copy.get('recentlyAddedCaption'), currentLatest]
+    ];
+    var firstCard = null;
+    var shelves = byId('shelves');
+
+    groups = groups || [];
+    shelves.innerHTML = '';
+    byId('browse-error').style.display = 'none';
+    groups.forEach(function (group) {
+      definitions.push([group.name, copy.get('libraryCaption', { count: group.videos.length }), group.videos]);
+    });
+    definitions.forEach(function (definition) {
+      var shelf = renderShelf(definition[0], definition[1], definition[2]);
+      if (shelf) {
+        shelves.appendChild(shelf);
+        if (!firstCard) { firstCard = shelf.querySelector('.movie-card'); }
+      }
+    });
+    byId('browse-loading').style.display = 'none';
+    animations.animateShelves();
+    if (!firstCard) {
+      byId('browse-error').textContent = copy.get('noVideos');
+      byId('browse-error').style.display = 'block';
+      byId('refresh-button').focus();
+      return;
+    }
+    firstCard.focus();
+  }
+
+  function openStorybookLibrary(libraryId) {
+    storybookLibraryOpen = true;
+    renderAdultGroups(currentGroups.filter(function (group) {
+      return group.id === libraryId;
+    }));
+    showScreen('browse-screen');
+  }
+
   function openLibrary() {
     updateProfile();
+    storybookLibraryOpen = false;
     showScreen('browse-screen');
     byId('browse-loading').style.display = 'block';
     byId('browse-error').style.display = 'none';
     byId('shelves').innerHTML = '';
+    currentGroups = [];
+    currentLatest = [];
+    currentResume = [];
     availableLibraries = [];
     availableLibrariesReady = false;
     availableLibrariesLoading = true;
@@ -284,30 +342,31 @@
       api.getLatest().catch(function () { return []; }),
       libraryGroups
     ]).then(function (groups) {
-      var definitions = [
-        [copy.get('continueWatchingTitle'), copy.get('continueWatchingCaption'), groups[0]],
-        [copy.get('recentlyAddedTitle'), copy.get('recentlyAddedCaption'), groups[1]]
-      ];
-      groups[2].forEach(function (group) {
-        definitions.push([group.name, copy.get('libraryCaption', { count: group.videos.length }), group.videos]);
+      var resolution = storybookModel.resolveLibraries(
+        availableLibraries,
+        storybookState.libraryIds
+      );
+      var selectedMap = {};
+      currentResume = groups[0];
+      currentLatest = groups[1];
+      currentGroups = groups[2];
+      resolution.selected.forEach(function (library) {
+        selectedMap[itemId(library)] = true;
       });
-      var firstCard = null;
-      definitions.forEach(function (definition) {
-        var shelf = renderShelf(definition[0], definition[1], definition[2]);
-        if (shelf) {
-          byId('shelves').appendChild(shelf);
-          if (!firstCard) { firstCard = shelf.querySelector('.movie-card'); }
-        }
-      });
-      byId('browse-loading').style.display = 'none';
-      animations.animateShelves();
-      if (!firstCard) {
-        byId('browse-error').textContent = copy.get('noVideos');
-        byId('browse-error').style.display = 'block';
-        byId('refresh-button').focus();
+
+      if (storybookState.lastMode === 'storybook') {
+        byId('browse-loading').style.display = 'none';
+        storybookView.renderHome({
+          childName: storybookState.childName,
+          libraries: currentGroups.filter(function (group) {
+            return selectedMap[group.id];
+          }),
+          reducedMotion: isStorybookReducedMotion()
+        });
+        showScreen('storybook-screen');
         return;
       }
-      firstCard.focus();
+      renderAdultGroups(currentGroups);
     }).catch(function (error) {
       if (error && error.status === 401) {
         api.signOut();
@@ -499,6 +558,18 @@
     }
     if (activeScreen === 'details-screen') { showScreen('browse-screen'); if (selectedCard) { selectedCard.focus(); } return; }
     if (activeScreen === 'quick-screen') { clearInterval(quickTimer); showScreen('setup-screen', 'server-url'); return; }
+    if (activeScreen === 'browse-screen' && storybookLibraryOpen) {
+      storybookLibraryOpen = false;
+      storybookView.renderHome({
+        childName: storybookState.childName,
+        libraries: currentGroups.filter(function (group) {
+          return storybookState.libraryIds.indexOf(group.id) !== -1;
+        }),
+        reducedMotion: isStorybookReducedMotion()
+      });
+      showScreen('storybook-screen');
+      return;
+    }
     if (activeScreen === 'browse-screen' && global.tizen && global.tizen.application) { global.tizen.application.getCurrentApplication().exit(); }
   }
 
@@ -536,6 +607,7 @@
     storybookView.init({
       onCancelSettings: cancelStorybookSettings,
       onModeChange: applyMode,
+      onOpenLibrary: openStorybookLibrary,
       onOpenSettings: openStorybookSettings,
       onPreferencesChange: saveStorybookSettings
     });

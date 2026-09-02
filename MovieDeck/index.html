@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=1920, initial-scale=1, maximum-scale=1, user-scalable=no">
   <title>Rawi</title>
   <link rel="stylesheet" href="css/app.css">
+  <link rel="stylesheet" href="css/storybook.css">
   <script>
     if (window.tizen) {
       document.write('<script src="$WEBAPIS/webapis/webapis.js"><\/script>');
@@ -86,6 +87,41 @@
         <div id="browse-loading" class="loading-state"><span></span><b data-copy="browseLoading">Opening the library</b></div>
         <div id="browse-error" class="error-panel" role="alert"></div>
       </div>
+    </section>
+
+    <section id="storybook-screen"
+             class="screen storybook-screen"
+             aria-labelledby="storybook-greeting">
+      <div class="storybook-sky" aria-hidden="true">
+        <span class="storybook-moon"></span>
+        <span class="storybook-star star-one">✦</span>
+        <span class="storybook-star star-two">✧</span>
+        <span class="storybook-star star-three">✦</span>
+      </div>
+      <header class="storybook-topbar">
+        <div class="storybook-wordmark"><i>/</i> <span data-copy="appName">Rawi</span></div>
+        <div class="mode-toggle" role="group" aria-label="Display mode">
+          <button id="storybook-home-adult-mode-button"
+                  class="mode-option focusable"
+                  data-focusable
+                  data-mode="adult"
+                  data-copy="modeAdult">Adult</button>
+          <button id="storybook-home-storybook-mode-button"
+                  class="mode-option focusable"
+                  data-focusable
+                  data-mode="storybook"
+                  data-copy="modeStorybook">Storybook</button>
+        </div>
+      </header>
+      <div class="storybook-copy">
+        <h1 id="storybook-greeting"></h1>
+        <p data-copy="storybookHomeHint">Pick a story door.</p>
+      </div>
+      <div id="storybook-doors" class="storybook-doors"></div>
+      <button id="storybook-edit-libraries"
+              class="storybook-edit focusable"
+              data-focusable
+              data-copy="storybookEditLibrariesButton">Choose libraries</button>
     </section>
 
     <section id="details-screen" class="screen details-screen" aria-label="Movie details" data-copy-aria-label="detailsAriaLabel">

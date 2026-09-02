@@ -29,10 +29,12 @@ global.RawiTest = {
 };
 
 [
+  'animations.test.js',
   'storage.test.js',
   'storybook-app.test.js',
   'storybook-preferences.test.js',
   'storybook-model.test.js',
+  'storybook-view.test.js',
   'copy.test.js'
 ].forEach(function (file) {
   var fullPath = path.join(__dirname, file);
