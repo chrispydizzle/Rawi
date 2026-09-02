@@ -45,9 +45,26 @@
         <div class="wordmark"><span class="wordmark-dot"></span><b data-copy="appName">Rawi</b></div>
         <div class="selection-title"><span data-copy="selectedLabel">Selected</span><b id="selection-title" data-copy="chooseVideo">Choose a video</b></div>
         <div class="topbar-actions">
+          <div id="mode-toggle" class="mode-toggle" role="group" aria-label="Display mode">
+            <button id="adult-mode-button"
+                    class="mode-option focusable"
+                    data-focusable
+                    data-mode="adult"
+                    data-copy="modeAdult">Adult</button>
+            <button id="storybook-mode-button"
+                    class="mode-option focusable"
+                    data-focusable
+                    data-mode="storybook"
+                    data-copy="modeStorybook">Storybook</button>
+          </div>
           <span id="clock" class="clock"></span>
           <button id="refresh-button" class="icon-button focusable" data-focusable aria-label="Refresh library" data-copy-aria-label="refreshAriaLabel">↻</button>
           <button id="profile-button" class="profile-button focusable" data-focusable><span id="profile-initial">J</span><b id="profile-name">Jellyfin</b></button>
+          <button id="storybook-settings-button"
+                  class="icon-button focusable"
+                  data-focusable
+                  data-copy-aria-label="storybookSettingsButton"
+                  aria-label="Storybook settings">✦</button>
         </div>
       </header>
 
@@ -75,6 +92,18 @@
       <div id="details-backdrop" class="details-backdrop"></div>
       <div class="details-shade"></div>
       <button id="details-back" class="back-button focusable" data-focusable data-copy="detailsBackButton">← Library</button>
+      <div class="details-mode-toggle mode-toggle" role="group" aria-label="Display mode">
+        <button id="details-adult-mode-button"
+                class="mode-option focusable"
+                data-focusable
+                data-mode="adult"
+                data-copy="modeAdult">Adult</button>
+        <button id="details-storybook-mode-button"
+                class="mode-option focusable"
+                data-focusable
+                data-mode="storybook"
+                data-copy="modeStorybook">Storybook</button>
+      </div>
       <article class="details-card">
         <img id="details-poster" class="details-poster" alt="">
         <div class="details-copy">
@@ -89,6 +118,37 @@
           </div>
         </div>
       </article>
+    </section>
+
+    <section id="storybook-settings-screen"
+             class="screen settings-screen"
+             aria-labelledby="storybook-settings-title">
+      <div class="settings-panel">
+        <p class="kicker" data-copy="modeStorybook">Storybook</p>
+        <h1 id="storybook-settings-title" data-copy="storybookSettingsTitle">Set up Storybook Mode</h1>
+        <p data-copy="storybookSettingsIntro">Choose the libraries that belong in Storybook Mode.</p>
+        <label for="storybook-child-name" data-copy="storybookChildNameLabel">Child's name</label>
+        <input id="storybook-child-name" class="focusable" data-focusable type="text" maxlength="30">
+        <fieldset>
+          <legend data-copy="storybookLibrariesLabel">Visible libraries</legend>
+          <div id="storybook-library-options"></div>
+        </fieldset>
+        <label class="settings-check">
+          <input id="storybook-reduced-motion" class="focusable" data-focusable type="checkbox">
+          <span data-copy="storybookReducedMotionLabel">Use less motion</span>
+        </label>
+        <p id="storybook-settings-error" class="inline-error" role="alert"></p>
+        <div class="settings-actions">
+          <button id="storybook-save"
+                  class="button button-primary focusable"
+                  data-focusable
+                  data-copy="storybookSaveButton">Save Storybook settings</button>
+          <button id="storybook-cancel"
+                  class="button button-secondary focusable"
+                  data-focusable
+                  data-copy="storybookCancelButton">Cancel</button>
+        </div>
+      </div>
     </section>
 
     <section id="player-screen" class="screen player-screen" aria-label="Video player" data-copy-aria-label="playerAriaLabel">
@@ -114,6 +174,7 @@
   <script src="js/animations.js"></script>
   <script src="js/api.js"></script>
   <script src="js/player.js"></script>
+  <script src="js/storybook-view.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

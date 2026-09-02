@@ -5,6 +5,9 @@
   var animations = global.MovieDeckAnimations;
   var copy = global.RawiCopy;
   var player = global.MovieDeckPlayer;
+  var storybookModel = global.RawiStorybookModel;
+  var storybookPreferences = global.RawiStorybookPreferences;
+  var storybookView = global.RawiStorybookView;
   var value = global.MovieDeckValue;
 
   // Application state
@@ -14,7 +17,10 @@
   var toastTimer = null;
   var signOutTimer = null;
   var activeScreen = 'setup-screen';
+  var storybookState = storybookPreferences.restore();
+  var availableLibraries = [];
   var defaultServer = 'http://192.168.1.2:8096';
+  var previousScreen = 'browse-screen';
 
   // DOM and item helpers
   function byId(id) { return document.getElementById(id); }
@@ -204,11 +210,12 @@
     byId('shelves').innerHTML = '';
 
     var libraryGroups = api.getLibraries().then(function (libraries) {
+      availableLibraries = libraries;
       return Promise.all(libraries.map(function (library) {
         return api.getVideos(itemId(library)).then(function (videos) {
-          return { name: name(library), videos: videos };
+          return { id: itemId(library), name: name(library), videos: videos };
         }).catch(function () {
-          return { name: name(library), videos: [] };
+          return { id: itemId(library), name: name(library), videos: [] };
         });
       }));
     }).then(function (groups) {
@@ -262,6 +269,48 @@
       byId('browse-error').style.display = 'block';
       byId('refresh-button').focus();
     });
+  }
+
+  function applyMode(mode) {
+    var nextMode = mode === 'storybook' ? 'storybook' : 'adult';
+    if (nextMode === 'storybook' && !storybookState.libraryIds.length) {
+      showToast(copy.get('storybookSetupRequired'));
+      openStorybookSettings();
+      return;
+    }
+    storybookState.lastMode = nextMode;
+    storybookState.enabled = storybookState.enabled || nextMode === 'storybook';
+    storybookState = storybookPreferences.save(storybookState);
+    storybookView.setMode(nextMode);
+    openLibrary();
+  }
+
+  function openStorybookSettings() {
+    var resolution = storybookModel.resolveLibraries(
+      availableLibraries,
+      storybookState.libraryIds
+    );
+    previousScreen = activeScreen === 'storybook-settings-screen' ?
+      'browse-screen' : activeScreen;
+    storybookView.renderSettings(
+      availableLibraries,
+      storybookState,
+      resolution.missingIds
+    );
+    showScreen('storybook-settings-screen', 'storybook-child-name');
+  }
+
+  function saveStorybookSettings(nextPreferences) {
+    storybookState = storybookPreferences.save(nextPreferences);
+    storybookView.setMode(storybookState.lastMode);
+    showToast(copy.get('storybookSettingsSaved'));
+    openLibrary();
+  }
+
+  function cancelStorybookSettings() {
+    var focusId = previousScreen === 'details-screen' ?
+      'details-back' : 'storybook-settings-button';
+    showScreen(previousScreen, focusId);
   }
 
   // Details and playback
@@ -350,6 +399,10 @@
 
   function handleBack() {
     if (activeScreen === 'player-screen') { showScreen('details-screen', 'play-button'); return; }
+    if (activeScreen === 'storybook-settings-screen') {
+      cancelStorybookSettings();
+      return;
+    }
     if (activeScreen === 'details-screen') { showScreen('browse-screen'); if (selectedCard) { selectedCard.focus(); } return; }
     if (activeScreen === 'quick-screen') { clearInterval(quickTimer); showScreen('setup-screen', 'server-url'); return; }
     if (activeScreen === 'browse-screen' && global.tizen && global.tizen.application) { global.tizen.application.getCurrentApplication().exit(); }
@@ -386,6 +439,13 @@
   }
 
   function init() {
+    storybookView.init({
+      onCancelSettings: cancelStorybookSettings,
+      onModeChange: applyMode,
+      onOpenSettings: openStorybookSettings,
+      onPreferencesChange: saveStorybookSettings
+    });
+    storybookView.setMode(storybookState.lastMode);
     copy.apply(document);
     registerEvents();
     player.init({
