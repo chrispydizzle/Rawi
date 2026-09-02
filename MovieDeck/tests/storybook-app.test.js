@@ -413,6 +413,7 @@ function buildDom(document) {
   focusable(append(detailsScreen, 'button', 'details-storybook-mode-button', '')).setAttribute('data-mode', 'storybook');
   focusable(append(detailsScreen, 'button', 'play-button', ''));
   focusable(append(detailsScreen, 'button', 'restart-button', ''));
+  focusable(append(detailsScreen, 'button', 'favorite-button', ''));
   append(detailsScreen, 'img', 'details-poster', '');
   append(detailsScreen, 'div', 'details-backdrop', '');
   append(detailsScreen, 'div', 'details-title', '');
@@ -523,6 +524,10 @@ function loadAppHarness(options) {
     storybookDoorAriaLabel: 'Open {library}',
     storybookDoorsTitle: 'Story Doors',
     storybookEditLibrariesButton: 'Choose libraries',
+    storybookFavoriteAddButton: 'Add to Storybook favorites',
+    storybookFavoriteRemoveButton: 'Remove from Storybook favorites',
+    storybookFavoriteAddedToast: 'Added {title} to Storybook favorites.',
+    storybookFavoriteRemovedToast: 'Removed {title} from Storybook favorites.',
     storybookFavoritesTitle: "{child}'s Favorites",
     storybookFavoritesTitleWithoutName: 'Favorites',
     storybookGreeting: 'What should we watch tonight, {child}?',
@@ -974,7 +979,7 @@ asyncTest('savingStorybookSettingsRetainsFavoriteItemIdsFromMigratedPreferences'
       lastMode: 'storybook',
       childName: 'Nova',
       libraryIds: ['kids'],
-      favoriteItemIds: ['bluey', 'dance'],
+      favoriteItemIds: ['video-1', 'video-2'],
       reducedMotion: false
     },
     restoreSession: true,
@@ -988,7 +993,7 @@ asyncTest('savingStorybookSettingsRetainsFavoriteItemIdsFromMigratedPreferences'
     assert.strictEqual(harness.screenActive('storybook-screen'), true);
     assert.deepStrictEqual(
       JSON.parse(JSON.stringify(harness.currentPreferences().favoriteItemIds)),
-      ['bluey', 'dance']
+      ['video-1', 'video-2']
     );
 
     harness.document.getElementById('storybook-edit-libraries').click();
@@ -1008,7 +1013,7 @@ asyncTest('savingStorybookSettingsRetainsFavoriteItemIdsFromMigratedPreferences'
         lastMode: 'storybook',
         childName: 'Ava',
         libraryIds: ['disney'],
-        favoriteItemIds: ['bluey', 'dance'],
+        favoriteItemIds: ['video-1', 'video-2'],
         reducedMotion: true
       }
     );
@@ -1414,6 +1419,170 @@ asyncTest('rendersStorybookHomeResumeAndFavoritesFromSelectedLibrariesOnly', fun
     assert.deepStrictEqual(
       JSON.parse(JSON.stringify(harness.doorLibraryIds())),
       ['kids']
+    );
+  });
+});
+
+asyncTest('adultDetailsAddsStorybookFavoriteWithoutLeavingAdultMode', function () {
+  var harness = loadAppHarness({
+    libraries: [
+      { Id: 'kids', Name: 'Kids' }
+    ],
+    preferences: {
+      version: 2,
+      enabled: true,
+      lastMode: 'adult',
+      childName: 'Nova',
+      libraryIds: ['kids'],
+      favoriteItemIds: [],
+      reducedMotion: false
+    },
+    restoreSession: true,
+    videosByLibrary: {
+      kids: [{ Id: 'story-1', Name: 'First Story', RunTimeTicks: 7200000000 }]
+    }
+  });
+
+  return flush(12).then(function () {
+    harness.document.getElementById('hero-open').click();
+
+    assert.strictEqual(
+      harness.document.getElementById('favorite-button').textContent,
+      'Add to Storybook favorites'
+    );
+    assert.strictEqual(
+      harness.document.getElementById('favorite-button').getAttribute('aria-pressed'),
+      'false'
+    );
+
+    harness.document.getElementById('favorite-button').click();
+
+    assert.deepStrictEqual(
+      JSON.parse(JSON.stringify(harness.savedState().favoriteItemIds)),
+      ['story-1']
+    );
+    assert.strictEqual(
+      harness.document.getElementById('favorite-button').textContent,
+      'Remove from Storybook favorites'
+    );
+    assert.strictEqual(
+      harness.document.getElementById('favorite-button').getAttribute('aria-pressed'),
+      'true'
+    );
+    assert.strictEqual(harness.currentPreferences().lastMode, 'adult');
+    assert.strictEqual(harness.screenActive('details-screen'), true);
+    assert.strictEqual(harness.screenActive('storybook-screen'), false);
+    assert.strictEqual(harness.toastText(), 'Added First Story to Storybook favorites.');
+  });
+});
+
+asyncTest('adultDetailsRemovesStorybookFavoriteWithoutLeavingAdultMode', function () {
+  var harness = loadAppHarness({
+    libraries: [
+      { Id: 'kids', Name: 'Kids' }
+    ],
+    preferences: {
+      version: 2,
+      enabled: true,
+      lastMode: 'adult',
+      childName: 'Nova',
+      libraryIds: ['kids'],
+      favoriteItemIds: ['story-1'],
+      reducedMotion: false
+    },
+    restoreSession: true,
+    videosByLibrary: {
+      kids: [{ Id: 'story-1', Name: 'First Story', RunTimeTicks: 7200000000 }]
+    }
+  });
+
+  return flush(12).then(function () {
+    harness.document.getElementById('hero-open').click();
+
+    assert.strictEqual(
+      harness.document.getElementById('favorite-button').textContent,
+      'Remove from Storybook favorites'
+    );
+    assert.strictEqual(
+      harness.document.getElementById('favorite-button').getAttribute('aria-pressed'),
+      'true'
+    );
+
+    harness.document.getElementById('favorite-button').click();
+
+    assert.deepStrictEqual(
+      JSON.parse(JSON.stringify(harness.savedState().favoriteItemIds)),
+      []
+    );
+    assert.strictEqual(
+      harness.document.getElementById('favorite-button').textContent,
+      'Add to Storybook favorites'
+    );
+    assert.strictEqual(
+      harness.document.getElementById('favorite-button').getAttribute('aria-pressed'),
+      'false'
+    );
+    assert.strictEqual(harness.currentPreferences().lastMode, 'adult');
+    assert.strictEqual(harness.screenActive('details-screen'), true);
+    assert.strictEqual(harness.screenActive('storybook-screen'), false);
+    assert.strictEqual(harness.toastText(), 'Removed First Story from Storybook favorites.');
+  });
+});
+
+asyncTest('doesNotPruneFavoritesAfterToleratedLibraryFailures', function () {
+  var harness = loadAppHarness({
+    getVideosErrors: {
+      songs: new Error('tolerated failure')
+    },
+    libraries: [
+      { Id: 'kids', Name: 'Kids' },
+      { Id: 'songs', Name: 'Songs' }
+    ],
+    preferences: {
+      version: 2,
+      enabled: true,
+      lastMode: 'storybook',
+      childName: 'Nova',
+      libraryIds: ['kids'],
+      favoriteItemIds: ['missing-favorite'],
+      reducedMotion: false
+    },
+    restoreSession: true,
+    videosByLibrary: {
+      kids: [{ Id: 'story-1', Name: 'First Story' }]
+    }
+  });
+
+  return flush(12).then(function () {
+    assert.strictEqual(harness.savedState(), null);
+    assert.deepStrictEqual(harness.currentPreferences().favoriteItemIds, ['missing-favorite']);
+  });
+});
+
+asyncTest('prunesMissingFavoritesAfterFullySuccessfulCatalogueRefresh', function () {
+  var harness = loadAppHarness({
+    libraries: [
+      { Id: 'kids', Name: 'Kids' }
+    ],
+    preferences: {
+      version: 2,
+      enabled: true,
+      lastMode: 'storybook',
+      childName: 'Nova',
+      libraryIds: ['kids'],
+      favoriteItemIds: ['story-1', 'missing-favorite'],
+      reducedMotion: false
+    },
+    restoreSession: true,
+    videosByLibrary: {
+      kids: [{ Id: 'story-1', Name: 'First Story' }]
+    }
+  });
+
+  return flush(12).then(function () {
+    assert.deepStrictEqual(
+      JSON.parse(JSON.stringify(harness.savedState().favoriteItemIds)),
+      ['story-1']
     );
   });
 });

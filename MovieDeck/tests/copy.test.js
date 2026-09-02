@@ -76,3 +76,16 @@ var copy = load('js/copy.js', { window: {} }).RawiCopy;
     'No stories are available in Kids right now.'
   );
 }());
+
+(function exposesStorybookFavoriteToggleCopyDefaults() {
+  assert.strictEqual(copy.get('storybookFavoriteAddButton'), 'Add to Storybook favorites');
+  assert.strictEqual(copy.get('storybookFavoriteRemoveButton'), 'Remove from Storybook favorites');
+  assert.strictEqual(
+    copy.get('storybookFavoriteAddedToast', { title: 'First Story' }),
+    'Added First Story to Storybook favorites.'
+  );
+  assert.strictEqual(
+    copy.get('storybookFavoriteRemovedToast', { title: 'First Story' }),
+    'Removed First Story from Storybook favorites.'
+  );
+}());

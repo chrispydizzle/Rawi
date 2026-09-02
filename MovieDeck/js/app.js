@@ -381,6 +381,63 @@
     return currentStorybookCatalogue;
   }
 
+  function favoriteIds() {
+    return copyIds(storybookState.favoriteItemIds);
+  }
+
+  function isStorybookFavorite(item) {
+    var id = itemId(item);
+    return favoriteIds().indexOf(id) !== -1;
+  }
+
+  function updateFavoriteButton(item) {
+    var button = byId('favorite-button');
+    var active = !!(item && isStorybookFavorite(item));
+
+    if (!button) { return; }
+    button.setAttribute('aria-pressed', active ? 'true' : 'false');
+    button.textContent = copy.get(active ? 'storybookFavoriteRemoveButton' : 'storybookFavoriteAddButton');
+  }
+
+  function toggleStorybookFavorite() {
+    var id;
+    var ids;
+    var index;
+
+    if (!selectedItem) { return; }
+    id = itemId(selectedItem);
+    if (!id) { return; }
+
+    ids = favoriteIds();
+    index = ids.indexOf(id);
+    if (index === -1) {
+      ids.push(id);
+      saveStorybookState({ favoriteItemIds: ids });
+      updateFavoriteButton(selectedItem);
+      showToast(copy.get('storybookFavoriteAddedToast', { title: name(selectedItem) }));
+      return;
+    }
+
+    ids.splice(index, 1);
+    saveStorybookState({ favoriteItemIds: ids });
+    updateFavoriteButton(selectedItem);
+    showToast(copy.get('storybookFavoriteRemovedToast', { title: name(selectedItem) }));
+  }
+
+  function maybePruneStorybookFavorites(catalogue) {
+    var ids;
+
+    if (!catalogue || !catalogue.canPruneFavorites || !catalogue.favoriteIdsToPrune.length) {
+      return;
+    }
+
+    ids = favoriteIds().filter(function (id) {
+      return catalogue.favoriteIdsToPrune.indexOf(String(id)) === -1;
+    });
+
+    saveStorybookState({ favoriteItemIds: ids });
+  }
+
   function storybookCardModel(item) {
     var ticks = value(item, 'RunTimeTicks', 'runTimeTicks') || 0;
 
@@ -639,6 +696,7 @@
       currentResume = groups[0];
       currentLatest = groups[1];
       currentGroups = groups[2];
+      maybePruneStorybookFavorites(buildStorybookCatalogue());
 
       if (storybookState.lastMode === 'storybook') {
         byId('browse-loading').style.display = 'none';
@@ -839,6 +897,7 @@
       copy.get('resumeButton', { time: runtimeFromTicks(resumeTicks(item)) }) :
       copy.get('playButton');
     byId('restart-button').style.display = resumeTicks(item) > 0 ? 'inline-block' : 'none';
+    updateFavoriteButton(item);
     showScreen('details-screen', 'play-button');
   }
 
@@ -932,6 +991,7 @@
     byId('details-back').addEventListener('click', handleBack);
     byId('play-button').addEventListener('click', function () { startPlayback(false); });
     byId('restart-button').addEventListener('click', function () { startPlayback(true); });
+    byId('favorite-button').addEventListener('click', toggleStorybookFavorite);
 
     document.addEventListener('keydown', function (event) {
       var code = event.keyCode;
