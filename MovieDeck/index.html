@@ -115,9 +115,13 @@
       </header>
       <div class="storybook-copy">
         <h1 id="storybook-greeting"></h1>
-        <p data-copy="storybookHomeHint">Pick a story door.</p>
+        <p id="storybook-home-hint" data-copy="storybookHomeHint">Pick a story door.</p>
       </div>
       <div id="storybook-doors" class="storybook-doors"></div>
+      <p id="storybook-empty-state"
+         class="storybook-empty-state"
+         role="status"
+         aria-live="polite"></p>
       <button id="storybook-edit-libraries"
               class="storybook-edit focusable"
               data-focusable

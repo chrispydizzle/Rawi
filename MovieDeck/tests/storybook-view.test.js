@@ -52,6 +52,7 @@ function FakeElement(document, tagName) {
   this.attributes = {};
   this.listeners = {};
   this.classList = new FakeClassList();
+  this.style = {};
   this.textContent = '';
   this.id = '';
 
@@ -156,7 +157,9 @@ function loadViewHarness() {
     childName: append(document, document.body, 'input', 'storybook-child-name'),
     doors: append(document, document.body, 'div', 'storybook-doors'),
     edit: append(document, document.body, 'button', 'storybook-edit-libraries'),
+    emptyState: append(document, document.body, 'p', 'storybook-empty-state'),
     greeting: append(document, document.body, 'h1', 'storybook-greeting'),
+    hint: append(document, document.body, 'p', 'storybook-home-hint'),
     settings: append(document, document.body, 'button', 'storybook-settings-button'),
     settingsError: append(document, document.body, 'p', 'storybook-settings-error'),
     settingsLibraries: append(document, document.body, 'div', 'storybook-library-options'),
@@ -182,6 +185,7 @@ function loadViewHarness() {
           if (key === 'storybookDoorAriaLabel') { return 'Open ' + values.library; }
           if (key === 'storybookGreeting') { return 'What should we watch tonight, ' + values.child + '?'; }
           if (key === 'storybookGreetingWithoutName') { return 'What should we watch tonight?'; }
+          if (key === 'storybookNoSelectedLibraries') { return 'No Storybook libraries are available.'; }
           return key;
         }
       }
@@ -234,6 +238,8 @@ function loadViewHarness() {
   assert.strictEqual(secondDoor.getAttribute('aria-label'), 'Open Disney');
   assert.strictEqual(harness.document.activeElement, harness.buttons.doors.children[0]);
   assert.strictEqual(harness.document.body.classList.contains('storybook-reduced-motion'), true);
+  assert.strictEqual(harness.buttons.emptyState.style.display, 'none');
+  assert.strictEqual(harness.buttons.hint.style.display, '');
   assert.deepStrictEqual(harness.animationCalls, [true]);
 
   secondDoor.click();
@@ -269,4 +275,23 @@ function loadViewHarness() {
     harness.modeCalls,
     [{ id: 'storybook-home-adult-mode-button', mode: 'adult' }]
   );
+}());
+
+(function showsRecoveryMessageAndFocusesEditButtonWhenNoLibrariesAreAvailable() {
+  var harness = loadViewHarness();
+
+  harness.view.renderHome({
+    childName: 'Nova',
+    libraries: [],
+    reducedMotion: false
+  });
+
+  assert.strictEqual(harness.buttons.hint.style.display, 'none');
+  assert.strictEqual(harness.buttons.emptyState.style.display, 'block');
+  assert.strictEqual(
+    harness.buttons.emptyState.textContent,
+    'No Storybook libraries are available.'
+  );
+  assert.strictEqual(harness.document.activeElement, harness.buttons.edit);
+  assert.deepStrictEqual(harness.animationCalls, [false]);
 }());

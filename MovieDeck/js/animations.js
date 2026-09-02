@@ -4,6 +4,7 @@
   var gsap = global.gsap;
   var scrollMotion = null;
   var scrollTween = null;
+  var storybookDoors = [];
 
   if (!gsap) {
     throw new Error('GSAP must be loaded before animations.js.');
@@ -61,17 +62,30 @@
     });
   }
 
+  function resetStorybookDoors() {
+    if (!storybookDoors.length) { return; }
+    gsap.killTweensOf(storybookDoors);
+    gsap.set(storybookDoors, {
+      clearProps: 'opacity,visibility,transform'
+    });
+    storybookDoors = [];
+  }
+
   function animateStorybookHome(forceReducedMotion) {
+    var entranceDuration = 0.45;
+    var entranceStagger = 0.08;
     var doors = document.querySelectorAll('#storybook-doors .storybook-door');
+
+    resetStorybookDoors();
     if (!doors.length) { return; }
-    gsap.killTweensOf(doors);
+    storybookDoors = Array.prototype.slice.call(doors);
+    gsap.set(storybookDoors, {
+      clearProps: 'opacity,visibility,transform'
+    });
     if (forceReducedMotion || prefersReducedMotion()) {
-      gsap.set(doors, {
-        clearProps: 'opacity,visibility,transform'
-      });
       return;
     }
-    gsap.fromTo(doors, {
+    gsap.fromTo(storybookDoors, {
       autoAlpha: 0,
       y: 28
     }, {
@@ -79,13 +93,16 @@
       clearProps: 'opacity,visibility',
       duration: 0.45,
       ease: 'back.out(1.05)',
+      overwrite: true,
       stagger: 0.08,
       y: 0
     });
-    Array.prototype.slice.call(doors, 0, 3).forEach(function (door, index) {
+    storybookDoors.slice(0, 3).forEach(function (door, index) {
       gsap.to(door, {
+        delay: entranceDuration + entranceStagger * index,
         duration: 4.2 + index * 0.35,
         ease: 'sine.inOut',
+        overwrite: true,
         repeat: -1,
         y: index % 2 ? 7 : -7,
         yoyo: true

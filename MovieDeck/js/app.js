@@ -260,17 +260,34 @@
     return shelf;
   }
 
-  function renderAdultGroups(groups) {
-    var definitions = [
-      [copy.get('continueWatchingTitle'), copy.get('continueWatchingCaption'), currentResume],
-      [copy.get('recentlyAddedTitle'), copy.get('recentlyAddedCaption'), currentLatest]
-    ];
+  function currentStorybookGroups() {
+    return currentGroups.filter(function (group) {
+      return storybookState.libraryIds.indexOf(String(group.id)) !== -1;
+    });
+  }
+
+  function renderStorybookHome() {
+    storybookView.renderHome({
+      childName: storybookState.childName,
+      libraries: currentStorybookGroups(),
+      reducedMotion: isStorybookReducedMotion()
+    });
+  }
+
+  function renderAdultGroups(groups, includeDefaultShelves) {
+    var definitions = [];
     var firstCard = null;
     var shelves = byId('shelves');
 
     groups = groups || [];
     shelves.innerHTML = '';
     byId('browse-error').style.display = 'none';
+    if (includeDefaultShelves !== false) {
+      definitions.push(
+        [copy.get('continueWatchingTitle'), copy.get('continueWatchingCaption'), currentResume],
+        [copy.get('recentlyAddedTitle'), copy.get('recentlyAddedCaption'), currentLatest]
+      );
+    }
     groups.forEach(function (group) {
       definitions.push([group.name, copy.get('libraryCaption', { count: group.videos.length }), group.videos]);
     });
@@ -296,7 +313,7 @@
     storybookLibraryOpen = true;
     renderAdultGroups(currentGroups.filter(function (group) {
       return group.id === libraryId;
-    }));
+    }), false);
     showScreen('browse-screen');
   }
 
@@ -342,27 +359,13 @@
       api.getLatest().catch(function () { return []; }),
       libraryGroups
     ]).then(function (groups) {
-      var resolution = storybookModel.resolveLibraries(
-        availableLibraries,
-        storybookState.libraryIds
-      );
-      var selectedMap = {};
       currentResume = groups[0];
       currentLatest = groups[1];
       currentGroups = groups[2];
-      resolution.selected.forEach(function (library) {
-        selectedMap[itemId(library)] = true;
-      });
 
       if (storybookState.lastMode === 'storybook') {
         byId('browse-loading').style.display = 'none';
-        storybookView.renderHome({
-          childName: storybookState.childName,
-          libraries: currentGroups.filter(function (group) {
-            return selectedMap[group.id];
-          }),
-          reducedMotion: isStorybookReducedMotion()
-        });
+        renderStorybookHome();
         showScreen('storybook-screen');
         return;
       }
@@ -560,13 +563,7 @@
     if (activeScreen === 'quick-screen') { clearInterval(quickTimer); showScreen('setup-screen', 'server-url'); return; }
     if (activeScreen === 'browse-screen' && storybookLibraryOpen) {
       storybookLibraryOpen = false;
-      storybookView.renderHome({
-        childName: storybookState.childName,
-        libraries: currentGroups.filter(function (group) {
-          return storybookState.libraryIds.indexOf(group.id) !== -1;
-        }),
-        reducedMotion: isStorybookReducedMotion()
-      });
+      renderStorybookHome();
       showScreen('storybook-screen');
       return;
     }

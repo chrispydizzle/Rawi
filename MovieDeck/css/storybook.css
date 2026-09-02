@@ -93,6 +93,7 @@ body.mode-storybook {
   bottom: 125px;
   display: flex;
   left: 95px;
+  min-height: 422px;
   position: absolute;
   z-index: 2;
 }
@@ -125,21 +126,40 @@ body.mode-storybook {
 .storybook-door:nth-child(3n+1) {
   background: linear-gradient(#8297cf, #536da8);
   border-radius: 53% 47% 24px 30px / 41% 45% 22px 25px;
-  transform: rotate(2deg) translateY(-16px);
+  margin-bottom: 16px;
+  transform: rotate(2deg);
 }
 .storybook-door:nth-child(3n+2) {
   background: linear-gradient(#72aaa5, #3f7779);
   border-radius: 47% 53% 30px 22px / 45% 40% 24px 22px;
-  transform: rotate(-2deg) translateY(16px);
+  margin-bottom: -16px;
+  transform: rotate(-2deg);
 }
 .storybook-door:nth-child(3n) {
   background: linear-gradient(#c88283, #8f596f);
   border-radius: 56% 44% 22px 32px / 38% 48% 22px 25px;
-  transform: rotate(3deg) translateY(-8px);
+  margin-bottom: 8px;
+  transform: rotate(3deg);
 }
 .storybook-door:focus {
   box-shadow: 0 0 0 7px var(--storybook-gold), 0 24px 55px rgba(4,9,22,.5);
   outline: 0;
+}
+.storybook-empty-state {
+  background: rgba(15, 24, 48, .68);
+  border: 2px solid rgba(255,255,255,.16);
+  border-radius: 26px 30px 24px 28px;
+  color: var(--storybook-ink);
+  display: none;
+  font-size: 23px;
+  left: 95px;
+  line-height: 1.45;
+  margin: 0;
+  max-width: 560px;
+  padding: 22px 28px;
+  position: absolute;
+  top: 430px;
+  z-index: 2;
 }
 .storybook-edit {
   background: rgba(113,151,197,.3);

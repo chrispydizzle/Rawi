@@ -356,7 +356,9 @@ function buildDom(document) {
   append(browseScreen, 'div', 'shelves', '');
 
   append(storybookScreen, 'div', 'storybook-greeting', '');
+  append(storybookScreen, 'p', 'storybook-home-hint', '');
   append(storybookScreen, 'div', 'storybook-doors', '');
+  append(storybookScreen, 'p', 'storybook-empty-state', '');
   focusable(append(storybookScreen, 'button', 'storybook-home-adult-mode-button', '')).setAttribute('data-mode', 'adult');
   focusable(append(storybookScreen, 'button', 'storybook-home-storybook-mode-button', '')).setAttribute('data-mode', 'storybook');
   focusable(append(storybookScreen, 'button', 'storybook-edit-libraries', ''));
@@ -448,14 +450,14 @@ function loadAppHarness(options) {
     server: 'http://example',
     authenticateQuickConnect: function () { return Promise.resolve(); },
     connect: function () { return Promise.resolve(); },
-    getLatest: function () { return Promise.resolve([]); },
+    getLatest: function () { return Promise.resolve(options.latest || []); },
     getLibraries: function () {
       if (librariesDeferred) { return librariesDeferred.promise; }
       if (options.getLibrariesError) { return Promise.reject(options.getLibrariesError); }
       return Promise.resolve(options.libraries || []);
     },
     getQuickConnectState: function () { return Promise.resolve({ Authenticated: false }); },
-    getResume: function () { return Promise.resolve([]); },
+    getResume: function () { return Promise.resolve(options.resume || []); },
     getVideos: function (libraryId) {
       if (!libraryId) { return Promise.resolve(options.fallbackVideos || []); }
       return Promise.resolve((options.videosByLibrary && options.videosByLibrary[libraryId]) || []);
@@ -729,6 +731,8 @@ function loadAppHarness(options) {
       libraryIds: ['kids', 'disney'],
       reducedMotion: false
     },
+    latest: [{ Id: 'latest-1', Name: 'Latest film' }],
+    resume: [{ Id: 'resume-1', Name: 'Resume film' }],
     restoreSession: true,
     videosByLibrary: {
       disney: [{ Id: 'video-2', Name: 'Second video' }],
@@ -757,5 +761,43 @@ function loadAppHarness(options) {
   assert.deepStrictEqual(
     JSON.parse(JSON.stringify(harness.doorLibraryIds())),
     ['kids', 'disney']
+  );
+}());
+
+(async function showsStorybookRecoveryStateWhenSelectedLibrariesDisappear() {
+  var harness = loadAppHarness({
+    libraries: [
+      { Id: 'grownups', Name: 'Grownups' }
+    ],
+    preferences: {
+      version: 1,
+      enabled: true,
+      lastMode: 'storybook',
+      childName: 'Nova',
+      libraryIds: ['kids'],
+      reducedMotion: false
+    },
+    restoreSession: true,
+    videosByLibrary: {
+      grownups: [{ Id: 'video-3', Name: 'Third video' }]
+    }
+  });
+
+  await flush(12);
+
+  assert.strictEqual(harness.screenActive('storybook-screen'), true);
+  assert.deepStrictEqual(JSON.parse(JSON.stringify(harness.doorLibraryIds())), []);
+  assert.strictEqual(
+    harness.document.getElementById('storybook-empty-state').textContent,
+    'No Storybook libraries are available.'
+  );
+  assert.strictEqual(harness.document.activeElement.id, 'storybook-edit-libraries');
+
+  harness.document.getElementById('storybook-edit-libraries').click();
+
+  assert.strictEqual(harness.screenActive('storybook-settings-screen'), true);
+  assert.strictEqual(
+    harness.document.getElementById('storybook-settings-error').textContent,
+    'A previously selected library is no longer available.'
   );
 }());
