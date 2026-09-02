@@ -309,6 +309,40 @@ body.mode-storybook.storybook-reduced-motion .storybook-door {
   justify-content: center;
   padding: 26px 28px;
 }
+.storybook-menu-card {
+  background: rgba(11, 23, 51, .82);
+  border: 2px solid rgba(255,255,255,.16);
+  border-radius: 32px;
+  color: var(--storybook-ink);
+  flex: 0 0 320px;
+  min-height: 300px;
+  overflow: hidden;
+  padding: 0;
+  text-align: left;
+}
+.storybook-menu-card-art,
+.storybook-menu-card-image,
+.storybook-menu-card-fallback {
+  height: 200px;
+  width: 320px;
+}
+.storybook-menu-card-fallback {
+  align-items: flex-end;
+  color: var(--storybook-ink);
+  display: flex;
+  font-family: "Segoe Print", "Comic Sans MS", cursive;
+  font-size: 28px;
+  justify-content: flex-start;
+  line-height: 1.05;
+  padding: 22px;
+}
+.storybook-menu-card-copy {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  padding: 26px 28px;
+}
 .storybook-card-title {
   font-family: "Segoe Print", "Comic Sans MS", cursive;
   font-size: 34px;

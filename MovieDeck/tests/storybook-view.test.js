@@ -256,6 +256,9 @@ function loadViewHarness(options) {
     libraryEmpty: append(document, document.body, 'p', 'storybook-library-empty'),
     libraryStorybook: append(document, document.body, 'button', 'storybook-library-storybook-mode-button'),
     libraryTitle: append(document, document.body, 'h1', 'storybook-library-title'),
+    littleMenu: append(document, document.body, 'div', 'storybook-little-menu'),
+    littleMenuSection: append(document, document.body, 'section', 'storybook-little-menu-section'),
+    littleMenuTitle: append(document, document.body, 'h2', 'storybook-little-menu-title'),
     reset: append(document, document.body, 'button', 'storybook-reset'),
     resumeSection: append(document, document.body, 'section', 'storybook-resume-section'),
     resumeSlot: append(document, document.body, 'div', 'storybook-resume-slot'),
@@ -371,6 +374,7 @@ function loadViewHarness(options) {
           if (key === 'storybookCategoryAnimals') { return 'Animal Friends'; }
           if (key === 'storybookCategoryLearning') { return 'Little Lessons'; }
           if (key === 'storybookCategoryMovement') { return 'Move Around'; }
+          if (key === 'storybookLittleMenuTitle') { return "Tonight's Little Menu"; }
           return key;
         }
       }
@@ -516,8 +520,9 @@ function loadViewHarness(options) {
   assert.deepStrictEqual(harness.openCategories(), ['animals']);
 }());
 
-(function rendersResumeAndFavoritesBeforeStoryDoors() {
+(function rendersResumeLittleMenuAndFavoritesBeforeStoryDoors() {
   var harness = loadViewHarness();
+  var menuCards;
   var favoriteCards;
 
   harness.view.renderHome({
@@ -528,49 +533,56 @@ function loadViewHarness(options) {
       ariaLabel: 'Open Bluey',
       artworkUrl: '',
       id: 'bluey',
-      minutesLabel: '28 min',
+      minutesLabel: '28 min • Cozy episode',
       progressPercent: 21,
       resumeLabel: 'Resume from 6m',
       title: "Bluey's Big Adventure"
     },
-    favorites: [
+    littleMenu: [
       {
         accentClass: 'storybook-accent-sea',
         ariaLabel: 'Open Dance With Me',
         artworkUrl: '',
         id: 'dance',
-        minutesLabel: '12 min',
+        minutesLabel: '12 min • Quick story',
         progressPercent: 0,
         resumeLabel: '',
         title: 'Dance With Me'
       }
     ],
-    libraries: [
+    favorites: [
       {
         accentClass: 'storybook-accent-coral',
+        ariaLabel: 'Open The Color Garden',
         artworkUrl: '',
+        id: 'colors',
+        minutesLabel: '9 min • Quick story',
+        progressPercent: 0,
+        resumeLabel: '',
+        title: 'The Color Garden'
+      }
+    ],
+    libraries: [
+      {
+        accentClass: 'storybook-accent-periwinkle',
         id: 'kids',
-        subtitle: '1 story',
+        subtitle: '3 titles',
         title: 'Kids'
       }
     ]
   });
 
+  menuCards = harness.buttons.littleMenu.children;
   favoriteCards = harness.buttons.favorites.children;
 
-  assert.strictEqual(harness.buttons.resumeSection.style.display, 'block');
-  assert.strictEqual(harness.buttons.favoriteSection.style.display, 'block');
-  assert.strictEqual(harness.buttons.resumeTitle.textContent, "Continue Nova's Story");
-  assert.strictEqual(harness.buttons.favoriteTitle.textContent, "Nova's Favorites");
-  assert.strictEqual(harness.document.activeElement.id, 'storybook-resume-card');
+  assert.strictEqual(harness.buttons.littleMenuSection.style.display, 'block');
+  assert.strictEqual(harness.buttons.littleMenuTitle.textContent, "Tonight's Little Menu");
+  assert.strictEqual(menuCards.length, 1);
+  assert.strictEqual(menuCards[0].id, 'storybook-menu-card-dance');
   assert.strictEqual(favoriteCards.length, 1);
-  assert.strictEqual(favoriteCards[0].getAttribute('data-item-id'), 'dance');
 
-  harness.document.getElementById('storybook-resume-card').click();
-  assert.deepStrictEqual(
-    JSON.parse(JSON.stringify(harness.openItems)),
-    [{ id: 'bluey', source: 'resume' }]
-  );
+  menuCards[0].click();
+  assert.deepStrictEqual(JSON.parse(JSON.stringify(harness.openItems)), [{ id: 'dance', source: 'menu' }]);
 }());
 
 (function waitsForStorybookHomeReadinessBeforeFocusingPreferredDoor() {

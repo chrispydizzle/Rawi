@@ -113,6 +113,7 @@
     storybookCategoryAnimals: 'Animal Friends',
     storybookCategoryLearning: 'Little Lessons',
     storybookCategoryMovement: 'Move Around',
+    storybookLittleMenuTitle: "Tonight's Little Menu",
     posterAlt: '{title} poster',
     resumeButton: '▶ Resume at {time}',
     finishedToast: 'Finished {title}',

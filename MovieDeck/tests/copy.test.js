@@ -136,3 +136,7 @@ var copy = load('js/copy.js', { window: {} }).RawiCopy;
     'Open Animal Friends'
   );
 }());
+
+(function exposesStorybookLittleMenuCopyDefault() {
+  assert.strictEqual(copy.get('storybookLittleMenuTitle'), "Tonight's Little Menu");
+}());

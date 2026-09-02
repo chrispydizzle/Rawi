@@ -189,6 +189,8 @@
   function renderHome(model) {
     var resumeSection = byId('storybook-resume-section');
     var resumeSlot = byId('storybook-resume-slot');
+    var littleMenuSection = byId('storybook-little-menu-section');
+    var littleMenu = byId('storybook-little-menu');
     var favoritesSection = byId('storybook-favorites-section');
     var favorites = byId('storybook-favorites');
     var categorySection = byId('storybook-categories-section');
@@ -199,6 +201,7 @@
     var hint = byId('storybook-home-hint');
     var firstChoice = null;
     var libraries = model && model.libraries ? model.libraries : [];
+    var menuCards = model && model.littleMenu ? model.littleMenu : [];
     var favoriteCards = model && model.favorites ? model.favorites : [];
     var resumeCard = model && model.resume ? model.resume : null;
     var childName = model && model.childName ? model.childName : '';
@@ -219,6 +222,7 @@
       'storybookContinueTitleWithoutName',
       childName
     );
+    byId('storybook-little-menu-title').textContent = copy.get('storybookLittleMenuTitle');
     byId('storybook-favorites-title').textContent = sectionTitle(
       'storybookFavoritesTitle',
       'storybookFavoritesTitleWithoutName',
@@ -227,6 +231,7 @@
     byId('storybook-categories-title').textContent = copy.get('storybookCategoriesTitle');
 
     resumeSlot.innerHTML = '';
+    littleMenu.innerHTML = '';
     favorites.innerHTML = '';
     categories.innerHTML = '';
     container.innerHTML = '';
@@ -239,6 +244,13 @@
     } else {
       resumeSection.style.display = 'none';
     }
+
+    menuCards.forEach(function (item) {
+      var card = createStoryCard(item, 'storybook-menu-card', 'menu');
+      if (!firstChoice) { firstChoice = card; }
+      littleMenu.appendChild(card);
+    });
+    littleMenuSection.style.display = menuCards.length ? 'block' : 'none';
 
     favoriteCards.forEach(function (item) {
       var card = createStoryCard(item, 'storybook-favorite-card', 'favorite');

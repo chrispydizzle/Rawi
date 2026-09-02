@@ -760,6 +760,9 @@
       libraries: catalogue.selectedLibraries.map(function (group) {
         return storybookDoorModel(group);
       }),
+      littleMenu: discovery.littleMenu.map(function (item) {
+        return storybookCardModel(item);
+      }),
       preferredFocusId: preferredFocusId,
       reducedMotion: isStorybookReducedMotion(),
       resume: catalogue.resumeItem ? storybookCardModel(catalogue.resumeItem) : null

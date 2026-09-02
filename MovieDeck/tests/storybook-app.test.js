@@ -432,6 +432,9 @@ function buildDom(document) {
   var storybookResumeSection = append(storybookScreen, 'section', 'storybook-resume-section', '');
   append(storybookResumeSection, 'h2', 'storybook-resume-title', '');
   append(storybookResumeSection, 'div', 'storybook-resume-slot', '');
+  var storybookLittleMenuSection = append(storybookScreen, 'section', 'storybook-little-menu-section', '');
+  append(storybookLittleMenuSection, 'h2', 'storybook-little-menu-title', '');
+  append(storybookLittleMenuSection, 'div', 'storybook-little-menu', '');
   var storybookFavoritesSection = append(storybookScreen, 'section', 'storybook-favorites-section', '');
   append(storybookFavoritesSection, 'h2', 'storybook-favorites-title', '');
   append(storybookFavoritesSection, 'div', 'storybook-favorites', '');
@@ -645,6 +648,7 @@ function loadAppHarness(options) {
     storybookCategoryAnimals: 'Animal Friends',
     storybookCategoryLearning: 'Little Lessons',
     storybookCategoryMovement: 'Move Around',
+    storybookLittleMenuTitle: "Tonight's Little Menu",
     storybookMissingLibrary: 'A previously selected library is no longer available.',
     storybookMissingLibraryIdMultiple: 'Previously selected Storybook library IDs are no longer available: {ids}.',
     storybookMissingLibraryIdSingle: 'A previously selected Storybook library ID is no longer available: {ids}.',
@@ -1007,8 +1011,8 @@ function positionStoryDoors(harness) {
     ['pixar', 'songs', 'lessons']
   );
   assert.strictEqual(
-    harness.document.activeElement.getAttribute('data-library-id'),
-    'pixar'
+    harness.document.activeElement.getAttribute('data-item-id'),
+    'colors'
   );
   assert.deepStrictEqual(
     harness.apiCalls(),
@@ -1458,8 +1462,8 @@ asyncTest('savingStorybookSetupAfterExplicitToggleRestoresStorybookAcrossReload'
 
     assert.strictEqual(harness.screenActive('storybook-screen'), true);
     assert.strictEqual(
-      harness.document.activeElement.getAttribute('data-library-id'),
-      'kids'
+      harness.document.activeElement.getAttribute('data-item-id'),
+      'video-1'
     );
     assert.strictEqual(savedState.lastMode, 'storybook');
     assert.deepStrictEqual(savedState.libraryIds, ['kids']);
@@ -1467,8 +1471,8 @@ asyncTest('savingStorybookSetupAfterExplicitToggleRestoresStorybookAcrossReload'
   }).then(function () {
     assert.strictEqual(reloadHarness.screenActive('storybook-screen'), true);
     assert.strictEqual(
-      reloadHarness.document.activeElement.getAttribute('data-library-id'),
-      'kids'
+      reloadHarness.document.activeElement.getAttribute('data-item-id'),
+      'video-1'
     );
   });
 });
@@ -1911,8 +1915,8 @@ asyncTest('rendersSavedStorybookLibrariesOnDedicatedHome', function () {
     );
     assert.strictEqual(harness.document.body.classList.contains('storybook-reduced-motion'), true);
     assert.strictEqual(
-      harness.document.activeElement.getAttribute('data-library-id'),
-      'kids'
+      harness.document.activeElement.getAttribute('data-item-id'),
+      'video-2'
     );
     assert.deepStrictEqual(
       JSON.parse(JSON.stringify(harness.storybookMotionCalls())),
@@ -2693,8 +2697,8 @@ asyncTest('keepsSelectedAccessibleLibrariesAsStoryDoorsWhenOneLibraryReturnsNoVi
       ['kids', 'disney']
     );
     assert.strictEqual(
-      harness.document.activeElement.getAttribute('data-library-id'),
-      'kids'
+      harness.document.activeElement.getAttribute('data-item-id'),
+      'video-2'
     );
   });
 });
@@ -2905,8 +2909,8 @@ asyncTest('switchesIntoStorybookModeAndFocusesFirstDoorWhenLibrariesAreConfigure
     assert.strictEqual(harness.screenActive('storybook-screen'), true);
     assert.notStrictEqual(harness.screenEntries().indexOf('storybook-screen'), -1);
     assert.strictEqual(
-      harness.document.activeElement.getAttribute('data-library-id'),
-      'kids'
+      harness.document.activeElement.getAttribute('data-item-id'),
+      'video-2'
     );
   });
 });
@@ -2942,6 +2946,7 @@ asyncTest('movesRemoteFocusAcrossSixStoryDoorsWithoutDroppingLaterSelections', f
 
   return flush(12).then(function () {
     positionStoryDoors(harness);
+    harness.document.getElementById('storybook-door-one').focus();
 
     harness.document.dispatchEvent('keydown', {
       keyCode: 39,
@@ -3304,5 +3309,69 @@ asyncTest('categoryShortcutOpensFilteredCollectionAndBackRestoresExactCategoryFo
   }).then(function () {
     assert.strictEqual(harness.screenActive('storybook-screen'), true);
     assert.strictEqual(harness.document.activeElement.id, 'storybook-category-animals');
+  });
+});
+
+asyncTest('littleMenuIsStableForTheAppSessionAndOpensDetailsWithoutPlayback', function () {
+  var harness = loadAppHarness({
+    libraries: [
+      { Id: 'pixar', Name: 'Disney Pixar' },
+      { Id: 'songs', Name: 'Songs' },
+      { Id: 'lessons', Name: 'Lessons' }
+    ],
+    preferences: basePreferences({
+      enabled: true,
+      lastMode: 'storybook',
+      libraryIds: ['pixar', 'songs', 'lessons']
+    }),
+    restoreSession: true,
+    storybookBootstrap: defaultStorybookBootstrap({
+      nowMs: Date.parse('2026-09-02T02:00:00.000Z'),
+      storybookSessionSeed: 'little-menu-app-seed'
+    }),
+    resume: [
+      { Id: 'bluey', Name: "Bluey's Big Adventure", UserData: { PlaybackPositionTicks: 600000000, PlayedPercentage: 14 } }
+    ],
+    videosByLibrary: {
+      pixar: [
+        { Id: 'bluey', Name: "Bluey's Big Adventure", RunTimeTicks: 16800000000, Tags: ['animals'], UserData: { PlaybackPositionTicks: 600000000, PlayedPercentage: 14 } },
+        { Id: 'fox', Name: 'Fox and Fireflies', RunTimeTicks: 6600000000, Tags: ['animals'] }
+      ],
+      songs: [
+        { Id: 'dance', Name: 'Dance With Me', RunTimeTicks: 7200000000, Tags: ['sing-along', 'movement'] },
+        { Id: 'stretch', Name: 'Stretch and Sway', RunTimeTicks: 8400000000, Tags: ['movement'] }
+      ],
+      lessons: [
+        { Id: 'colors', Name: 'The Color Garden', RunTimeTicks: 5400000000, Tags: ['learning'] }
+      ]
+    }
+  });
+
+  return flush(12).then(function () {
+    var firstIds = Array.prototype.map.call(
+      harness.document.getElementById('storybook-little-menu').children,
+      function (node) {
+        return node.getAttribute('data-item-id');
+      }
+    );
+
+    harness.document.getElementById('storybook-door-pixar').click();
+    harness.document.getElementById('storybook-library-back').click();
+
+    return flush(12).then(function () {
+      var secondIds = Array.prototype.map.call(
+        harness.document.getElementById('storybook-little-menu').children,
+        function (node) {
+          return node.getAttribute('data-item-id');
+        }
+      );
+
+      assert.deepStrictEqual(JSON.parse(JSON.stringify(firstIds)), ['dance', 'fox', 'colors']);
+      assert.deepStrictEqual(JSON.parse(JSON.stringify(secondIds)), ['dance', 'fox', 'colors']);
+
+      harness.document.getElementById('storybook-menu-card-dance').click();
+      assert.strictEqual(harness.screenActive('storybook-details-screen'), true);
+      assert.deepStrictEqual(harness.playCalls(), []);
+    });
   });
 });
