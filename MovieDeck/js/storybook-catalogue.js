@@ -17,6 +17,36 @@
     return '';
   }
 
+  function playedTimestampOf(item) {
+    var candidates = [];
+    var userData;
+    var i;
+    var value;
+    var parsed;
+    var best = null;
+
+    if (!item) { return null; }
+
+    userData = item.UserData || {};
+    if (userData.LastPlayedDate !== undefined && userData.LastPlayedDate !== null) {
+      candidates.push(userData.LastPlayedDate);
+    }
+    if (item.lastPlayedDate !== undefined && item.lastPlayedDate !== null) {
+      candidates.push(item.lastPlayedDate);
+    }
+
+    for (i = 0; i < candidates.length; i += 1) {
+      value = candidates[i];
+      if (value === '') { continue; }
+      parsed = Date.parse(String(value));
+      if (!isNaN(parsed) && (best === null || parsed > best)) {
+        best = parsed;
+      }
+    }
+
+    return best;
+  }
+
   function requestedLibrariesSucceeded(loadState) {
     var state = loadState || {};
     var requestedIds = state.requestedLibraryIds || [];
@@ -81,6 +111,8 @@
     var favoriteItems = [];
     var favoriteIdsToPrune = [];
     var resumeItem = null;
+    var resumeItemTimestamp = null;
+    var resumeItemHasValidTimestamp = false;
     var index = buildIndex(input.groups || []);
     var resumeItems = input.resumeItems || [];
     var favoriteIds = preferences.favoriteItemIds || [];
@@ -90,6 +122,8 @@
     var key;
     var libraryId;
     var item;
+    var currentTimestamp;
+    var currentHasValidTimestamp;
 
     for (i = 0; i < resolution.selected.length; i += 1) {
       selectedMap[itemId(resolution.selected[i])] = true;
@@ -105,9 +139,17 @@
     for (i = 0; i < resumeItems.length; i += 1) {
       key = itemId(resumeItems[i]);
       libraryId = index.libraryIdByItemId[key];
-      if (key && selectedMap[libraryId]) {
+      if (!key || !selectedMap[libraryId]) { continue; }
+
+      currentTimestamp = playedTimestampOf(resumeItems[i]);
+      currentHasValidTimestamp = currentTimestamp !== null;
+      if (resumeItem === null ||
+          (currentHasValidTimestamp && !resumeItemHasValidTimestamp) ||
+          (currentHasValidTimestamp && resumeItemHasValidTimestamp &&
+            currentTimestamp > resumeItemTimestamp)) {
         resumeItem = index.itemById[key] || resumeItems[i];
-        break;
+        resumeItemTimestamp = currentTimestamp;
+        resumeItemHasValidTimestamp = currentHasValidTimestamp;
       }
     }
 
