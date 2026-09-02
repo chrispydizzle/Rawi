@@ -34,6 +34,11 @@
   function text(id, content) { byId(id).textContent = content || ''; }
   function name(item) { return value(item, 'Name', 'name') || copy.get('untitled'); }
   function itemId(item) { return value(item, 'Id', 'id'); }
+  function queryValue(name) {
+    var search = global.location && global.location.search ? global.location.search : '';
+    var match = new RegExp('[?&]' + name + '=([^&]+)').exec(search);
+    return match ? decodeURIComponent(match[1]) : '';
+  }
   function runtime(item) {
     var ticks = value(item, 'RunTimeTicks', 'runTimeTicks') || 0;
     return ticks ? copy.get('runtimeMinutes', { minutes: Math.round(ticks / 600000000) }) : '';
@@ -307,6 +312,32 @@
       return;
     }
     firstCard.focus();
+  }
+
+  function startStorybookPreview() {
+    var fixture = global.RawiPreviewFixtures.storybook;
+
+    api.user = fixture.user;
+    availableLibraries = fixture.libraries;
+    availableLibrariesReady = fixture.libraries.length > 0;
+    availableLibrariesLoading = false;
+    currentGroups = fixture.groups;
+    currentLatest = [];
+    currentResume = [];
+    storybookState = storybookPreferences.defaults();
+    storybookState.enabled = true;
+    storybookState.lastMode = 'storybook';
+    storybookState.childName = 'Nova';
+    storybookState.libraryIds = fixture.libraries.map(function (library) {
+      return library.Id;
+    });
+    storybookView.setMode('storybook');
+    storybookView.renderHome({
+      childName: storybookState.childName,
+      libraries: fixture.groups,
+      reducedMotion: false
+    });
+    showScreen('storybook-screen');
   }
 
   function openStorybookLibrary(libraryId) {
@@ -622,8 +653,13 @@
     updateClock();
     setInterval(updateClock, 30000);
     byId('server-url').value = localStorage.getItem('moviedeck.server') || defaultServer;
-    if (api.restore()) { openLibrary(); }
-    else { showScreen('setup-screen', 'server-url'); }
+    if (queryValue('preview') === 'storybook') {
+      startStorybookPreview();
+    } else if (api.restore()) {
+      openLibrary();
+    } else {
+      showScreen('setup-screen', 'server-url');
+    }
   }
 
   document.addEventListener('DOMContentLoaded', init);

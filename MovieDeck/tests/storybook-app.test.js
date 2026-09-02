@@ -400,6 +400,13 @@ function loadAppHarness(options) {
   var timers = [];
   var intervals = [];
   var enteredScreens = [];
+  var apiCalls = {
+    getLatest: 0,
+    getLibraries: 0,
+    getResume: 0,
+    getVideos: 0,
+    restore: 0
+  };
   var savedState = null;
   var storybookMotionCalls = [];
   var currentPreferences = JSON.parse(JSON.stringify(options.preferences || {
@@ -450,21 +457,32 @@ function loadAppHarness(options) {
     server: 'http://example',
     authenticateQuickConnect: function () { return Promise.resolve(); },
     connect: function () { return Promise.resolve(); },
-    getLatest: function () { return Promise.resolve(options.latest || []); },
+    getLatest: function () {
+      apiCalls.getLatest += 1;
+      return Promise.resolve(options.latest || []);
+    },
     getLibraries: function () {
+      apiCalls.getLibraries += 1;
       if (librariesDeferred) { return librariesDeferred.promise; }
       if (options.getLibrariesError) { return Promise.reject(options.getLibrariesError); }
       return Promise.resolve(options.libraries || []);
     },
     getQuickConnectState: function () { return Promise.resolve({ Authenticated: false }); },
-    getResume: function () { return Promise.resolve(options.resume || []); },
+    getResume: function () {
+      apiCalls.getResume += 1;
+      return Promise.resolve(options.resume || []);
+    },
     getVideos: function (libraryId) {
+      apiCalls.getVideos += 1;
       if (!libraryId) { return Promise.resolve(options.fallbackVideos || []); }
       return Promise.resolve((options.videosByLibrary && options.videosByLibrary[libraryId]) || []);
     },
     imageUrl: function () { return ''; },
     initiateQuickConnect: function () { return Promise.resolve({ Code: 'ABCD', Secret: 'secret' }); },
-    restore: function () { return restoreValue; },
+    restore: function () {
+      apiCalls.restore += 1;
+      return restoreValue;
+    },
     signOut: function () {}
   };
   var window = {
@@ -519,6 +537,16 @@ function loadAppHarness(options) {
       }
     },
     RawiStorybookPreferences: {
+      defaults: function () {
+        return {
+          version: 1,
+          enabled: false,
+          lastMode: 'adult',
+          childName: '',
+          libraryIds: [],
+          reducedMotion: false
+        };
+      },
       restore: function () {
         return JSON.parse(JSON.stringify(currentPreferences));
       },
@@ -527,13 +555,15 @@ function loadAppHarness(options) {
         savedState = JSON.parse(JSON.stringify(nextState));
         return JSON.parse(JSON.stringify(nextState));
       }
-    }
+    },
+    RawiPreviewFixtures: options.previewFixtures || null
   };
 
   buildDom(document);
   document.getElementById('hero-open').disabled = true;
   document.getElementById('restart-button').style = {};
 
+  window.location = { search: options.locationSearch || '' };
   window.window = window;
   window.document = document;
   window.localStorage = localStorage;
@@ -560,6 +590,15 @@ function loadAppHarness(options) {
   document.dispatchEvent('DOMContentLoaded', {});
 
   return {
+    apiCalls: function () {
+      return {
+        getLatest: apiCalls.getLatest,
+        getLibraries: apiCalls.getLibraries,
+        getResume: apiCalls.getResume,
+        getVideos: apiCalls.getVideos,
+        restore: apiCalls.restore
+      };
+    },
     deferred: librariesDeferred,
     document: document,
     doorLibraryIds: function () {
@@ -587,6 +626,69 @@ function loadAppHarness(options) {
     }
   };
 }
+
+(function entersDeterministicStorybookPreviewWithoutRestoringSession() {
+  var harness = loadAppHarness({
+    locationSearch: '?preview=storybook',
+    previewFixtures: {
+      storybook: {
+        user: { Id: 'preview-user', Name: 'Parent' },
+        libraries: [
+          { Id: 'pixar', Name: 'Disney Pixar' },
+          { Id: 'songs', Name: 'Sing & Dance' },
+          { Id: 'lessons', Name: 'Little Lessons' }
+        ],
+        groups: [
+          { id: 'pixar', name: 'Disney Pixar', videos: [{ Id: 'bluey', Name: "Bluey's Big Adventure" }] },
+          { id: 'songs', name: 'Sing & Dance', videos: [{ Id: 'dance', Name: 'Dance With Me' }] },
+          { id: 'lessons', name: 'Little Lessons', videos: [{ Id: 'colors', Name: 'The Color Garden' }] }
+        ]
+      }
+    },
+    restoreSession: true
+  });
+
+  assert.strictEqual(harness.screenActive('storybook-screen'), true);
+  assert.strictEqual(
+    harness.document.getElementById('storybook-greeting').textContent,
+    'What should we watch tonight, Nova?'
+  );
+  assert.deepStrictEqual(
+    JSON.parse(JSON.stringify(harness.doorLibraryIds())),
+    ['pixar', 'songs', 'lessons']
+  );
+  assert.deepStrictEqual(
+    harness.apiCalls(),
+    {
+      getLatest: 0,
+      getLibraries: 0,
+      getResume: 0,
+      getVideos: 0,
+      restore: 0
+    }
+  );
+}());
+
+(function previewlessStartupStillRestoresAndLoadsLibraries() {
+  var harness = loadAppHarness({
+    libraries: [{ Id: 'kids', Name: 'Kids' }],
+    restoreSession: true,
+    videosByLibrary: {
+      kids: [{ Id: 'video-1', Name: 'First video' }]
+    }
+  });
+
+  assert.deepStrictEqual(
+    harness.apiCalls(),
+    {
+      getLatest: 1,
+      getLibraries: 1,
+      getResume: 1,
+      getVideos: 0,
+      restore: 1
+    }
+  );
+}());
 
 (async function blocksSettingsWhileLibrariesAreStillLoading() {
   var libraries = deferred();

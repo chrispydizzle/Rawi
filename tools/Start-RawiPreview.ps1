@@ -3,6 +3,9 @@ param(
     [int]$Port = 4173,
 
     [Parameter(Mandatory = $false)]
+    [switch]$StorybookMock,
+
+    [Parameter(Mandatory = $false)]
     [switch]$Stop
 )
 
@@ -49,6 +52,9 @@ if (!$existing) {
 }
 
 $url = "http://127.0.0.1:$Port/"
+if ($StorybookMock) {
+    $url += '?preview=storybook'
+}
 $ready = $false
 for ($attempt = 0; $attempt -lt 20; $attempt++) {
     try {
@@ -77,5 +83,6 @@ if (Test-Path $edge) {
 }
 
 Write-Output "Rawi preview: $url"
+Write-Output "Storybook mock: .\tools\Start-RawiPreview.ps1 -StorybookMock"
 Write-Output "Press F12 for DevTools and refresh the page after edits."
 Write-Output "Stop it with: .\tools\Start-RawiPreview.ps1 -Stop"
