@@ -4,42 +4,9 @@
   var CLIENT_NAME = 'Rawi';
   var CLIENT_VERSION = '0.1.10';
   var copy = global.RawiCopy;
+  var storage = global.RawiStorage;
   var STORAGE_KEY = 'moviedeck.session';
   var DEVICE_ID_KEY = 'moviedeck.deviceId';
-
-  function preferenceAvailable() {
-    return !!(global.tizen && global.tizen.preference);
-  }
-
-  function storedValue(key) {
-    var stored = localStorage.getItem(key);
-    if (stored !== null) { return stored; }
-    if (!preferenceAvailable()) { return null; }
-    try {
-      if (!global.tizen.preference.exists(key)) { return null; }
-      stored = String(global.tizen.preference.getValue(key));
-      localStorage.setItem(key, stored);
-      return stored;
-    } catch (error) {
-      return null;
-    }
-  }
-
-  function storeValue(key, stored) {
-    localStorage.setItem(key, stored);
-    if (preferenceAvailable()) {
-      try { global.tizen.preference.setValue(key, stored); } catch (error) { /* Web storage remains authoritative. */ }
-    }
-  }
-
-  function removeStoredValue(key) {
-    localStorage.removeItem(key);
-    if (preferenceAvailable()) {
-      try {
-        if (global.tizen.preference.exists(key)) { global.tizen.preference.remove(key); }
-      } catch (error) { /* The optional preference store may be unavailable on older TVs. */ }
-    }
-  }
 
   function value(object, pascal, camel) {
     if (!object) { return undefined; }
@@ -53,11 +20,11 @@
   }
 
   function getDeviceId() {
-    var id = storedValue(DEVICE_ID_KEY);
+    var id = storage.get(DEVICE_ID_KEY);
     if (!id) {
       id = 'moviedeck-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
     }
-    storeValue(DEVICE_ID_KEY, id);
+    storage.set(DEVICE_ID_KEY, id);
     return id;
   }
 
@@ -80,7 +47,7 @@
 
   ApiClient.prototype.restore = function () {
     try {
-      var session = JSON.parse(storedValue(STORAGE_KEY));
+      var session = JSON.parse(storage.get(STORAGE_KEY));
       if (!session || !session.server || !session.token || !session.user) { return false; }
       this.server = session.server;
       this.token = session.token;
@@ -88,19 +55,19 @@
       this.save();
       return true;
     } catch (error) {
-      removeStoredValue(STORAGE_KEY);
+      storage.remove(STORAGE_KEY);
       return false;
     }
   };
 
   ApiClient.prototype.save = function () {
-    storeValue(STORAGE_KEY, JSON.stringify({ server: this.server, token: this.token, user: this.user }));
+    storage.set(STORAGE_KEY, JSON.stringify({ server: this.server, token: this.token, user: this.user }));
   };
 
   ApiClient.prototype.signOut = function () {
     this.token = '';
     this.user = null;
-    removeStoredValue(STORAGE_KEY);
+    storage.remove(STORAGE_KEY);
   };
 
   ApiClient.prototype.request = function (path, options) {
