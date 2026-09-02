@@ -21,15 +21,23 @@ function defaultPreferences() {
 
 function loadPreferences(stored) {
   var saved = null;
+  var storedValue = stored;
   var window = load('js/storybook-preferences.js', {
     window: {
       RawiStorage: {
-        get: function () { return stored; },
-        set: function (key, value) { saved = { key: key, value: value }; }
+        get: function () { return storedValue; },
+        set: function (key, value) {
+          storedValue = value;
+          saved = { key: key, value: value };
+        }
       }
     }
   });
-  return { api: window.RawiStorybookPreferences, saved: function () { return saved; } };
+  return {
+    api: window.RawiStorybookPreferences,
+    rawStored: function () { return storedValue; },
+    saved: function () { return saved; }
+  };
 }
 
 (function missingPreferencesUseSafeDefaults() {
@@ -157,6 +165,30 @@ function loadPreferences(stored) {
   assert.strictEqual(harness.saved(), null);
 }());
 
+(function blocksNonResetWritesWhileRecoveryIsRequired() {
+  var corrupt = '{not valid json';
+  var harness = loadPreferences(corrupt);
+  var result;
+
+  harness.api.restore();
+  result = harness.api.save({
+    enabled: true,
+    lastMode: 'storybook',
+    childName: 'Nova',
+    libraryIds: ['kids'],
+    favoriteItemIds: ['story-1'],
+    reducedMotion: true
+  });
+
+  assert.strictEqual(result, null);
+  assert.strictEqual(harness.saved(), null);
+  assert.strictEqual(harness.rawStored(), corrupt);
+  assert.deepStrictEqual(clone(harness.api.getRestoreStatus()), {
+    needsRecovery: true,
+    type: 'malformed'
+  });
+}());
+
 (function resetWritesVersionedDefaultsAfterRecovery() {
   var harness = loadPreferences('{broken');
   var result;
@@ -167,6 +199,44 @@ function loadPreferences(stored) {
   assert.deepStrictEqual(clone(result), defaultPreferences());
   assert.strictEqual(harness.saved().key, 'rawi.storybook.preferences');
   assert.deepStrictEqual(JSON.parse(harness.saved().value), defaultPreferences());
+  assert.deepStrictEqual(clone(harness.api.getRestoreStatus()), {
+    needsRecovery: false,
+    type: 'ok'
+  });
+}());
+
+(function confirmedResetAllowsNormalWritesAgain() {
+  var corrupt = JSON.stringify({ version: 99, enabled: true });
+  var harness = loadPreferences(corrupt);
+  var result;
+
+  harness.api.restore();
+  assert.strictEqual(harness.api.save({ enabled: true }), null);
+  assert.strictEqual(harness.rawStored(), corrupt);
+
+  harness.api.reset();
+  result = harness.api.save({
+    enabled: true,
+    lastMode: 'storybook',
+    childName: 'Nova',
+    libraryIds: ['one', 'one', 5],
+    favoriteItemIds: ['story-1', 'story-1', 8],
+    reducedMotion: false
+  });
+
+  assert.deepStrictEqual(clone(result), {
+    version: 2,
+    enabled: true,
+    lastMode: 'storybook',
+    childName: 'Nova',
+    libraryIds: ['one'],
+    favoriteItemIds: ['story-1'],
+    reducedMotion: false
+  });
+  assert.deepStrictEqual(
+    JSON.parse(harness.rawStored()),
+    clone(result)
+  );
   assert.deepStrictEqual(clone(harness.api.getRestoreStatus()), {
     needsRecovery: false,
     type: 'ok'

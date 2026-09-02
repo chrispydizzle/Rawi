@@ -351,20 +351,50 @@
     return Array.isArray(values) ? values.slice() : [];
   }
 
-  function saveStorybookState(overrides) {
+  function copyStorybookState(state) {
+    return {
+      enabled: state && state.enabled === true,
+      lastMode: state && state.lastMode === 'storybook' ? 'storybook' : 'adult',
+      childName: state && typeof state.childName === 'string' ? state.childName : '',
+      libraryIds: copyIds(state && state.libraryIds),
+      favoriteItemIds: copyIds(state && state.favoriteItemIds),
+      reducedMotion: !!(state && state.reducedMotion)
+    };
+  }
+
+  function currentStorybookMode() {
+    return storybookState && storybookState.lastMode === 'storybook' ?
+      'storybook' :
+      'adult';
+  }
+
+  function saveStorybookState(overrides, options) {
+    var nextState;
+    var saved;
+
     overrides = overrides || {};
-    storybookState = storybookPreferences.save({
-      enabled: overrides.enabled !== undefined ? overrides.enabled : storybookState.enabled,
-      lastMode: overrides.lastMode || storybookState.lastMode,
-      childName: overrides.childName !== undefined ? overrides.childName : storybookState.childName,
-      libraryIds: overrides.libraryIds !== undefined ? copyIds(overrides.libraryIds) : copyIds(storybookState.libraryIds),
-      favoriteItemIds: overrides.favoriteItemIds !== undefined ? copyIds(overrides.favoriteItemIds) : copyIds(storybookState.favoriteItemIds),
-      reducedMotion: overrides.reducedMotion !== undefined ? overrides.reducedMotion : storybookState.reducedMotion
-    });
+    nextState = copyStorybookState(storybookState);
+    nextState.enabled = overrides.enabled !== undefined ? overrides.enabled : nextState.enabled;
+    nextState.lastMode = overrides.lastMode || nextState.lastMode;
+    nextState.childName = overrides.childName !== undefined ? overrides.childName : nextState.childName;
+    nextState.libraryIds = overrides.libraryIds !== undefined ? copyIds(overrides.libraryIds) : nextState.libraryIds;
+    nextState.favoriteItemIds = overrides.favoriteItemIds !== undefined ? copyIds(overrides.favoriteItemIds) : nextState.favoriteItemIds;
+    nextState.reducedMotion = overrides.reducedMotion !== undefined ? overrides.reducedMotion : nextState.reducedMotion;
+    saved = storybookPreferences.save(nextState, options);
     storybookRestoreStatus = storybookPreferences.getRestoreStatus ?
       storybookPreferences.getRestoreStatus() :
-      { needsRecovery: false, type: 'ok' };
-    return storybookState;
+      storybookRestoreStatus;
+    if (!saved) {
+      return {
+        blocked: true,
+        state: storybookState
+      };
+    }
+    storybookState = saved;
+    return {
+      blocked: false,
+      state: storybookState
+    };
   }
 
   function imageUrl(item, type, width, height) {
@@ -430,6 +460,10 @@
     var index;
 
     if (!selectedItem || !canUseStorybookFavoriteControl()) { return; }
+    if (storybookRestoreStatus && storybookRestoreStatus.needsRecovery) {
+      openStorybookSettings('favorite-button');
+      return;
+    }
     id = itemId(selectedItem);
     if (!id) { return; }
 
@@ -650,10 +684,6 @@
     currentLatest = fixture.latest || [];
     currentResume = fixture.resume || [];
     currentLibraryLoadState = previewLibraryLoadState();
-    storybookRestoreStatus = {
-      needsRecovery: false,
-      type: 'ok'
-    };
     storybookResetConfirming = false;
     storybookState = previewStorybookState(fixture);
     storybookView.setMode('storybook');
@@ -931,18 +961,39 @@
 
   function applyMode(mode, controlId) {
     var nextMode = mode === 'storybook' ? 'storybook' : 'adult';
+    var activeMode = currentStorybookMode();
+    var saveResult;
+
+    if (storybookRestoreStatus && storybookRestoreStatus.needsRecovery) {
+      if (nextMode === activeMode) {
+        storybookView.setMode(activeMode);
+        return;
+      }
+      openStorybookSettings(controlId, { activateStorybookOnSave: nextMode === 'storybook' });
+      return;
+    }
+
     if (nextMode === 'storybook' && !storybookState.libraryIds.length) {
       if (!openStorybookSettings(controlId, { activateStorybookOnSave: true })) { return; }
       showToast(copy.get('storybookSetupRequired'));
       return;
     }
-    storybookState.lastMode = nextMode;
-    storybookState.enabled = storybookState.enabled || nextMode === 'storybook';
-    saveStorybookState({
-      enabled: storybookState.enabled,
+
+    saveResult = saveStorybookState({
+      enabled: storybookState.enabled || nextMode === 'storybook',
       favoriteItemIds: storybookState.favoriteItemIds,
       lastMode: nextMode
     });
+
+    if (saveResult.blocked) {
+      if (nextMode === activeMode) {
+        storybookView.setMode(activeMode);
+        return;
+      }
+      openStorybookSettings(controlId, { activateStorybookOnSave: nextMode === 'storybook' });
+      return;
+    }
+
     storybookResetConfirming = false;
     storybookView.setMode(nextMode);
     openLibrary();
@@ -969,8 +1020,10 @@
   }
 
   function saveStorybookSettings(nextPreferences) {
+    var saveResult;
+
     if (storybookRestoreStatus && storybookRestoreStatus.needsRecovery) { return; }
-    saveStorybookState({
+    saveResult = saveStorybookState({
       enabled: true,
       favoriteItemIds: storybookState.favoriteItemIds,
       lastMode: storybookSettingsIntent.activateStorybookOnSave ? 'storybook' : storybookSettingsIntent.modeOnOpen,
@@ -978,6 +1031,10 @@
       libraryIds: nextPreferences.libraryIds,
       reducedMotion: nextPreferences.reducedMotion
     });
+    if (saveResult.blocked) {
+      renderStorybookSettings();
+      return;
+    }
     storybookResetConfirming = false;
     setStorybookSettingsIntent();
     storybookView.setMode(storybookState.lastMode);
@@ -997,7 +1054,7 @@
 
     storybookState = storybookPreferences.reset ?
       storybookPreferences.reset() :
-      storybookPreferences.save(storybookPreferences.defaults());
+      storybookPreferences.save(storybookPreferences.defaults(), { allowRecoveryWrite: true });
     storybookRestoreStatus = storybookPreferences.getRestoreStatus ?
       storybookPreferences.getRestoreStatus() :
       { needsRecovery: false, type: 'ok' };

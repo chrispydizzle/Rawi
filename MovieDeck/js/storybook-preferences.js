@@ -125,8 +125,13 @@
     return normalize(parsed);
   }
 
-  function save(preferences) {
+  function save(preferences, options) {
     var normalized = normalize(preferences);
+
+    if (lastRestoreStatus.needsRecovery && !(options && options.allowRecoveryWrite)) {
+      return null;
+    }
+
     storage.set(KEY, JSON.stringify(normalized));
     restoreStatus({
       needsRecovery: false,
@@ -136,7 +141,7 @@
   }
 
   function reset() {
-    return save(defaults());
+    return save(defaults(), { allowRecoveryWrite: true });
   }
 
   global.RawiStorybookPreferences = {

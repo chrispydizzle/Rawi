@@ -14,6 +14,7 @@ var DEFAULT_TEST_FILES = [
   'storybook-model.test.js',
   'storybook-catalogue.test.js',
   'storybook-view.test.js',
+  'start-rawi-preview.test.js',
   'copy.test.js'
 ];
 
