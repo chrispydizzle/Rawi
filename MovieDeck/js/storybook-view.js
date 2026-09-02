@@ -169,6 +169,7 @@
     var resumeCard = model && model.resume ? model.resume : null;
     var childName = model && model.childName ? model.childName : '';
     var reducedMotion = !!(model && model.reducedMotion);
+    var scroller;
     var strip;
 
     byId('storybook-greeting').textContent = childName ?
@@ -188,7 +189,6 @@
     resumeSlot.innerHTML = '';
     favorites.innerHTML = '';
     container.innerHTML = '';
-    container.scrollLeft = 0;
 
     if (resumeCard) {
       firstChoice = createStoryCard(resumeCard, 'storybook-resume-card', 'resume');
@@ -205,9 +205,14 @@
     });
     favoritesSection.style.display = favoriteCards.length ? 'block' : 'none';
 
+    scroller = document.createElement('div');
+    scroller.className = 'storybook-door-scroller';
+    scroller.scrollLeft = 0;
+    container.appendChild(scroller);
+
     strip = document.createElement('div');
     strip.className = 'storybook-door-strip';
-    container.appendChild(strip);
+    scroller.appendChild(strip);
 
     libraries.forEach(function (library) {
       var door = document.createElement('button');

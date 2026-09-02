@@ -40,6 +40,17 @@ function createFocusableDoor(track, rect) {
   };
 }
 
+function shiftDoorRect(rect, distance) {
+  return {
+    bottom: rect.bottom,
+    height: rect.height,
+    left: rect.left - distance,
+    right: rect.right - distance,
+    top: rect.top,
+    width: rect.width
+  };
+}
+
 function createGsapRecorder() {
   var recorder = {
     fromToCalls: [],
@@ -246,4 +257,33 @@ function loadAnimationsHarness(matchMediaMatches, doors) {
   assert.strictEqual(harness.gsap.toCalls.length, 0);
   assert.strictEqual(track.style.transform, 'none');
   assert.strictEqual(scroller.scrollLeft, 537);
+}());
+
+(function keepsOverflowedStoryDoorsWithinOverscanBoundsAfterFocus() {
+  var scroller = createScroller(1240, 2520, 0, {
+    left: 120,
+    right: 1360
+  });
+  var track = createDoorTrack(scroller);
+  var doorRect = {
+    left: 1828,
+    right: 2098,
+    width: 270,
+    height: 390,
+    top: 500,
+    bottom: 890
+  };
+  var door = createFocusableDoor(track, doorRect);
+  var harness = loadAnimationsHarness(false, []);
+  var focusedRect;
+
+  harness.animations.focusStorybookDoor(door, false);
+
+  assert.strictEqual(harness.gsap.toCalls.length, 1);
+  assert.strictEqual(harness.gsap.toCalls[0].vars.position, 810);
+  harness.gsap.toCalls[0].vars.onComplete();
+  assert.strictEqual(scroller.scrollLeft, 810);
+  focusedRect = shiftDoorRect(doorRect, scroller.scrollLeft);
+  assert(focusedRect.left >= 192, 'expected left within overscan, got ' + focusedRect.left);
+  assert(focusedRect.right <= 1288, 'expected right within overscan, got ' + focusedRect.right);
 }());

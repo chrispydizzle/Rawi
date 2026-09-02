@@ -275,7 +275,12 @@ function loadViewHarness() {
     buttons: buttons,
     document: document,
     doorButtons: function () {
-      return buttons.doors.firstChild ? buttons.doors.firstChild.children : [];
+      return buttons.doors.firstChild && buttons.doors.firstChild.firstChild ?
+        buttons.doors.firstChild.firstChild.children :
+        [];
+    },
+    doorScroller: function () {
+      return buttons.doors.firstChild || null;
     },
     focusDoorCalls: function () {
       return JSON.parse(JSON.stringify(focusDoorCalls));
@@ -314,6 +319,7 @@ function loadViewHarness() {
   assert.strictEqual(secondDoor.getAttribute('aria-label'), 'Open Disney');
   assert.strictEqual(harness.document.activeElement, doors[0]);
   assert.strictEqual(harness.document.body.classList.contains('storybook-reduced-motion'), true);
+  assert.strictEqual(harness.doorScroller().className, 'storybook-door-scroller');
   assert.strictEqual(harness.buttons.emptyState.style.display, 'none');
   assert.strictEqual(harness.buttons.hint.style.display, '');
   assert.deepStrictEqual(harness.animationCalls, [true]);

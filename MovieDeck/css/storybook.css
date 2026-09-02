@@ -93,11 +93,17 @@ body.mode-storybook {
   bottom: 125px;
   left: 72px;
   min-height: 454px;
-  overflow: hidden;
+  overflow: visible;
   position: absolute;
   right: 105px;
-  padding: 18px 0 26px;
   z-index: 2;
+}
+.storybook-door-scroller {
+  min-height: 454px;
+  overflow: hidden;
+  padding: 18px 0 26px;
+  position: relative;
+  width: 100%;
 }
 .storybook-door-strip {
   align-items: flex-end;
@@ -327,9 +333,11 @@ body.mode-storybook.storybook-reduced-motion .storybook-door {
   left: 0;
   min-height: 0;
   overflow: visible;
-  padding: 0;
   position: relative;
   right: auto;
+}
+.storybook-home-page .storybook-door-scroller {
+  min-height: 0;
 }
 .storybook-home-page .storybook-door-strip {
   display: flex;

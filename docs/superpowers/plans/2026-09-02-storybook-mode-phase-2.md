@@ -1688,6 +1688,8 @@ git add MovieDeck\index.html MovieDeck\js\copy.js MovieDeck\js\storybook-view.js
 git commit -m "feat: add storybook home resume and favorites" -m "Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
 ```
 
+**Validation evidence for the Task 2 home-door overflow regression:** `storybook-view.js` now wraps Story Doors in a dedicated `.storybook-door-scroller` so horizontal overflow remains clamped while the outer watercolor layout stays vertically visible, preserving `MovieDeckAnimations.focusStorybookDoor` scroll semantics on Tizen-safe `overflow: hidden`. The added `animations.test.js` regression simulates an overflowed Storybook home, focuses a later door, and proves the scroller `scrollLeft` changes enough to bring the focused door inside the 72px overscan bounds. Targeted `animations.test.js` + `storybook-view.test.js` + `storybook-app.test.js`, the full suite, `node -c` syntax checks, and `git diff --check` all passed.
+
 ---
 
 ### Task 3: True Story Door Library Pages
