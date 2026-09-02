@@ -435,6 +435,9 @@ function buildDom(document) {
   var storybookFavoritesSection = append(storybookScreen, 'section', 'storybook-favorites-section', '');
   append(storybookFavoritesSection, 'h2', 'storybook-favorites-title', '');
   append(storybookFavoritesSection, 'div', 'storybook-favorites', '');
+  var storybookCategoriesSection = append(storybookScreen, 'section', 'storybook-categories-section', '');
+  append(storybookCategoriesSection, 'h2', 'storybook-categories-title', '');
+  append(storybookCategoriesSection, 'div', 'storybook-categories', '');
   append(storybookScreen, 'div', 'storybook-doors', '');
   append(storybookScreen, 'p', 'storybook-empty-state', '');
   focusable(append(storybookScreen, 'button', 'storybook-home-adult-mode-button', '')).setAttribute('data-mode', 'adult');
@@ -533,6 +536,7 @@ function loadAppHarness(options) {
       RawiStorybookModel: modelWindow.RawiStorybookModel
     }
   });
+  var discoveryWindow = load('js/storybook-discovery.js', { window: {} });
   var document = new FakeDocument();
   var localStorage = createStorage();
   var timers = [];
@@ -634,6 +638,13 @@ function loadAppHarness(options) {
     shelfItemCount: '{count} films',
     signOutConfirm: 'Press again',
     signedOut: 'Signed out',
+    storybookCategoriesTitle: 'Pick a kind of story',
+    storybookCategoryAriaLabel: 'Open {category}',
+    storybookCategorySingDance: 'Sing & Dance',
+    storybookCategoryBedtime: 'Bedtime Stories',
+    storybookCategoryAnimals: 'Animal Friends',
+    storybookCategoryLearning: 'Little Lessons',
+    storybookCategoryMovement: 'Move Around',
     storybookMissingLibrary: 'A previously selected library is no longer available.',
     storybookMissingLibraryIdMultiple: 'Previously selected Storybook library IDs are no longer available: {ids}.',
     storybookMissingLibraryIdSingle: 'A previously selected Storybook library ID is no longer available: {ids}.',
@@ -788,6 +799,7 @@ function loadAppHarness(options) {
     },
     RawiStorybookModel: modelWindow.RawiStorybookModel,
     RawiStorybookCatalogue: catalogueWindow.RawiStorybookCatalogue,
+    RawiStorybookDiscovery: discoveryWindow.RawiStorybookDiscovery,
     RawiStorybookPreferences: {
       defaults: function () {
         return basePreferences();
@@ -3250,5 +3262,47 @@ asyncTest('showsStorybookRecoveryStateWhenSelectedLibrariesDisappear', function 
       harness.document.getElementById('storybook-settings-warning').textContent,
       'A previously selected Storybook library ID is no longer available: kids.'
     );
+  });
+});
+
+asyncTest('categoryShortcutOpensFilteredCollectionAndBackRestoresExactCategoryFocus', function () {
+  var harness = loadAppHarness({
+    libraries: [
+      { Id: 'kids', Name: 'Kids' },
+      { Id: 'songs', Name: 'Songs' }
+    ],
+    preferences: basePreferences({
+      enabled: true,
+      lastMode: 'storybook',
+      libraryIds: ['kids', 'songs']
+    }),
+    restoreSession: true,
+    videosByLibrary: {
+      kids: [
+        { Id: 'animal-1', Name: 'Fox and Ferns', RunTimeTicks: 7200000000, Tags: ['animals'] },
+        { Id: 'bed-1', Name: 'Sleepy Stars', RunTimeTicks: 7200000000, Tags: ['bedtime'] }
+      ],
+      songs: [
+        { Id: 'song-1', Name: 'Dance With Me', RunTimeTicks: 7200000000, Tags: ['sing-along'] }
+      ]
+    }
+  });
+
+  return flush(12).then(function () {
+    harness.document.getElementById('storybook-category-animals').click();
+    assert.strictEqual(harness.screenActive('storybook-library-screen'), true);
+    assert.strictEqual(harness.document.getElementById('storybook-library-title').textContent, 'Animal Friends');
+    assert.strictEqual(harness.document.getElementById('storybook-library-cards').children.length, 1);
+
+    harness.document.getElementById('storybook-library-card-animal-1').click();
+    assert.strictEqual(harness.screenActive('storybook-details-screen'), true);
+    harness.document.getElementById('storybook-details-back').click();
+    assert.strictEqual(harness.screenActive('storybook-library-screen'), true);
+
+    harness.document.getElementById('storybook-library-back').click();
+    return flush(12);
+  }).then(function () {
+    assert.strictEqual(harness.screenActive('storybook-screen'), true);
+    assert.strictEqual(harness.document.activeElement.id, 'storybook-category-animals');
   });
 });

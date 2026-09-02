@@ -160,11 +160,39 @@
     return card;
   }
 
+  function createCategoryButton(model) {
+    var button = document.createElement('button');
+    var title = document.createElement('span');
+    var subtitle = document.createElement('span');
+
+    button.id = 'storybook-category-' + model.key;
+    button.className = 'storybook-category-button focusable ' + (model.accentClass || 'storybook-accent-sea');
+    button.setAttribute('data-category-key', model.key);
+    button.setAttribute('data-focusable', '');
+    button.setAttribute('aria-label', copy.get('storybookCategoryAriaLabel', { category: model.title }));
+
+    title.className = 'storybook-category-title';
+    title.textContent = model.title;
+    subtitle.className = 'storybook-category-subtitle';
+    subtitle.textContent = model.caption;
+
+    button.appendChild(title);
+    button.appendChild(subtitle);
+    button.addEventListener('click', function () {
+      if (callbacks.onOpenCategory) {
+        callbacks.onOpenCategory(model.key);
+      }
+    });
+    return button;
+  }
+
   function renderHome(model) {
     var resumeSection = byId('storybook-resume-section');
     var resumeSlot = byId('storybook-resume-slot');
     var favoritesSection = byId('storybook-favorites-section');
     var favorites = byId('storybook-favorites');
+    var categorySection = byId('storybook-categories-section');
+    var categories = byId('storybook-categories');
     var container = byId('storybook-doors');
     var editButton = byId('storybook-edit-libraries');
     var emptyState = byId('storybook-empty-state');
@@ -177,6 +205,7 @@
     var reducedMotion = !!(model && model.reducedMotion);
     var focusTarget = null;
     var renderToken = homeRenderToken + 1;
+    var categoryButtons = model && model.categories ? model.categories : [];
     var scroller;
     var strip;
 
@@ -195,9 +224,11 @@
       'storybookFavoritesTitleWithoutName',
       childName
     );
+    byId('storybook-categories-title').textContent = copy.get('storybookCategoriesTitle');
 
     resumeSlot.innerHTML = '';
     favorites.innerHTML = '';
+    categories.innerHTML = '';
     container.innerHTML = '';
     container.scrollLeft = 0;
 
@@ -215,6 +246,17 @@
       favorites.appendChild(card);
     });
     favoritesSection.style.display = favoriteCards.length ? 'block' : 'none';
+
+    categoryButtons.forEach(function (category) {
+      var button = createCategoryButton(category);
+      if (!firstChoice) { firstChoice = button; }
+      categories.appendChild(button);
+    });
+    categorySection.style.display = categoryButtons.length ? 'block' : 'none';
+    if (!firstChoice && categoryButtons.length) {
+      firstChoice = categories.firstChild;
+    }
+
     scroller = document.createElement('div');
     scroller.className = 'storybook-door-scroller';
     container.appendChild(scroller);

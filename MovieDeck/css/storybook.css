@@ -228,6 +228,37 @@ body.mode-storybook.storybook-reduced-motion .storybook-door {
   overflow-x: auto;
   padding-bottom: 8px;
 }
+.storybook-category-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+}
+.storybook-category-button {
+  background: rgba(10, 20, 44, .78);
+  border: 2px solid rgba(255,255,255,.16);
+  border-radius: 28px;
+  color: var(--storybook-ink);
+  min-width: 240px;
+  padding: 18px 22px;
+  text-align: left;
+}
+.storybook-category-button:focus {
+  box-shadow: 0 0 0 6px var(--storybook-gold), 0 24px 55px rgba(4,9,22,.5);
+  outline: 0;
+}
+.storybook-category-title,
+.storybook-category-subtitle {
+  display: block;
+}
+.storybook-category-title {
+  font-family: "Segoe Print", "Comic Sans MS", cursive;
+  font-size: 28px;
+  line-height: 1.12;
+}
+.storybook-category-subtitle {
+  color: var(--storybook-muted);
+  margin-top: 10px;
+}
 .storybook-resume-card,
 .storybook-favorite-card {
   background: rgba(11, 23, 51, .82);

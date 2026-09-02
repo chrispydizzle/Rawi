@@ -123,3 +123,16 @@ var copy = load('js/copy.js', { window: {} }).RawiCopy;
   assert.strictEqual(copy.get('storybookDurationCozyEpisode'), 'Cozy episode');
   assert.strictEqual(copy.get('storybookDurationBigMovie'), 'Big movie');
 }());
+
+(function exposesStorybookCategoryCopyDefaults() {
+  assert.strictEqual(copy.get('storybookCategoriesTitle'), 'Pick a kind of story');
+  assert.strictEqual(copy.get('storybookCategorySingDance'), 'Sing & Dance');
+  assert.strictEqual(copy.get('storybookCategoryBedtime'), 'Bedtime Stories');
+  assert.strictEqual(copy.get('storybookCategoryAnimals'), 'Animal Friends');
+  assert.strictEqual(copy.get('storybookCategoryLearning'), 'Little Lessons');
+  assert.strictEqual(copy.get('storybookCategoryMovement'), 'Move Around');
+  assert.strictEqual(
+    copy.get('storybookCategoryAriaLabel', { category: 'Animal Friends' }),
+    'Open Animal Friends'
+  );
+}());

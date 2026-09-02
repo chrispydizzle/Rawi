@@ -211,6 +211,7 @@ function loadViewHarness(options) {
   var modeCalls = [];
   var openLibraries = [];
   var openItems = [];
+  var openCategories = [];
   var openSettingsCount = 0;
   var endingActions = [];
   var playbackStarts = [];
@@ -237,6 +238,9 @@ function loadViewHarness(options) {
     endingPrimary: append(document, document.body, 'button', 'storybook-ending-all-done'),
     endingSecondary: append(document, document.body, 'button', 'storybook-ending-pick-another'),
     endingTitle: append(document, document.body, 'h1', 'storybook-ending-title'),
+    categorySection: append(document, document.body, 'section', 'storybook-categories-section'),
+    categories: append(document, document.body, 'div', 'storybook-categories'),
+    categoriesTitle: append(document, document.body, 'h2', 'storybook-categories-title'),
     doors: append(document, document.body, 'div', 'storybook-doors'),
     edit: append(document, document.body, 'button', 'storybook-edit-libraries'),
     emptyState: append(document, document.body, 'p', 'storybook-empty-state'),
@@ -360,6 +364,13 @@ function loadViewHarness(options) {
           if (key === 'storybookResetConfirmPrompt') {
             return 'Select Confirm reset to clear the saved Storybook settings.';
           }
+          if (key === 'storybookCategoriesTitle') { return 'Pick a kind of story'; }
+          if (key === 'storybookCategoryAriaLabel') { return 'Open ' + values.category; }
+          if (key === 'storybookCategorySingDance') { return 'Sing & Dance'; }
+          if (key === 'storybookCategoryBedtime') { return 'Bedtime Stories'; }
+          if (key === 'storybookCategoryAnimals') { return 'Animal Friends'; }
+          if (key === 'storybookCategoryLearning') { return 'Little Lessons'; }
+          if (key === 'storybookCategoryMovement') { return 'Move Around'; }
           return key;
         }
       }
@@ -376,6 +387,9 @@ function loadViewHarness(options) {
     },
     onModeChange: function (mode, id) {
       modeCalls.push({ id: id, mode: mode });
+    },
+    onOpenCategory: function (categoryKey) {
+      openCategories.push(categoryKey);
     },
     onOpenLibrary: function (libraryId) {
       openLibraries.push(libraryId);
@@ -416,6 +430,7 @@ function loadViewHarness(options) {
       return JSON.parse(JSON.stringify(focusDoorCalls));
     },
     modeCalls: modeCalls,
+    openCategories: function () { return openCategories.slice(); },
     openLibraries: openLibraries,
     openItems: openItems,
     openSettingsCount: function () { return openSettingsCount; },
@@ -469,6 +484,36 @@ function loadViewHarness(options) {
 
   secondDoor.click();
   assert.deepStrictEqual(harness.openLibraries, ['disney']);
+}());
+
+(function rendersCategoryShortcutsAndBindsOpenCallbacks() {
+  var harness = loadViewHarness();
+  var buttons;
+
+  harness.view.renderHome({
+    childName: 'Nova',
+    categories: [
+      {
+        accentClass: 'storybook-accent-sea',
+        caption: '2 titles',
+        key: 'animals',
+        title: 'Animal Friends'
+      }
+    ],
+    libraries: [
+      { id: 'kids', name: 'Kids' }
+    ],
+    reducedMotion: false
+  });
+
+  buttons = harness.buttons.categories.children;
+  assert.strictEqual(harness.buttons.categorySection.style.display, 'block');
+  assert.strictEqual(harness.buttons.categoriesTitle.textContent, 'Pick a kind of story');
+  assert.strictEqual(buttons[0].id, 'storybook-category-animals');
+  assert.strictEqual(buttons[0].getAttribute('aria-label'), 'Open Animal Friends');
+
+  buttons[0].click();
+  assert.deepStrictEqual(harness.openCategories(), ['animals']);
 }());
 
 (function rendersResumeAndFavoritesBeforeStoryDoors() {

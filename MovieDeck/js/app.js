@@ -6,6 +6,7 @@
   var copy = global.RawiCopy;
   var player = global.MovieDeckPlayer;
   var storybookCatalogue = global.RawiStorybookCatalogue;
+  var storybookDiscovery = global.RawiStorybookDiscovery;
   var storybookModel = global.RawiStorybookModel;
   var storybookPreferences = global.RawiStorybookPreferences;
   var storybookView = global.RawiStorybookView;
@@ -32,6 +33,7 @@
     videoRequests: {}
   };
   var currentStorybookCatalogue = null;
+  var currentStorybookDiscovery = null;
   var currentGroups = [];
   var currentLatest = [];
   var currentResume = [];
@@ -39,12 +41,16 @@
   var previousScreen = 'browse-screen';
   var previewStorybookFixture = null;
   var storybookLibraryState = {
+    items: [],
+    kind: 'library',
+    categoryKey: '',
     libraryId: '',
-    returnFocusId: ''
+    returnFocusId: '',
+    title: ''
   };
   var storybookDetailsState = {
+    collection: null,
     focusId: '',
-    libraryId: '',
     source: 'home'
   };
   var storybookEndingState = {
@@ -534,6 +540,29 @@
     return currentStorybookCatalogue;
   }
 
+  function buildStorybookDiscovery() {
+    currentStorybookDiscovery = storybookDiscovery.build({
+      catalogue: buildStorybookCatalogue(),
+      nowMs: currentStorybookNowMs(),
+      preferences: storybookState,
+      sessionSeed: currentStorybookSessionSeed()
+    });
+    return currentStorybookDiscovery;
+  }
+
+  function selectedStorybookCategory(categoryKey) {
+    var discovery = currentStorybookDiscovery || buildStorybookDiscovery();
+    var categories = discovery.categories || [];
+    var i;
+
+    for (i = 0; i < categories.length; i += 1) {
+      if (categories[i].key === categoryKey) {
+        return categories[i];
+      }
+    }
+    return null;
+  }
+
   function favoriteIds() {
     return copyIds(storybookState.favoriteItemIds);
   }
@@ -713,9 +742,18 @@
 
   function renderStorybookHome(preferredFocusId) {
     var catalogue = buildStorybookCatalogue();
+    var discovery = buildStorybookDiscovery();
 
     storybookView.renderHome({
       childName: storybookState.childName,
+      categories: discovery.categories.map(function (category) {
+        return {
+          accentClass: storybookAccentClass(category.key),
+          caption: copy.get('libraryCaption', { count: category.items.length }),
+          key: category.key,
+          title: copy.get(category.copyKey)
+        };
+      }),
       favorites: catalogue.favoriteItems.map(function (item) {
         return storybookCardModel(item);
       }),
@@ -798,25 +836,44 @@
     applyStorybookPreviewRoute();
   }
 
+  function openStorybookCollection(collectionState, preferredFocusId) {
+    storybookLibraryState = collectionState;
+    showScreen('storybook-library-screen');
+    storybookView.renderLibrary({
+      cards: collectionState.items.map(function (item) {
+        return storybookCardModel(item);
+      }),
+      preferredFocusId: preferredFocusId,
+      title: collectionState.title
+    });
+  }
+
   function openStorybookLibrary(libraryId, preferredFocusId) {
     var library = selectedStorybookLibrary(libraryId);
 
     if (!library) { return; }
-
-    storybookLibraryState = {
+    openStorybookCollection({
+      items: library.videos,
+      kind: 'library',
+      categoryKey: '',
       libraryId: libraryId,
-      returnFocusId: 'storybook-door-' + libraryId
-    };
-
-    showScreen('storybook-library-screen');
-    storybookView.renderLibrary({
-      cards: library.videos.map(function (item) {
-        return storybookCardModel(item);
-      }),
-      libraryId: libraryId,
-      preferredFocusId: preferredFocusId,
+      returnFocusId: 'storybook-door-' + libraryId,
       title: library.name
-    });
+    }, preferredFocusId);
+  }
+
+  function openStorybookCategory(categoryKey, preferredFocusId) {
+    var category = selectedStorybookCategory(categoryKey);
+
+    if (!category) { return; }
+    openStorybookCollection({
+      items: category.items,
+      kind: 'category',
+      categoryKey: categoryKey,
+      libraryId: '',
+      returnFocusId: 'storybook-category-' + categoryKey,
+      title: copy.get(category.copyKey)
+    }, preferredFocusId);
   }
 
   function closeStorybookLibrary() {
@@ -830,9 +887,15 @@
     selectedItem = item;
     updateFavoriteButton(null);
     storybookDetailsState = {
+      collection: activeScreen === 'storybook-library-screen' ? {
+        items: storybookLibraryState.items.slice(),
+        kind: storybookLibraryState.kind,
+        categoryKey: storybookLibraryState.categoryKey,
+        libraryId: storybookLibraryState.libraryId,
+        returnFocusId: storybookLibraryState.returnFocusId,
+        title: storybookLibraryState.title
+      } : null,
       focusId: source === 'library' ? 'storybook-library-card-' + id : 'storybook-' + source + '-card-' + id,
-      libraryId: currentStorybookCatalogue && currentStorybookCatalogue.libraryIdByItemId[id] ?
-        currentStorybookCatalogue.libraryIdByItemId[id] : '',
       source: source
     };
     if (source === 'resume') {
@@ -843,8 +906,8 @@
   }
 
   function closeStorybookDetails() {
-    if (storybookDetailsState.source === 'library') {
-      openStorybookLibrary(storybookDetailsState.libraryId, storybookDetailsState.focusId);
+    if (storybookDetailsState.source === 'library' && storybookDetailsState.collection) {
+      openStorybookCollection(storybookDetailsState.collection, storybookDetailsState.focusId);
       return;
     }
     showScreen('storybook-screen');
@@ -1377,6 +1440,7 @@
       onCloseStorybookDetails: closeStorybookDetails,
       onCloseStorybookLibrary: closeStorybookLibrary,
       onModeChange: applyMode,
+      onOpenCategory: openStorybookCategory,
       onOpenLibrary: openStorybookLibrary,
       onOpenSettings: openStorybookSettings,
       onOpenStorybookItem: function (itemId, source) {
