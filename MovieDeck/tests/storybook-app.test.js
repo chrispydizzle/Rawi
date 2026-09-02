@@ -3532,6 +3532,11 @@ asyncTest('emptyMagicPickPrimaryGoesHomeFocusedOnFirstStoryDoorAndSecondaryRetur
     harness.document.getElementById('storybook-magic-pick-button').click();
     assert.strictEqual(harness.screenActive('storybook-magic-pick-screen'), true);
     assert.strictEqual(harness.document.getElementById('storybook-magic-pick-title').textContent, 'No Magic Pick right now');
+    assert.strictEqual(harness.document.getElementById('storybook-magic-pick-reason').textContent, '');
+    assert.strictEqual(
+      harness.document.getElementById('storybook-magic-pick-overview').textContent,
+      'Everything in the selected Storybook libraries was finished recently. Try a Story Door instead.'
+    );
 
     harness.document.getElementById('storybook-magic-pick-primary').click();
     assert.strictEqual(harness.screenActive('storybook-screen'), true);

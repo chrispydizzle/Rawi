@@ -598,7 +598,7 @@
       minutesLabel: item ? storybookRuntime(item) : '',
       overview: item ? (value(item, 'Overview', 'overview') || copy.get('noSynopsis')) : copy.get('storybookMagicPickEmptyBody'),
       primaryActionLabel: item ? copy.get('storybookMagicPickOpenButton') : copy.get('storybookMagicPickEmptyPrimaryButton'),
-      reason: copy.get(result && result.reason ? result.reason.copyKey : 'storybookMagicReasonAnyStory'),
+      reason: item ? copy.get(result && result.reason ? result.reason.copyKey : 'storybookMagicReasonAnyStory') : '',
       secondaryActionLabel: item ? copy.get('storybookMagicPickAgainButton') : copy.get('storybookMagicPickEmptySecondaryButton'),
       title: item ? name(item) : copy.get('storybookMagicPickEmptyTitle')
     };
