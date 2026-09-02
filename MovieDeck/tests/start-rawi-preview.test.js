@@ -159,9 +159,25 @@ function runPowerShell(commandArgs, env) {
 
 function runPreview(root, env, args) {
   return runPowerShell(
-    ['-File', path.join(root, 'tools', 'Start-RawiPreview.ps1')].concat(args || []),
+    ['-File', path.join(root, 'tools', 'Start-RawiPreview.ps1'), '-NoBrowser'].concat(args || []),
     env
   );
+}
+
+function browserCapablePreviewEnvironment(sharedTemp) {
+  var env = previewEnvironment(sharedTemp);
+
+  if (process.env['ProgramFiles(x86)']) {
+    env['ProgramFiles(x86)'] = process.env['ProgramFiles(x86)'];
+  } else {
+    delete env['ProgramFiles(x86)'];
+  }
+  if (process.env.ProgramFiles) {
+    env.ProgramFiles = process.env.ProgramFiles;
+  } else {
+    delete env.ProgramFiles;
+  }
+  return env;
 }
 
 function runPowerShellCommand(command, env) {
@@ -277,6 +293,71 @@ function forceStopOwnedPreviewProcesses(root, env) {
   });
 }
 
+function findInstalledEdgePath(env) {
+  var result = runPowerShellCommand(
+    '$edge = "${env:ProgramFiles(x86)}\\Microsoft\\Edge\\Application\\msedge.exe"; ' +
+      'if (!(Test-Path $edge)) { $edge = "$env:ProgramFiles\\Microsoft\\Edge\\Application\\msedge.exe" }; ' +
+      'if (Test-Path $edge) { $edge }',
+    env
+  );
+
+  assert.strictEqual(result.status, 0, joinOutput(result));
+  return String(result.stdout || '').trim();
+}
+
+function getBrowserProcessIdsForUrl(url, env) {
+  var needle = String(url).replace(/'/g, "''");
+  var result = runPowerShellCommand(
+    "$needle = '" + needle + "'; " +
+      'Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | ' +
+      'Where-Object { $_.ProcessId -ne $PID -and $_.CommandLine -and $_.CommandLine.Contains($needle) } | ' +
+      'Select-Object -ExpandProperty ProcessId',
+    env
+  );
+  var output;
+
+  assert.strictEqual(result.status, 0, joinOutput(result));
+  output = String(result.stdout || '').trim();
+  if (!output) { return []; }
+  return output.split(/\r?\n/).filter(Boolean).map(function (value) {
+    return Number(String(value).trim());
+  });
+}
+
+function getPreviewStatusCode(url, env) {
+  var result = runPowerShellCommand(
+    "(Invoke-WebRequest '" + String(url).replace(/'/g, "''") + "' -UseBasicParsing -TimeoutSec 10).StatusCode",
+    env
+  );
+  var value;
+
+  assert.strictEqual(result.status, 0, joinOutput(result));
+  value = String(result.stdout || '').trim();
+  return value ? Number(value) : null;
+}
+
+function getProcessTreeWindowHandles(pid, env) {
+  var result = runPowerShellCommand(
+    '$target = ' + pid + '; ' +
+      '$ids = New-Object System.Collections.Generic.List[int]; ' +
+      '$ids.Add($target); ' +
+      "Get-CimInstance Win32_Process -Filter ('ParentProcessId=' + $target) -ErrorAction SilentlyContinue | " +
+      'ForEach-Object { $ids.Add([int]$_.ProcessId) }; ' +
+      'foreach ($id in $ids) { ' +
+      '$process = Get-Process -Id $id -ErrorAction SilentlyContinue; ' +
+      "if ($process) { '' + $process.Id + '=' + [int64]$process.MainWindowHandle } }",
+    env
+  );
+  var output;
+
+  assert.strictEqual(result.status, 0, joinOutput(result));
+  output = String(result.stdout || '').trim();
+  if (!output) { return []; }
+  return output.split(/\r?\n/).map(function (value) {
+    return String(value).trim();
+  }).filter(Boolean);
+}
+
 function getFreePort() {
   var result = runPowerShellCommand(
     '$listener = New-Object System.Net.Sockets.TcpListener([System.Net.IPAddress]::Loopback, 0); ' +
@@ -291,7 +372,7 @@ function getFreePort() {
   return Number(value);
 }
 
-function testReusesOwnedPreviewForNewStorybookRoutes() {
+function testReusesOwnedPreviewForStorybookPhase3Routes() {
   var workspace = makeWorkspace();
   var sharedTemp = path.join(workspace, 'shared-temp');
   var root = createPreviewCopy(workspace, 'owner-a', 'Owner A');
@@ -302,39 +383,99 @@ function testReusesOwnedPreviewForNewStorybookRoutes() {
   try {
     var initial = runPreview(root, env, ['-Port', String(port), '-StorybookMock']);
     var initialState;
-    var second;
-    var secondState;
-    var routeOutput;
-    var secondPid;
+    var magicRoute;
+    var categoryRoute;
+    var detailsRoute;
     var stopResult;
 
     assert.strictEqual(initial.status, 0, hostLabel() + joinOutput(initial));
     initialState = getPreviewState(root, env);
-    assert(initialState, 'expected preview state metadata after starting the preview');
     listenerPid = Number(initialState.ProcessId);
-    assert(listenerPid, 'expected a listener PID after starting the preview');
+    assert(listenerPid, 'expected preview state metadata after starting the preview');
     assert.strictEqual(waitForProcessState(listenerPid, env, true), true);
 
-    second = runPreview(root, env, [
-      '-Port', String(port),
-      '-StorybookMock',
-      '-StorybookScreen', 'details',
-      '-StorybookItemId', 'bluey'
-    ]);
-    routeOutput = joinOutput(second);
+    magicRoute = runPreview(root, env, ['-Port', String(port), '-StorybookMock', '-StorybookScreen', 'magic']);
+    assert.strictEqual(magicRoute.status, 0, hostLabel() + joinOutput(magicRoute));
+    assert.notStrictEqual(joinOutput(magicRoute).indexOf('storybookScreen=magic'), -1, hostLabel() + joinOutput(magicRoute));
+    assert.strictEqual(Number(getPreviewState(root, env).ProcessId), listenerPid, hostLabel() + joinOutput(magicRoute));
 
-    assert.strictEqual(second.status, 0, hostLabel() + routeOutput);
-    secondState = getPreviewState(root, env);
-    assert(secondState, 'expected preview state metadata after reusing the preview');
-    secondPid = Number(secondState.ProcessId);
-    assert.strictEqual(secondPid, listenerPid, hostLabel() + routeOutput);
-    assert.strictEqual(waitForProcessState(secondPid, env, true), true, hostLabel() + routeOutput);
+    categoryRoute = runPreview(root, env, ['-Port', String(port), '-StorybookMock', '-StorybookScreen', 'category', '-StorybookCategoryKey', 'animals']);
+    assert.strictEqual(categoryRoute.status, 0, hostLabel() + joinOutput(categoryRoute));
+    assert.notStrictEqual(joinOutput(categoryRoute).indexOf('storybookScreen=category&storybookCategoryKey=animals'), -1, hostLabel() + joinOutput(categoryRoute));
+    assert.strictEqual(Number(getPreviewState(root, env).ProcessId), listenerPid, hostLabel() + joinOutput(categoryRoute));
+
+    detailsRoute = runPreview(root, env, ['-Port', String(port), '-StorybookMock', '-StorybookScreen', 'details', '-StorybookItemId', 'bluey']);
+    assert.strictEqual(detailsRoute.status, 0, hostLabel() + joinOutput(detailsRoute));
     assert.notStrictEqual(
-      routeOutput.indexOf(
+      joinOutput(detailsRoute).indexOf(
         'Rawi preview: http://127.0.0.1:' + port + '/?preview=storybook&storybookScreen=details&storybookItemId=bluey'
       ),
       -1,
-      hostLabel() + routeOutput
+      hostLabel() + joinOutput(detailsRoute)
+    );
+    assert.strictEqual(Number(getPreviewState(root, env).ProcessId), listenerPid, hostLabel() + joinOutput(detailsRoute));
+
+    stopResult = runPreview(root, env, ['-Port', String(port), '-Stop']);
+    assert.strictEqual(stopResult.status, 0, hostLabel() + joinOutput(stopResult));
+    assert.strictEqual(waitForProcessState(listenerPid, env, false), true, hostLabel() + joinOutput(stopResult));
+    assert.strictEqual(getPreviewState(root, env), null, hostLabel() + joinOutput(stopResult));
+    assert.deepStrictEqual(getOwnedPreviewProcessIds(root, env), [], hostLabel() + joinOutput(stopResult));
+    listenerPid = null;
+  } finally {
+    forceStopOwnedPreviewProcesses(root, env);
+    forceStopProcess(listenerPid, env);
+    deleteTree(workspace);
+  }
+}
+
+function testNoBrowserServesStorybookPhase3RoutesWithoutOpeningAnInstalledBrowser() {
+  var workspace = makeWorkspace();
+  var sharedTemp = path.join(workspace, 'shared-temp');
+  var root = createPreviewCopy(workspace, 'owner-a', 'Owner A');
+  var env = browserCapablePreviewEnvironment(sharedTemp);
+  var port = getFreePort();
+  var listenerPid = null;
+
+  try {
+    var edgePath = findInstalledEdgePath(env);
+    var baseUrl = 'http://127.0.0.1:' + port + '/';
+    var magicUrl = baseUrl + '?preview=storybook&storybookScreen=magic';
+    var start;
+    var magicRoute;
+    var stopResult;
+
+    assert.notStrictEqual(
+      edgePath,
+      '',
+      hostLabel() + 'expected a real installed Microsoft Edge so -NoBrowser is proven without faking ProgramFiles.'
+    );
+
+    start = runPreview(root, env, ['-Port', String(port), '-StorybookMock']);
+    assert.strictEqual(start.status, 0, hostLabel() + joinOutput(start));
+    listenerPid = Number(getPreviewState(root, env).ProcessId);
+    assert(listenerPid, 'expected preview state metadata after starting the preview with -NoBrowser');
+    assert.strictEqual(waitForProcessState(listenerPid, env, true), true);
+
+    magicRoute = runPreview(root, env, ['-Port', String(port), '-StorybookMock', '-StorybookScreen', 'magic']);
+    assert.strictEqual(magicRoute.status, 0, hostLabel() + joinOutput(magicRoute));
+    assert.notStrictEqual(
+      joinOutput(magicRoute).indexOf('Rawi preview: ' + magicUrl),
+      -1,
+      hostLabel() + joinOutput(magicRoute)
+    );
+    assert.strictEqual(Number(getPreviewState(root, env).ProcessId), listenerPid, hostLabel() + joinOutput(magicRoute));
+    assert.strictEqual(getPreviewStatusCode(magicUrl, env), 200, hostLabel() + joinOutput(magicRoute));
+    assert.deepStrictEqual(
+      getBrowserProcessIdsForUrl(baseUrl, env),
+      [],
+      hostLabel() + '-NoBrowser must not launch ' + edgePath + ' for ' + baseUrl
+    );
+    assert.deepStrictEqual(
+      getProcessTreeWindowHandles(listenerPid, env).filter(function (entry) {
+        return !/=0$/.test(entry);
+      }),
+      [],
+      hostLabel() + 'expected the owned preview listener tree to have no visible window.'
     );
 
     stopResult = runPreview(root, env, ['-Port', String(port), '-Stop']);
@@ -426,6 +567,7 @@ function testRefusesDifferentAppPathOwnershipAndStopsOnlyOwnedPreview() {
 }
 
 powerShellHosts.forEach(function (host) {
-  withPowerShellHost(host, testReusesOwnedPreviewForNewStorybookRoutes);
+  withPowerShellHost(host, testReusesOwnedPreviewForStorybookPhase3Routes);
+  withPowerShellHost(host, testNoBrowserServesStorybookPhase3RoutesWithoutOpeningAnInstalledBrowser);
   withPowerShellHost(host, testRefusesDifferentAppPathOwnershipAndStopsOnlyOwnedPreview);
 });

@@ -799,7 +799,7 @@
 
   function storybookPreviewScreen() {
     var value = queryValue('storybookScreen');
-    if (value === 'library' || value === 'details' || value === 'ending') {
+    if (value === 'library' || value === 'category' || value === 'details' || value === 'magic' || value === 'settings' || value === 'ending') {
       return value;
     }
     return 'home';
@@ -808,14 +808,27 @@
   function applyStorybookPreviewRoute() {
     var screen = storybookPreviewScreen();
     var libraryId = queryValue('storybookLibraryId') || storybookState.libraryIds[0] || '';
+    var categoryKey = queryValue('storybookCategoryKey') || 'animals';
     var item = previewItemById(queryValue('storybookItemId'));
 
     if (screen === 'library') {
       openStorybookLibrary(libraryId);
       return;
     }
+    if (screen === 'category') {
+      openStorybookCategory(categoryKey);
+      return;
+    }
     if (screen === 'details' && item) {
       openStorybookDetails(item, 'resume');
+      return;
+    }
+    if (screen === 'magic') {
+      openStorybookMagicPick();
+      return;
+    }
+    if (screen === 'settings') {
+      openStorybookSettings('storybook-settings-button');
       return;
     }
     if (screen === 'ending' && item) {

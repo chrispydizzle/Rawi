@@ -354,3 +354,34 @@ function loadAnimationsHarness(matchMediaMatches, doors) {
   assert(focusedRect.left >= 192, 'expected left within overscan, got ' + focusedRect.left);
   assert(focusedRect.right <= 1288, 'expected right within overscan, got ' + focusedRect.right);
 }());
+
+(function screenEntryFadesInWithoutHidingTheScreenSoDeferredFocusCanLand() {
+  var screen = { id: 'storybook-details-screen', style: {} };
+  var harness = loadAnimationsHarness(false, []);
+  var call;
+
+  harness.animations.enterScreen(screen);
+
+  assert.strictEqual(harness.gsap.fromToCalls.length, 1);
+  call = harness.gsap.fromToCalls[0];
+  assert.strictEqual(call.target, screen);
+  assert.deepStrictEqual(Object.keys(call.fromVars), ['opacity']);
+  assert.strictEqual(call.fromVars.opacity, 0);
+  assert.strictEqual(call.fromVars.autoAlpha, undefined);
+  assert.strictEqual(call.fromVars.visibility, undefined);
+  assert.strictEqual(call.toVars.opacity, 1);
+  assert.strictEqual(call.toVars.autoAlpha, undefined);
+  assert.strictEqual(call.toVars.visibility, undefined);
+  assert.strictEqual(call.toVars.clearProps, 'opacity');
+  assert.deepStrictEqual(harness.gsap.killTargets, [screen]);
+}());
+
+(function screenEntryStaysStaticWhenReducedMotionIsRequested() {
+  var screen = { id: 'storybook-details-screen', style: {} };
+  var harness = loadAnimationsHarness(true, []);
+
+  harness.animations.enterScreen(screen);
+
+  assert.strictEqual(harness.gsap.fromToCalls.length, 0);
+  assert.deepStrictEqual(harness.gsap.killTargets, []);
+}());

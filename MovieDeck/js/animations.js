@@ -21,12 +21,12 @@
     if (prefersReducedMotion()) { return; }
     gsap.killTweensOf(screen);
     gsap.fromTo(screen, {
-      autoAlpha: 0
+      opacity: 0
     }, {
-      autoAlpha: 1,
-      clearProps: 'opacity,visibility',
+      clearProps: 'opacity',
       duration: 0.28,
       ease: 'power2.out',
+      opacity: 1,
       overwrite: true
     });
   }

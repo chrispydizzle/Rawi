@@ -67,6 +67,19 @@ Use Adult Mode details to add or remove Storybook favorites. In a browser previe
 **All done** returns to Storybook home because the browser does not expose the
 Tizen app-exit API. On TV, **All done** exits the app.
 
+### Storybook Phase 3 preview routes
+
+```powershell
+.\tools\Start-RawiPreview.ps1 -StorybookMock
+.\tools\Start-RawiPreview.ps1 -StorybookMock -StorybookScreen category -StorybookCategoryKey animals
+.\tools\Start-RawiPreview.ps1 -StorybookMock -StorybookScreen magic
+.\tools\Start-RawiPreview.ps1 -StorybookMock -StorybookScreen settings
+.\tools\Start-RawiPreview.ps1 -StorybookMock -StorybookScreen details -StorybookItemId bluey
+.\tools\Start-RawiPreview.ps1 -StorybookMock -StorybookScreen ending -StorybookItemId bluey
+```
+
+`Tonight's Little Menu` is stable for the app session, category shortcuts are tag-backed browse shortcuts rather than access control, and Magic Pick always opens a confirmation screen before playback. In preview mode, the browser proof below must show `jellyfinRequests:[]` even when `moviedeck.server` points at a configured Jellyfin origin.
+
 ## Repository layout
 
 ```text
@@ -169,6 +182,22 @@ Use a different port when necessary:
 .\tools\Start-RawiPreview.ps1 -Port 4174
 .\tools\Start-RawiPreview.ps1 -Port 4174 -Stop
 ```
+
+### Headless preview for automation
+
+Interactive runs still open Edge automatically. Add `-NoBrowser` when an
+automated tool such as a headless browser agent connects to the preview itself,
+so no Edge window is opened and no console window appears for the local Python
+listener:
+
+```powershell
+.\tools\Start-RawiPreview.ps1 -Port 4176 -StorybookMock -NoBrowser
+.\tools\Start-RawiPreview.ps1 -Port 4176 -Stop
+```
+
+`-NoBrowser` only suppresses the browser launch. The preview URL is still
+printed, the listener is still owned by `MovieDeck\` path plus port, and every
+Storybook preview route stays reachable.
 
 ### Browser preview limitations
 

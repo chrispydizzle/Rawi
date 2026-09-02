@@ -1078,63 +1078,25 @@ function positionStoryDoors(harness) {
   );
 }());
 
-asyncTest('previewRoutesCanOpenHomeLibraryDetailsAndEndingWithoutJellyfin', function () {
-  var fixture = {
-    storybook: {
-      user: { Id: 'preview-user', Name: 'Parent' },
-      preferences: basePreferences({
-        enabled: true,
-        lastMode: 'storybook',
-        childName: 'Nova',
-        libraryIds: ['pixar', 'songs', 'lessons'],
-        favoriteItemIds: ['dance', 'colors'],
-        reducedMotion: false
-      }),
-      libraries: [
-        { Id: 'pixar', Name: 'Disney Pixar' },
-        { Id: 'songs', Name: 'Sing & Dance' },
-        { Id: 'lessons', Name: 'Little Lessons' },
-        { Id: 'grownups', Name: 'Grownups' }
-      ],
-      resume: [
-        {
-          Id: 'bluey',
-          Name: "Bluey's Big Adventure",
-          RunTimeTicks: 16800000000,
-          UserData: { PlaybackPositionTicks: 3600000000, PlayedPercentage: 21 }
-        }
-      ],
-      groups: [
-        {
-          id: 'pixar',
-          name: 'Disney Pixar',
-          videos: [{ Id: 'bluey', Name: "Bluey's Big Adventure", RunTimeTicks: 16800000000, UserData: { PlaybackPositionTicks: 3600000000, PlayedPercentage: 21 } }]
-        },
-        {
-          id: 'songs',
-          name: 'Sing & Dance',
-          videos: [{ Id: 'dance', Name: 'Dance With Me', RunTimeTicks: 7200000000 }]
-        },
-        {
-          id: 'lessons',
-          name: 'Little Lessons',
-          videos: [{ Id: 'colors', Name: 'The Color Garden', RunTimeTicks: 5400000000 }]
-        },
-        {
-          id: 'grownups',
-          name: 'Grownups',
-          videos: [{ Id: 'late', Name: 'Late Night Movie', RunTimeTicks: 9600000000 }]
-        }
-      ]
-    }
-  };
+asyncTest('previewRoutesCanOpenHomeCategoryMagicSettingsDetailsAndEndingWithoutJellyfin', function () {
+  var fixture = load('js/preview-fixtures.js', { window: {} }).RawiPreviewFixtures;
   var homeHarness = loadAppHarness({
     locationSearch: '?preview=storybook',
     previewFixtures: fixture,
     restoreSession: true
   });
-  var libraryHarness = loadAppHarness({
-    locationSearch: '?preview=storybook&storybookScreen=library&storybookLibraryId=songs',
+  var categoryHarness = loadAppHarness({
+    locationSearch: '?preview=storybook&storybookScreen=category&storybookCategoryKey=animals',
+    previewFixtures: fixture,
+    restoreSession: true
+  });
+  var magicHarness = loadAppHarness({
+    locationSearch: '?preview=storybook&storybookScreen=magic',
+    previewFixtures: fixture,
+    restoreSession: true
+  });
+  var settingsHarness = loadAppHarness({
+    locationSearch: '?preview=storybook&storybookScreen=settings',
     previewFixtures: fixture,
     restoreSession: true
   });
@@ -1151,23 +1113,109 @@ asyncTest('previewRoutesCanOpenHomeLibraryDetailsAndEndingWithoutJellyfin', func
 
   return flush(12).then(function () {
     assert.strictEqual(homeHarness.screenActive('storybook-screen'), true);
-    assert.strictEqual(homeHarness.document.getElementById('storybook-resume-card').getAttribute('data-item-id'), 'bluey');
-    assert.strictEqual(homeHarness.document.getElementById('storybook-favorites').children.length, 2);
-    assert.strictEqual(homeHarness.document.activeElement.id, 'storybook-resume-card');
+    assert.deepStrictEqual(
+      Array.prototype.map.call(
+        homeHarness.document.getElementById('storybook-little-menu').children,
+        function (node) {
+          return node.getAttribute('data-item-id');
+        }
+      ),
+      ['dance', 'colors', 'fox']
+    );
+    assert.deepStrictEqual(
+      Array.prototype.map.call(
+        homeHarness.document.getElementById('storybook-categories').children,
+        function (node) {
+          return node.getAttribute('data-category-key');
+        }
+      ),
+      ['singDance', 'bedtime', 'animals', 'learning', 'movement']
+    );
 
-    assert.strictEqual(libraryHarness.screenActive('storybook-library-screen'), true);
-    assert.strictEqual(libraryHarness.document.getElementById('storybook-library-title').textContent, 'Sing & Dance');
-    assert.strictEqual(libraryHarness.document.activeElement.id, 'storybook-library-card-dance');
+    assert.strictEqual(categoryHarness.screenActive('storybook-library-screen'), true);
+    assert.strictEqual(categoryHarness.document.getElementById('storybook-library-title').textContent, 'Animal Friends');
+
+    assert.strictEqual(magicHarness.screenActive('storybook-magic-pick-screen'), true);
+    assert.strictEqual(magicHarness.document.getElementById('storybook-magic-pick-title').textContent, 'Dance With Me');
+
+    assert.strictEqual(settingsHarness.screenActive('storybook-settings-screen'), true);
+    assert.strictEqual(settingsHarness.document.activeElement.id, 'storybook-child-name');
+    assert.strictEqual(settingsHarness.document.getElementById('storybook-recent-history-days').value, '14');
 
     assert.strictEqual(detailsHarness.screenActive('storybook-details-screen'), true);
-    assert.strictEqual(detailsHarness.document.getElementById('storybook-details-title').textContent, "Bluey's Big Adventure");
-    assert.strictEqual(detailsHarness.document.activeElement.id, 'storybook-details-play');
-
     assert.strictEqual(endingHarness.screenActive('storybook-ending-screen'), true);
-    assert.strictEqual(endingHarness.document.getElementById('storybook-ending-title').textContent, 'All done, Nova.');
-    assert.strictEqual(endingHarness.document.activeElement.id, 'storybook-ending-all-done');
 
-    assert.deepStrictEqual(homeHarness.apiCalls(), {
+    [
+      homeHarness,
+      categoryHarness,
+      magicHarness,
+      settingsHarness,
+      detailsHarness,
+      endingHarness
+    ].forEach(function (routeHarness) {
+      assert.deepStrictEqual(routeHarness.apiCalls(), {
+        getLatest: 0,
+        getLibraries: 0,
+        getResume: 0,
+        getVideos: 0,
+        restore: 0
+      });
+    });
+  });
+});
+
+asyncTest('previewSettingsSavePreservesNonDefaultPhase3StateAndUsesFixtureClock', function () {
+  var fixture = load('js/preview-fixtures.js', { window: {} }).RawiPreviewFixtures;
+  var customFixture = JSON.parse(JSON.stringify(fixture));
+  var harness;
+
+  customFixture.storybook.sessionSeed = 'storybook-phase-3-preview-custom';
+  customFixture.storybook.nowMs = Date.parse('2026-09-02T02:00:00.000Z');
+  customFixture.storybook.preferences = basePreferences({
+    enabled: true,
+    lastMode: 'storybook',
+    libraryIds: ['pixar', 'songs', 'lessons'],
+    categoryTags: {
+      singDance: 'songs',
+      bedtime: 'sleep',
+      animals: 'zoo',
+      learning: 'school',
+      movement: 'move'
+    },
+    durationLabels: {
+      enabled: false,
+      quickMaxMinutes: 8,
+      cozyMaxMinutes: 18
+    },
+    recentHistoryDays: 21
+  });
+  harness = loadAppHarness({
+    locationSearch: '?preview=storybook&storybookScreen=settings',
+    previewFixtures: customFixture,
+    restoreSession: true
+  });
+
+  return flush(12).then(function () {
+    assert.strictEqual(harness.document.getElementById('storybook-recent-history-days').value, '21');
+    harness.document.getElementById('storybook-child-name').value = 'Nora';
+    harness.document.getElementById('storybook-save').click();
+    return flush(12);
+  }).then(function () {
+    assert.strictEqual(harness.savedState().childName, 'Nora');
+    assert.deepStrictEqual(harness.savedState().categoryTags, {
+      singDance: 'songs',
+      bedtime: 'sleep',
+      animals: 'zoo',
+      learning: 'school',
+      movement: 'move'
+    });
+    assert.deepStrictEqual(harness.savedState().durationLabels, {
+      enabled: false,
+      quickMaxMinutes: 8,
+      cozyMaxMinutes: 18
+    });
+    assert.strictEqual(harness.savedState().recentHistoryDays, 21);
+    assert.deepStrictEqual(harness.apiCalls(), {
       getLatest: 0,
       getLibraries: 0,
       getResume: 0,

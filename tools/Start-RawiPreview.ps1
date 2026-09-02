@@ -6,14 +6,20 @@ param(
     [switch]$StorybookMock,
 
     [Parameter(Mandatory = $false)]
-    [ValidateSet('home', 'library', 'details', 'ending')]
+    [ValidateSet('home', 'library', 'category', 'details', 'magic', 'settings', 'ending')]
     [string]$StorybookScreen = 'home',
+
+    [Parameter(Mandatory = $false)]
+    [string]$StorybookCategoryKey,
 
     [Parameter(Mandatory = $false)]
     [string]$StorybookLibraryId,
 
     [Parameter(Mandatory = $false)]
     [string]$StorybookItemId,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$NoBrowser,
 
     [Parameter(Mandatory = $false)]
     [switch]$Stop
@@ -471,7 +477,7 @@ if (!$listener) {
         '--directory',
         "`"$appPath`""
     )
-    Start-Process python -ArgumentList $arguments -RedirectStandardOutput $previewPaths.StdOut -RedirectStandardError $previewPaths.StdErr -PassThru | Out-Null
+    Start-Process python -ArgumentList $arguments -WindowStyle Hidden -RedirectStandardOutput $previewPaths.StdOut -RedirectStandardError $previewPaths.StdErr -PassThru | Out-Null
 }
 
 $url = "http://127.0.0.1:$Port/"
@@ -479,6 +485,9 @@ if ($StorybookMock) {
     $query = @('preview=storybook')
     if ($StorybookScreen -and $StorybookScreen -ne 'home') {
         $query += 'storybookScreen=' + [uri]::EscapeDataString($StorybookScreen)
+    }
+    if ($StorybookCategoryKey) {
+        $query += 'storybookCategoryKey=' + [uri]::EscapeDataString($StorybookCategoryKey)
     }
     if ($StorybookLibraryId) {
         $query += 'storybookLibraryId=' + [uri]::EscapeDataString($StorybookLibraryId)
@@ -508,13 +517,15 @@ if (!$ready) {
     throw "Rawi preview did not start. See $($previewPaths.StdErr)."
 }
 
-$edge = "${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe"
-if (!(Test-Path $edge)) {
-    $edge = "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe"
-}
+if (!$NoBrowser) {
+    $edge = "${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe"
+    if (!(Test-Path $edge)) {
+        $edge = "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe"
+    }
 
-if (Test-Path $edge) {
-    Start-Process $edge -ArgumentList '--new-window', '--window-size=1920,1080', $url
+    if (Test-Path $edge) {
+        Start-Process $edge -ArgumentList '--new-window', '--window-size=1920,1080', $url
+    }
 }
 
 Write-Output "Rawi preview: $url"

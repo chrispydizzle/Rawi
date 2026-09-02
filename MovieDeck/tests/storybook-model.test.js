@@ -33,6 +33,7 @@ var previewFixtures = load('js/preview-fixtures.js', { window: {} }).RawiPreview
   );
   assert.strictEqual(previewFixtures.storybook.sessionSeed, 'storybook-phase-3-preview');
   assert.strictEqual(previewFixtures.storybook.nowMs, Date.parse('2026-09-02T02:00:00.000Z'));
+  assert.strictEqual(previewFixtures.storybook.magicRandom, 0);
   assert.strictEqual(previewFixtures.storybook.resume[0].Id, 'bluey');
   assert.strictEqual(previewFixtures.storybook.groups.length, 4);
 }());
