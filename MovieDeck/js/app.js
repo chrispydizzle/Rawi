@@ -220,6 +220,18 @@
     animations.animateSelection();
   }
 
+  function clearSelection() {
+    selectedItem = null;
+    selectedCard = null;
+    text('selection-title', copy.get('chooseVideo'));
+    text('hero-title', copy.get('heroTitle'));
+    text('hero-meta', '');
+    text('hero-overview', copy.get('heroOverview'));
+    text('hero-number', '00');
+    byId('hero-backdrop').style.backgroundImage = 'none';
+    byId('hero-open').disabled = true;
+  }
+
   function cardFor(item, index) {
     var card = document.createElement('button');
     var itemRuntime = runtime(item);
@@ -335,6 +347,7 @@
     byId('browse-loading').style.display = 'none';
     animations.animateShelves();
     if (!firstCard) {
+      clearSelection();
       byId('browse-error').textContent = copy.get('noVideos');
       byId('browse-error').style.display = 'block';
       byId('refresh-button').focus();
@@ -356,6 +369,11 @@
     currentGroups = fixture.groups;
     currentLatest = [];
     currentResume = [];
+    storybookRestoreStatus = {
+      needsRecovery: false,
+      type: 'ok'
+    };
+    storybookResetConfirming = false;
     storybookState = storybookPreferences.defaults();
     storybookState.enabled = true;
     storybookState.lastMode = 'storybook';

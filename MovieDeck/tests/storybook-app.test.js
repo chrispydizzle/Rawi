@@ -454,13 +454,26 @@ function loadAppHarness(options) {
   }));
   var librariesDeferred = options.librariesDeferred || null;
   var restoreValue = options.restoreSession !== false;
+  function normalizePreferences(nextState) {
+    return {
+      version: 1,
+      enabled: nextState && nextState.enabled === true,
+      lastMode: nextState && nextState.lastMode === 'storybook' ? 'storybook' : 'adult',
+      childName: nextState && typeof nextState.childName === 'string' ? nextState.childName : '',
+      libraryIds: nextState && Array.isArray(nextState.libraryIds) ? nextState.libraryIds.slice() : [],
+      reducedMotion: nextState && nextState.reducedMotion === true
+    };
+  }
   var copyMap = {
     allVideos: 'All videos',
     browseLoading: 'Opening the library',
+    chooseVideo: 'Choose a video',
     continueWatchingCaption: 'Continue watching',
     continueWatchingTitle: 'Continue watching',
     defaultProfileName: 'Jellyfin',
     finishedToast: 'Finished {title}',
+    heroOverview: 'Choose a poster below to see it on the big screen.',
+    heroTitle: 'Your movies are ready.',
     libraryCaption: '{count} titles',
     libraryLoadFailed: 'The library could not be loaded.',
     modeAdult: 'Adult',
@@ -616,13 +629,13 @@ function loadAppHarness(options) {
         return this.save(this.defaults());
       },
       save: function (nextState) {
-        currentPreferences = JSON.parse(JSON.stringify(nextState));
-        savedState = JSON.parse(JSON.stringify(nextState));
+        currentPreferences = normalizePreferences(nextState);
+        savedState = JSON.parse(JSON.stringify(currentPreferences));
         currentRestoreStatus = {
           needsRecovery: false,
           type: 'ok'
         };
-        return JSON.parse(JSON.stringify(nextState));
+        return JSON.parse(JSON.stringify(currentPreferences));
       }
     },
     RawiPreviewFixtures: options.previewFixtures || null
@@ -868,6 +881,56 @@ asyncTest('savesPreviewStorybookSettingsWithoutLeavingMockMode', function () {
         getResume: 0,
         getVideos: 0,
         restore: 0
+      }
+    );
+  });
+});
+
+asyncTest('previewIgnoresRecoverableStorybookPreferenceCorruption', function () {
+  var harness = loadAppHarness({
+    locationSearch: '?preview=storybook',
+    previewFixtures: {
+      storybook: {
+        user: { Id: 'preview-user', Name: 'Parent' },
+        libraries: [
+          { Id: 'pixar', Name: 'Disney Pixar' }
+        ],
+        groups: [
+          { id: 'pixar', name: 'Disney Pixar', videos: [{ Id: 'bluey', Name: "Bluey's Big Adventure" }] }
+        ]
+      }
+    },
+    restoreStatus: {
+      needsRecovery: true,
+      type: 'malformed'
+    }
+  });
+
+  harness.document.getElementById('storybook-edit-libraries').click();
+
+  assert.strictEqual(harness.screenActive('storybook-settings-screen'), true);
+  assert.strictEqual(
+    harness.document.getElementById('storybook-settings-warning').textContent,
+    ''
+  );
+  assert.strictEqual(harness.document.getElementById('storybook-child-name').disabled, false);
+  assert.strictEqual(harness.document.getElementById('storybook-save').disabled, false);
+  assert.strictEqual(harness.document.getElementById('storybook-reset').disabled, true);
+
+  harness.document.getElementById('storybook-reduced-motion').checked = true;
+  harness.document.getElementById('storybook-save').click();
+
+  return flush(12).then(function () {
+    assert.strictEqual(harness.screenActive('storybook-screen'), true);
+    assert.deepStrictEqual(
+      JSON.parse(JSON.stringify(harness.savedState())),
+      {
+        version: 1,
+        enabled: true,
+        lastMode: 'storybook',
+        childName: 'Nova',
+        libraryIds: ['pixar'],
+        reducedMotion: true
       }
     );
   });
@@ -1312,6 +1375,71 @@ asyncTest('opensEmptyStoryDoorWithExistingNoVideosRecoveryState', function () {
     );
     assert.strictEqual(harness.document.getElementById('browse-error').style.display, 'block');
     assert.strictEqual(harness.document.activeElement.id, 'refresh-button');
+  });
+});
+
+asyncTest('clearsStaleHeroStateWhenOpeningAnEmptyStoryDoorAfterSelectingAnAdultItem', function () {
+  var harness = loadAppHarness({
+    libraries: [
+      { Id: 'kids', Name: 'Kids' },
+      { Id: 'disney', Name: 'Disney' }
+    ],
+    preferences: {
+      version: 1,
+      enabled: true,
+      lastMode: 'adult',
+      childName: 'Nova',
+      libraryIds: ['kids', 'disney'],
+      reducedMotion: false
+    },
+    restoreSession: true,
+    videosByLibrary: {
+      disney: [{ Id: 'video-2', Name: 'Second video', Overview: 'A brave sequel.' }],
+      kids: []
+    }
+  });
+  var kidsDoor;
+
+  return flush(12).then(function () {
+    assert.strictEqual(harness.screenActive('browse-screen'), true);
+    assert.strictEqual(harness.document.getElementById('hero-title').textContent, 'Second video');
+    assert.strictEqual(harness.document.getElementById('selection-title').textContent, 'Second video');
+    assert.strictEqual(harness.document.getElementById('hero-open').disabled, false);
+
+    harness.document.getElementById('storybook-mode-button').click();
+    return flush(12);
+  }).then(function () {
+    kidsDoor = harness.document.querySelectorAll('#storybook-doors .storybook-door').filter(function (node) {
+      return node.getAttribute('data-library-id') === 'kids';
+    })[0];
+
+    assert(kidsDoor, 'expected the empty accessible library to render as a Story Door');
+
+    kidsDoor.click();
+
+    assert.strictEqual(harness.storybookStopCalls(), 1);
+    assert.strictEqual(harness.screenActive('browse-screen'), true);
+    assert.deepStrictEqual(JSON.parse(JSON.stringify(harness.shelfHeadings())), []);
+    assert.strictEqual(
+      harness.document.getElementById('browse-error').textContent,
+      'No videos are visible to this Jellyfin user.'
+    );
+    assert.strictEqual(harness.document.getElementById('hero-title').textContent, 'Your movies are ready.');
+    assert.strictEqual(harness.document.getElementById('selection-title').textContent, 'Choose a video');
+    assert.strictEqual(harness.document.getElementById('hero-meta').textContent, '');
+    assert.strictEqual(
+      harness.document.getElementById('hero-overview').textContent,
+      'Choose a poster below to see it on the big screen.'
+    );
+    assert.strictEqual(harness.document.getElementById('hero-number').textContent, '00');
+    assert.strictEqual(harness.document.getElementById('hero-backdrop').style.backgroundImage, 'none');
+    assert.strictEqual(harness.document.getElementById('hero-open').disabled, true);
+
+    harness.document.getElementById('hero-open').click();
+
+    assert.strictEqual(harness.screenActive('details-screen'), false);
+    assert.strictEqual(harness.screenActive('browse-screen'), true);
+    assert.strictEqual(harness.document.getElementById('details-title').textContent, '');
   });
 });
 

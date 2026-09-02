@@ -5,6 +5,16 @@ var path = require('path');
 var vm = require('vm');
 var pendingTests = [];
 var failureReported = false;
+var DEFAULT_TEST_FILES = [
+  'animations.test.js',
+  'storage.test.js',
+  'run-tests-runner.test.js',
+  'storybook-app.test.js',
+  'storybook-preferences.test.js',
+  'storybook-model.test.js',
+  'storybook-view.test.js',
+  'copy.test.js'
+];
 
 function loadBrowserScript(relativePath, additions) {
   var values = additions || {};
@@ -45,23 +55,30 @@ function reportFailure(error) {
 
 function testFiles() {
   var requested = process.argv.slice(2);
-  if (requested.length) { return requested; }
-  return [
-    'animations.test.js',
-    'storage.test.js',
-    'run-tests-runner.test.js',
-    'storybook-app.test.js',
-    'storybook-preferences.test.js',
-    'storybook-model.test.js',
-    'storybook-view.test.js',
-    'copy.test.js'
-  ];
+  if (requested.length) { return requested.map(validateRequestedTestFile); }
+  return DEFAULT_TEST_FILES.slice();
+}
+
+function validateRequestedTestFile(file) {
+  var normalized = path.normalize(file);
+  var fullPath = path.join(__dirname, normalized);
+
+  if (!/\.test\.js$/i.test(path.basename(normalized)) ||
+      !fs.existsSync(fullPath) ||
+      !fs.statSync(fullPath).isFile()) {
+    throw new Error(
+      'Requested test selector "' + file +
+      '" does not exist or is not a recognized test filename (*.test.js).'
+    );
+  }
+
+  return normalized;
 }
 
 function loadTests(files) {
   files.forEach(function (file) {
     var fullPath = path.join(__dirname, file);
-    if (fs.existsSync(fullPath)) { require(fullPath); }
+    require(fullPath);
   });
 }
 
