@@ -159,17 +159,31 @@ function append(document, parent, tagName, id) {
 function loadViewHarness() {
   var document = new FakeDocument();
   var animationCalls = [];
+  var closeDetailsCount = 0;
   var closeLibraryCount = 0;
   var focusDoorCalls = [];
   var modeCalls = [];
   var openLibraries = [];
   var openItems = [];
   var openSettingsCount = 0;
+  var playbackStarts = [];
   var resetCount = 0;
   var buttons = {
     adult: append(document, document.body, 'button', 'storybook-home-adult-mode-button'),
     cancel: append(document, document.body, 'button', 'storybook-cancel'),
     childName: append(document, document.body, 'input', 'storybook-child-name'),
+    detailsAdult: append(document, document.body, 'button', 'storybook-details-adult-mode-button'),
+    detailsArt: append(document, document.body, 'div', 'storybook-details-art'),
+    detailsBack: append(document, document.body, 'button', 'storybook-details-back'),
+    detailsKicker: append(document, document.body, 'p', 'storybook-details-kicker'),
+    detailsMeta: append(document, document.body, 'p', 'storybook-details-meta'),
+    detailsOverview: append(document, document.body, 'p', 'storybook-details-overview'),
+    detailsPlay: append(document, document.body, 'button', 'storybook-details-play'),
+    detailsProgress: append(document, document.body, 'div', 'storybook-details-progress'),
+    detailsRestart: append(document, document.body, 'button', 'storybook-details-restart'),
+    detailsResume: append(document, document.body, 'p', 'storybook-details-resume'),
+    detailsStorybook: append(document, document.body, 'button', 'storybook-details-storybook-mode-button'),
+    detailsTitle: append(document, document.body, 'h1', 'storybook-details-title'),
     doors: append(document, document.body, 'div', 'storybook-doors'),
     edit: append(document, document.body, 'button', 'storybook-edit-libraries'),
     emptyState: append(document, document.body, 'p', 'storybook-empty-state'),
@@ -199,6 +213,9 @@ function loadViewHarness() {
   };
 
   buttons.adult.setAttribute('data-mode', 'adult');
+  buttons.detailsAdult.setAttribute('data-mode', 'adult');
+  append(document, buttons.detailsProgress, 'span', '');
+  buttons.detailsStorybook.setAttribute('data-mode', 'storybook');
   buttons.libraryAdult.setAttribute('data-mode', 'adult');
   buttons.libraryStorybook.setAttribute('data-mode', 'storybook');
   buttons.storybook.setAttribute('data-mode', 'storybook');
@@ -206,7 +223,9 @@ function loadViewHarness() {
     buttons.adult,
     buttons.storybook,
     buttons.libraryAdult,
-    buttons.libraryStorybook
+    buttons.libraryStorybook,
+    buttons.detailsAdult,
+    buttons.detailsStorybook
   ];
 
   var window = load('js/storybook-view.js', {
@@ -239,6 +258,11 @@ function loadViewHarness() {
           if (key === 'storybookFavoritesTitleWithoutName') { return 'Favorites'; }
           if (key === 'storybookHomeHint') { return 'Pick a favorite or open a story door.'; }
           if (key === 'storybookItemAriaLabel') { return 'Open ' + values.title; }
+          if (key === 'restartButton') { return 'Start from beginning'; }
+          if (key === 'storybookDetailsBackButton') { return '← Storybook'; }
+          if (key === 'storybookDetailsKicker') { return 'Story time'; }
+          if (key === 'storybookStartButton') { return 'Start story'; }
+          if (key === 'storybookResumeButton') { return 'Resume from ' + values.time; }
           if (key === 'storybookLibraryBackButton') { return '← Storybook'; }
           if (key === 'storybookLibraryEmpty') {
             return 'No stories are available in ' + values.library + ' right now.';
@@ -271,6 +295,9 @@ function loadViewHarness() {
 
   window.RawiStorybookView.init({
     onCancelSettings: function () {},
+    onCloseStorybookDetails: function () {
+      closeDetailsCount += 1;
+    },
     onCloseStorybookLibrary: function () {
       closeLibraryCount += 1;
     },
@@ -289,12 +316,16 @@ function loadViewHarness() {
     onPreferencesChange: function () {},
     onResetSettingsRecovery: function () {
       resetCount += 1;
+    },
+    onStartStorybookPlayback: function (fromBeginning) {
+      playbackStarts.push(fromBeginning);
     }
   });
 
   return {
     animationCalls: animationCalls,
     buttons: buttons,
+    closeDetailsCount: function () { return closeDetailsCount; },
     closeLibraryCount: function () { return closeLibraryCount; },
     document: document,
     doorButtons: function () {
@@ -312,6 +343,7 @@ function loadViewHarness() {
     openLibraries: openLibraries,
     openItems: openItems,
     openSettingsCount: function () { return openSettingsCount; },
+    playbackStarts: function () { return playbackStarts.slice(); },
     resetCount: function () { return resetCount; },
     view: window.RawiStorybookView
   };
@@ -529,6 +561,57 @@ function loadViewHarness() {
     [
       { id: 'storybook-library-adult-mode-button', mode: 'adult' },
       { id: 'storybook-library-storybook-mode-button', mode: 'storybook' }
+    ]
+  );
+}());
+
+(function rendersStorybookDetailsWithResumeAndRestart() {
+  var harness = loadViewHarness();
+
+  harness.view.renderDetails({
+    accentClass: 'storybook-accent-periwinkle',
+    artworkUrl: '',
+    minutesLabel: '28 min',
+    overview: 'Bluey follows a moonlit map through the backyard.',
+    progressPercent: 21,
+    primaryActionLabel: 'Resume from 6m',
+    resumeLabel: 'Resume from 6m',
+    showRestart: true,
+    title: "Bluey's Big Adventure"
+  });
+
+  assert.strictEqual(harness.buttons.detailsTitle.textContent, "Bluey's Big Adventure");
+  assert.strictEqual(harness.buttons.detailsPlay.textContent, 'Resume from 6m');
+  assert.strictEqual(harness.buttons.detailsRestart.style.display, 'inline-block');
+  assert.strictEqual(harness.buttons.detailsProgress.style.display, 'block');
+  assert.strictEqual(harness.buttons.detailsProgress.firstChild.style.width, '21%');
+  assert.strictEqual(harness.document.activeElement.id, 'storybook-details-play');
+
+  harness.buttons.detailsPlay.click();
+  harness.buttons.detailsRestart.click();
+  harness.buttons.detailsBack.click();
+
+  assert.deepStrictEqual(
+    JSON.parse(JSON.stringify(harness.playbackStarts())),
+    [false, true]
+  );
+  assert.strictEqual(harness.closeDetailsCount(), 1);
+}());
+
+(function storybookDetailsTopbarModeButtonsInvokeOnModeChange() {
+  var harness = loadViewHarness();
+
+  assert.strictEqual(harness.buttons.detailsAdult.getAttribute('data-mode'), 'adult');
+  assert.strictEqual(harness.buttons.detailsStorybook.getAttribute('data-mode'), 'storybook');
+
+  harness.buttons.detailsAdult.click();
+  harness.buttons.detailsStorybook.click();
+
+  assert.deepStrictEqual(
+    JSON.parse(JSON.stringify(harness.modeCalls.slice(-2))),
+    [
+      { id: 'storybook-details-adult-mode-button', mode: 'adult' },
+      { id: 'storybook-details-storybook-mode-button', mode: 'storybook' }
     ]
   );
 }());

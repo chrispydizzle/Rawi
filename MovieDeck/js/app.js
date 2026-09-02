@@ -13,7 +13,6 @@
 
   // Application state
   var selectedItem = null;
-  var selectedItemDetailsOrigin = 'adult';
   var selectedCard = null;
   var quickTimer = null;
   var toastTimer = null;
@@ -43,10 +42,22 @@
     libraryId: '',
     returnFocusId: ''
   };
+  var storybookDetailsState = {
+    focusId: '',
+    libraryId: '',
+    source: 'home'
+  };
   var STORYBOOK_PRESENTATION_SCREENS = {
     'storybook-screen': true,
-    'storybook-library-screen': true
+    'storybook-library-screen': true,
+    'storybook-details-screen': true
   };
+  var playerReturnState = {
+    focusId: 'play-button',
+    mode: 'adult',
+    screenId: 'details-screen'
+  };
+  var pendingPlaybackError = null;
   var storybookResetConfirming = false;
   var storybookSettingsReturnFocusId = 'storybook-settings-button';
   var storybookSettingsIntent = {
@@ -392,7 +403,7 @@
   }
 
   function canUseStorybookFavoriteControl() {
-    return storybookState.lastMode === 'adult' && selectedItemDetailsOrigin === 'adult';
+    return storybookState.lastMode === 'adult';
   }
 
   function updateFavoriteButton(item) {
@@ -458,6 +469,24 @@
       minutesLabel: ticks ? copy.get('runtimeMinutes', { minutes: Math.round(ticks / 600000000) }) : '',
       progressPercent: playbackPercent(item),
       resumeLabel: resumeTicks(item) > 0 ? copy.get('storybookResumeProgress', { time: runtimeFromTicks(resumeTicks(item)) }) : '',
+      title: name(item)
+    };
+  }
+
+  function storybookDetailsModel(item) {
+    return {
+      accentClass: storybookAccentClass(itemId(item)),
+      artworkUrl: imageUrl(item, 'Primary', 760, 760) || imageUrl(item, 'Backdrop', 1280, 720),
+      minutesLabel: runtime(item),
+      overview: value(item, 'Overview', 'overview') || copy.get('noSynopsis'),
+      primaryActionLabel: resumeTicks(item) > 0 ?
+        copy.get('storybookResumeButton', { time: runtimeFromTicks(resumeTicks(item)) }) :
+        copy.get('storybookStartButton'),
+      progressPercent: playbackPercent(item),
+      resumeLabel: resumeTicks(item) > 0 ?
+        copy.get('storybookResumeProgress', { time: runtimeFromTicks(resumeTicks(item)) }) :
+        '',
+      showRestart: resumeTicks(item) > 0,
       title: name(item)
     };
   }
@@ -615,6 +644,33 @@
   function closeStorybookLibrary() {
     showScreen('storybook-screen');
     renderStorybookHome(storybookLibraryState.returnFocusId);
+  }
+
+  function openStorybookDetails(item, source) {
+    var id = itemId(item);
+
+    selectedItem = item;
+    updateFavoriteButton(null);
+    storybookDetailsState = {
+      focusId: source === 'library' ? 'storybook-library-card-' + id : 'storybook-' + source + '-card-' + id,
+      libraryId: currentStorybookCatalogue && currentStorybookCatalogue.libraryIdByItemId[id] ?
+        currentStorybookCatalogue.libraryIdByItemId[id] : '',
+      source: source
+    };
+    if (source === 'resume') {
+      storybookDetailsState.focusId = 'storybook-resume-card';
+    }
+    showScreen('storybook-details-screen');
+    storybookView.renderDetails(storybookDetailsModel(item));
+  }
+
+  function closeStorybookDetails() {
+    if (storybookDetailsState.source === 'library') {
+      openStorybookLibrary(storybookDetailsState.libraryId, storybookDetailsState.focusId);
+      return;
+    }
+    showScreen('storybook-screen');
+    renderStorybookHome(storybookDetailsState.focusId);
   }
 
   function openLibrary() {
@@ -885,9 +941,8 @@
   }
 
   // Details and playback
-  function openDetails(item, source) {
+  function openDetails(item) {
     selectedItem = item;
-    selectedItemDetailsOrigin = source ? 'storybook' : 'adult';
     var poster = api.imageUrl(item, 'Primary', 700, 1050);
     var backdrop = api.imageUrl(item, 'Backdrop', 1920, 1080);
     var genres = value(item, 'Genres', 'genres') || [];
@@ -918,15 +973,53 @@
     return hours ? hours + 'h ' + minutes + 'm' : minutes + 'm';
   }
 
+  function capturePlayerReturnState() {
+    if (activeScreen === 'storybook-details-screen') {
+      playerReturnState = {
+        focusId: 'storybook-details-play',
+        mode: 'storybook',
+        screenId: 'storybook-details-screen'
+      };
+      return;
+    }
+
+    playerReturnState = {
+      focusId: 'play-button',
+      mode: 'adult',
+      screenId: 'details-screen'
+    };
+  }
+
+  function returnFromPlayback(completed, error) {
+    if (playerReturnState.screenId === 'storybook-details-screen') {
+      showScreen('storybook-details-screen');
+      storybookView.renderDetails(storybookDetailsModel(selectedItem));
+    } else {
+      showScreen(playerReturnState.screenId, playerReturnState.focusId);
+    }
+
+    if (error) {
+      showToast(describeError(error, copy.get('playbackFailed')));
+      return;
+    }
+
+    if (completed && playerReturnState.mode === 'adult') {
+      showToast(copy.get('finishedToast', { title: name(selectedItem) }));
+    }
+  }
+
   function startPlayback(fromBeginning) {
     if (!selectedItem) { return; }
+    capturePlayerReturnState();
+    pendingPlaybackError = null;
     showScreen('player-screen');
     player.play(selectedItem, fromBeginning);
   }
 
   function playerStopped(completed) {
-    showScreen('details-screen', 'play-button');
-    if (completed) { showToast(copy.get('finishedToast', { title: name(selectedItem) })); }
+    var playbackError = pendingPlaybackError;
+    pendingPlaybackError = null;
+    returnFromPlayback(completed, playbackError);
   }
 
   function signOut() {
@@ -977,11 +1070,12 @@
   }
 
   function handleBack() {
-    if (activeScreen === 'player-screen') { showScreen('details-screen', 'play-button'); return; }
+    if (activeScreen === 'player-screen') { returnFromPlayback(false, null); return; }
     if (activeScreen === 'storybook-settings-screen') {
       cancelStorybookSettings();
       return;
     }
+    if (activeScreen === 'storybook-details-screen') { closeStorybookDetails(); return; }
     if (activeScreen === 'storybook-library-screen') {
       closeStorybookLibrary();
       return;
@@ -1025,14 +1119,16 @@
   function init() {
     storybookView.init({
       onCancelSettings: cancelStorybookSettings,
+      onCloseStorybookDetails: closeStorybookDetails,
       onCloseStorybookLibrary: closeStorybookLibrary,
       onModeChange: applyMode,
       onOpenLibrary: openStorybookLibrary,
       onOpenSettings: openStorybookSettings,
       onOpenStorybookItem: function (itemId, source) {
         if (!currentStorybookCatalogue || !currentStorybookCatalogue.itemById[itemId]) { return; }
-        openDetails(currentStorybookCatalogue.itemById[itemId], source);
+        openStorybookDetails(currentStorybookCatalogue.itemById[itemId], source);
       },
+      onStartStorybookPlayback: startPlayback,
       onResetSettingsRecovery: resetStorybookSettingsRecovery,
       onPreferencesChange: saveStorybookSettings
     });
@@ -1042,9 +1138,12 @@
     player.init({
       onStop: playerStopped,
       onError: function (error) {
-        if (player.isPlaying()) { player.stop(false); }
-        else { showScreen('details-screen', 'play-button'); }
-        showToast(describeError(error, copy.get('playbackFailed')));
+        if (player.isPlaying()) {
+          pendingPlaybackError = error;
+          player.stop(false);
+          return;
+        }
+        returnFromPlayback(false, error);
       }
     });
     updateClock();

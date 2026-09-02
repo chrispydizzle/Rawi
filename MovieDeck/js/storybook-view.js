@@ -296,6 +296,30 @@
     }
   }
 
+  function renderDetails(model) {
+    var art = byId('storybook-details-art');
+    var progress = byId('storybook-details-progress');
+    var fill = progress.firstChild;
+
+    art.className = 'storybook-details-art ' + (model.accentClass || 'storybook-accent-periwinkle');
+    art.innerHTML = '';
+    art.appendChild(createArtwork({
+      accentClass: model.accentClass,
+      artworkUrl: model.artworkUrl,
+      title: model.title
+    }, 'storybook-details-artwork'));
+
+    byId('storybook-details-title').textContent = model.title;
+    byId('storybook-details-meta').textContent = model.minutesLabel;
+    byId('storybook-details-overview').textContent = model.overview;
+    byId('storybook-details-resume').textContent = model.resumeLabel;
+    byId('storybook-details-play').textContent = model.primaryActionLabel;
+    byId('storybook-details-restart').style.display = model.showRestart ? 'inline-block' : 'none';
+    progress.style.display = model.progressPercent > 0 ? 'block' : 'none';
+    fill.style.width = model.progressPercent + '%';
+    focusWhenReady(byId('storybook-details-play'));
+  }
+
   function renderSettings(libraries, preferences, missingIds, recovery) {
     var container = byId('storybook-library-options');
     var childName = byId('storybook-child-name');
@@ -381,6 +405,13 @@
     byId('storybook-edit-libraries').addEventListener('click', function () {
       callbacks.onOpenSettings('storybook-edit-libraries');
     });
+    byId('storybook-details-back').addEventListener('click', callbacks.onCloseStorybookDetails);
+    byId('storybook-details-play').addEventListener('click', function () {
+      callbacks.onStartStorybookPlayback(false);
+    });
+    byId('storybook-details-restart').addEventListener('click', function () {
+      callbacks.onStartStorybookPlayback(true);
+    });
     byId('storybook-library-back').addEventListener('click', callbacks.onCloseStorybookLibrary);
     byId('storybook-save').addEventListener('click', saveSettings);
     byId('storybook-cancel').addEventListener('click', callbacks.onCancelSettings);
@@ -393,6 +424,7 @@
 
   global.RawiStorybookView = {
     init: init,
+    renderDetails: renderDetails,
     renderHome: renderHome,
     renderLibrary: renderLibrary,
     renderSettings: renderSettings,

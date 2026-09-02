@@ -348,6 +348,44 @@ body.mode-storybook.storybook-reduced-motion .storybook-door {
   outline: 0;
   transform: translateY(-4px);
 }
+.storybook-details-page {
+  padding-top: 150px;
+}
+.storybook-details-card {
+  align-items: center;
+  display: flex;
+  gap: 42px;
+}
+.storybook-details-art {
+  border-radius: 34px;
+  overflow: hidden;
+  width: 540px;
+}
+.storybook-details-artwork-art,
+.storybook-details-artwork-image,
+.storybook-details-artwork-fallback {
+  height: 760px;
+  width: 540px;
+}
+.storybook-details-copy {
+  max-width: 760px;
+}
+.storybook-details-copy h1 {
+  font-family: "Segoe Print", "Comic Sans MS", cursive;
+  font-size: 60px;
+  line-height: 1.12;
+  margin: 0 0 14px;
+}
+.storybook-details-overview {
+  color: var(--storybook-ink);
+  line-height: 1.5;
+  margin: 20px 0 0;
+}
+.storybook-details-actions {
+  display: flex;
+  gap: 16px;
+  margin-top: 26px;
+}
 .storybook-door-title,
 .storybook-door-subtitle {
   display: block;

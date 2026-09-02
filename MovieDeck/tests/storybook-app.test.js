@@ -348,6 +348,7 @@ function buildDom(document) {
   var browseScreen = append(document.body, 'section', 'browse-screen', 'screen');
   var storybookScreen = append(document.body, 'section', 'storybook-screen', 'screen');
   var storybookLibraryScreen = append(document.body, 'section', 'storybook-library-screen', 'screen');
+  var storybookDetailsScreen = append(document.body, 'section', 'storybook-details-screen', 'screen');
   var detailsScreen = append(document.body, 'section', 'details-screen', 'screen');
   var settingsScreen = append(document.body, 'section', 'storybook-settings-screen', 'screen');
   var playerScreen = append(document.body, 'section', 'player-screen', 'screen');
@@ -408,6 +409,23 @@ function buildDom(document) {
   append(storybookLibraryScreen, 'div', 'storybook-library-cards', '');
   append(storybookLibraryScreen, 'p', 'storybook-library-empty', '');
 
+  var storybookDetailsTopbar = append(storybookDetailsScreen, 'header', '', 'storybook-topbar');
+  append(storybookDetailsTopbar, 'div', '', 'storybook-wordmark');
+  var storybookDetailsModeToggle = append(storybookDetailsTopbar, 'div', '', 'mode-toggle');
+  focusable(append(storybookDetailsModeToggle, 'button', 'storybook-details-adult-mode-button', '')).setAttribute('data-mode', 'adult');
+  focusable(append(storybookDetailsModeToggle, 'button', 'storybook-details-storybook-mode-button', '')).setAttribute('data-mode', 'storybook');
+  focusable(append(storybookDetailsScreen, 'button', 'storybook-details-back', ''));
+  append(storybookDetailsScreen, 'div', 'storybook-details-art', '');
+  append(storybookDetailsScreen, 'p', 'storybook-details-kicker', '');
+  append(storybookDetailsScreen, 'h1', 'storybook-details-title', '');
+  append(storybookDetailsScreen, 'p', 'storybook-details-meta', '');
+  var storybookDetailsProgress = append(storybookDetailsScreen, 'div', 'storybook-details-progress', '');
+  append(storybookDetailsProgress, 'span', '', '');
+  append(storybookDetailsScreen, 'p', 'storybook-details-resume', '');
+  append(storybookDetailsScreen, 'p', 'storybook-details-overview', '');
+  focusable(append(storybookDetailsScreen, 'button', 'storybook-details-play', ''));
+  focusable(append(storybookDetailsScreen, 'button', 'storybook-details-restart', ''));
+
   focusable(append(detailsScreen, 'button', 'details-back', ''));
   focusable(append(detailsScreen, 'button', 'details-adult-mode-button', '')).setAttribute('data-mode', 'adult');
   focusable(append(detailsScreen, 'button', 'details-storybook-mode-button', '')).setAttribute('data-mode', 'storybook');
@@ -467,6 +485,10 @@ function loadAppHarness(options) {
     needsRecovery: false,
     type: 'ok'
   }));
+  var playerCallbacks = {};
+  var playCalls = [];
+  var stopCalls = [];
+  var isPlayingState = false;
   var storybookDoorFocusCalls = [];
   var storybookMotionCalls = [];
   var storybookStopCalls = 0;
@@ -533,6 +555,8 @@ function loadAppHarness(options) {
     storybookGreeting: 'What should we watch tonight, {child}?',
     storybookGreetingWithoutName: 'What should we watch tonight?',
     storybookHomeHint: 'Pick a favorite or open a story door.',
+    storybookDetailsBackButton: '← Storybook',
+    storybookDetailsKicker: 'Story time',
     storybookItemAriaLabel: 'Open {title}',
     storybookLibraryBackButton: '← Storybook',
     storybookLibraryEmpty: 'No stories are available in {library} right now.',
@@ -541,12 +565,14 @@ function loadAppHarness(options) {
     storybookPreferencesMalformed: 'Saved Storybook settings could not be read.',
     storybookPreferencesUnsupported: 'Saved Storybook settings use unsupported version {version}.',
     storybookRecoveryResetRequired: 'Reset Storybook settings before saving new Storybook options.',
+    storybookResumeButton: 'Resume from {time}',
     storybookResumeProgress: 'Resume from {time}',
     storybookResetButton: 'Reset Storybook settings',
     storybookResetConfirmButton: 'Confirm reset',
     storybookResetConfirmPrompt: 'Select Confirm reset to clear the saved Storybook settings.',
     storybookSettingsSaved: 'Storybook settings saved.',
     storybookSetupRequired: 'Choose Storybook libraries before opening this mode.',
+    storybookStartButton: 'Start story',
     untitled: 'Untitled'
   };
   var api = {
@@ -615,10 +641,18 @@ function loadAppHarness(options) {
     MovieDeckApi: api,
     MovieDeckPlayer: {
       handleKey: function () {},
-      init: function () {},
-      isPlaying: function () { return false; },
-      play: function () {},
-      stop: function () {}
+      init: function (options) {
+        playerCallbacks = options || {};
+      },
+      isPlaying: function () { return isPlayingState; },
+      play: function (item, fromBeginning) {
+        playCalls.push({ id: item.Id, fromBeginning: fromBeginning });
+        isPlayingState = true;
+      },
+      stop: function (completed) {
+        stopCalls.push(completed);
+        isPlayingState = false;
+      }
     },
     MovieDeckValue: copyValue,
     RawiCopy: {
@@ -674,6 +708,7 @@ function loadAppHarness(options) {
   buildDom(document);
   document.getElementById('hero-open').disabled = true;
   document.getElementById('restart-button').style = {};
+  document.getElementById('storybook-details-restart').style = {};
 
   window.location = { search: options.locationSearch || '' };
   window.window = window;
@@ -721,6 +756,12 @@ function loadAppHarness(options) {
         return node.getAttribute('data-library-id');
       });
     },
+    playCalls: function () {
+      return JSON.parse(JSON.stringify(playCalls));
+    },
+    playerCallbacks: function () {
+      return playerCallbacks;
+    },
     savedState: function () { return savedState; },
     screenActive: function (id) {
       return document.getElementById(id).classList.contains('is-active');
@@ -728,10 +769,16 @@ function loadAppHarness(options) {
     screenEntries: function () {
       return enteredScreens.slice();
     },
+    setPlayerPlaying: function (value) {
+      isPlayingState = value === true;
+    },
     shelfHeadings: function () {
       return document.querySelectorAll('#shelves .shelf').map(function (shelf) {
         return shelf.children[0].children[0].textContent;
       });
+    },
+    stopCalls: function () {
+      return JSON.parse(JSON.stringify(stopCalls));
     },
     storybookMotionCalls: function () {
       return storybookMotionCalls.slice();
@@ -1543,7 +1590,7 @@ asyncTest('adultDetailsRemovesStorybookFavoriteWithoutLeavingAdultMode', functio
   });
 });
 
-asyncTest('storybookHomeDetailsHidesFavoriteControlAndDoesNotMutatePreferences', function () {
+asyncTest('storybookHomeItemsOpenStorybookDetailsInsteadOfAdultDetails', function () {
   var harness = loadAppHarness({
     libraries: [
       { Id: 'kids', Name: 'Kids' }
@@ -1567,21 +1614,181 @@ asyncTest('storybookHomeDetailsHidesFavoriteControlAndDoesNotMutatePreferences',
   });
 
   return flush(12).then(function () {
-    var favoriteButton = harness.document.getElementById('favorite-button');
-
-    assert.strictEqual(harness.screenActive('storybook-screen'), true);
     harness.document.getElementById('storybook-resume-card').click();
 
-    assert.strictEqual(favoriteButton.style.display, 'none');
-    assert.strictEqual(favoriteButton.disabled, true);
-    assert.strictEqual(favoriteButton.getAttribute('aria-pressed'), 'false');
+    assert.strictEqual(harness.screenActive('storybook-details-screen'), true);
+    assert.strictEqual(harness.screenActive('details-screen'), false);
+    assert.strictEqual(harness.document.getElementById('storybook-details-title').textContent, 'First Story');
 
-    favoriteButton.click();
+    harness.document.getElementById('storybook-details-play').click();
+    assert.deepStrictEqual(harness.playCalls(), [{ id: 'story-1', fromBeginning: false }]);
+  });
+});
 
-    assert.strictEqual(harness.savedState(), null);
-    assert.deepStrictEqual(harness.currentPreferences().favoriteItemIds, []);
+asyncTest('storybookDetailsBackKeyRestoresHomeFavoriteFocus', function () {
+  var harness = loadAppHarness({
+    libraries: [{ Id: 'kids', Name: 'Kids' }],
+    preferences: {
+      version: 2,
+      enabled: true,
+      lastMode: 'storybook',
+      childName: 'Nova',
+      libraryIds: ['kids'],
+      favoriteItemIds: ['story-1'],
+      reducedMotion: false
+    },
+    restoreSession: true,
+    videosByLibrary: {
+      kids: [{ Id: 'story-1', Name: 'First Story', RunTimeTicks: 7200000000 }]
+    }
+  });
+
+  return flush(12).then(function () {
+    harness.document.getElementById('storybook-favorite-card-story-1').click();
+
+    harness.document.dispatchEvent('keydown', {
+      keyCode: 10009,
+      preventDefault: function () {}
+    });
+
+    assert.strictEqual(harness.screenActive('storybook-screen'), true);
+    assert.strictEqual(harness.document.activeElement.id, 'storybook-favorite-card-story-1');
+  });
+});
+
+asyncTest('storybookLibraryDetailsBackKeyRestoresPriorLibraryCardFocus', function () {
+  var harness = loadAppHarness({
+    libraries: [{ Id: 'kids', Name: 'Kids' }],
+    preferences: {
+      version: 2,
+      enabled: true,
+      lastMode: 'storybook',
+      childName: 'Nova',
+      libraryIds: ['kids'],
+      favoriteItemIds: [],
+      reducedMotion: false
+    },
+    restoreSession: true,
+    videosByLibrary: {
+      kids: [
+        { Id: 'story-1', Name: 'First Story', RunTimeTicks: 7200000000 },
+        { Id: 'story-2', Name: 'Second Story', RunTimeTicks: 5400000000 }
+      ]
+    }
+  });
+
+  return flush(12).then(function () {
+    harness.document.getElementById('storybook-door-kids').click();
+    harness.document.getElementById('storybook-library-card-story-2').click();
+
+    harness.document.dispatchEvent('keydown', {
+      keyCode: 10009,
+      preventDefault: function () {}
+    });
+
+    assert.strictEqual(harness.screenActive('storybook-library-screen'), true);
+    assert.strictEqual(harness.document.activeElement.id, 'storybook-library-card-story-2');
+  });
+});
+
+asyncTest('storybookPlaybackErrorWhilePlayerActiveReturnsToStorybookDetails', function () {
+  var harness = loadAppHarness({
+    libraries: [{ Id: 'kids', Name: 'Kids' }],
+    preferences: {
+      version: 2,
+      enabled: true,
+      lastMode: 'storybook',
+      childName: 'Nova',
+      libraryIds: ['kids'],
+      favoriteItemIds: ['story-1'],
+      reducedMotion: false
+    },
+    restoreSession: true,
+    resume: [
+      { Id: 'story-1', Name: 'First Story', UserData: { PlaybackPositionTicks: 600000000, PlayedPercentage: 14 } }
+    ],
+    videosByLibrary: {
+      kids: [{ Id: 'story-1', Name: 'First Story', RunTimeTicks: 7200000000, Overview: 'A calm bedtime story.', UserData: { PlaybackPositionTicks: 600000000, PlayedPercentage: 14 } }]
+    }
+  });
+
+  return flush(12).then(function () {
+    harness.document.getElementById('storybook-resume-card').click();
+    harness.document.getElementById('storybook-details-play').click();
+    harness.playerCallbacks().onError({ message: 'No compatible stream.' });
+
+    assert.deepStrictEqual(harness.stopCalls(), [false]);
+
+    harness.playerCallbacks().onStop(false);
+
+    assert.strictEqual(harness.screenActive('storybook-details-screen'), true);
+    assert.strictEqual(harness.document.activeElement.id, 'storybook-details-play');
+    assert.strictEqual(harness.toastText(), 'No compatible stream.');
+  });
+});
+
+asyncTest('storybookPlaybackErrorCallbackStillReturnsToStorybookDetailsWhenPlayerAlreadyStopped', function () {
+  var harness = loadAppHarness({
+    libraries: [{ Id: 'kids', Name: 'Kids' }],
+    preferences: {
+      version: 2,
+      enabled: true,
+      lastMode: 'storybook',
+      childName: 'Nova',
+      libraryIds: ['kids'],
+      favoriteItemIds: ['story-1'],
+      reducedMotion: false
+    },
+    restoreSession: true,
+    resume: [
+      { Id: 'story-1', Name: 'First Story', UserData: { PlaybackPositionTicks: 600000000, PlayedPercentage: 14 } }
+    ],
+    videosByLibrary: {
+      kids: [{ Id: 'story-1', Name: 'First Story', RunTimeTicks: 7200000000, Overview: 'A calm bedtime story.', UserData: { PlaybackPositionTicks: 600000000, PlayedPercentage: 14 } }]
+    }
+  });
+
+  return flush(12).then(function () {
+    harness.document.getElementById('storybook-resume-card').click();
+    harness.document.getElementById('storybook-details-play').click();
+    harness.setPlayerPlaying(false);
+    harness.playerCallbacks().onError({ message: 'Browser refused playback.' });
+
+    assert.deepStrictEqual(harness.stopCalls(), []);
+    assert.strictEqual(harness.screenActive('storybook-details-screen'), true);
+    assert.strictEqual(harness.document.activeElement.id, 'storybook-details-play');
+    assert.strictEqual(harness.toastText(), 'Browser refused playback.');
+  });
+});
+
+asyncTest('adultPlaybackErrorsStillReturnToAdultDetails', function () {
+  var harness = loadAppHarness({
+    libraries: [{ Id: 'kids', Name: 'Kids' }],
+    preferences: {
+      version: 2,
+      enabled: true,
+      lastMode: 'adult',
+      childName: 'Nova',
+      libraryIds: ['kids'],
+      favoriteItemIds: [],
+      reducedMotion: false
+    },
+    restoreSession: true,
+    videosByLibrary: {
+      kids: [{ Id: 'story-1', Name: 'First Story', RunTimeTicks: 7200000000 }]
+    }
+  });
+
+  return flush(12).then(function () {
+    harness.document.getElementById('hero-open').click();
+    harness.document.getElementById('play-button').click();
+    harness.setPlayerPlaying(false);
+    harness.playerCallbacks().onError({ message: 'Browser refused playback.' });
+
     assert.strictEqual(harness.screenActive('details-screen'), true);
-    assert.strictEqual(harness.toastText(), '');
+    assert.strictEqual(harness.screenActive('storybook-details-screen'), false);
+    assert.strictEqual(harness.document.activeElement.id, 'play-button');
+    assert.strictEqual(harness.toastText(), 'Browser refused playback.');
   });
 });
 

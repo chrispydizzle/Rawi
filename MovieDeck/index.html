@@ -181,6 +181,53 @@
       </div>
     </section>
 
+    <section id="storybook-details-screen"
+             class="screen storybook-screen storybook-details-screen"
+             aria-labelledby="storybook-details-title">
+      <div class="storybook-sky" aria-hidden="true">
+        <span class="storybook-moon"></span>
+        <span class="storybook-star star-one">✦</span>
+        <span class="storybook-star star-two">✧</span>
+        <span class="storybook-star star-three">✦</span>
+      </div>
+      <header class="storybook-topbar">
+        <div class="storybook-wordmark"><i>/</i> <span data-copy="appName">Rawi</span></div>
+        <div class="mode-toggle" role="group" aria-label="Display mode">
+          <button id="storybook-details-adult-mode-button"
+                  class="mode-option focusable"
+                  data-focusable
+                  data-mode="adult"
+                  data-copy="modeAdult">Adult</button>
+          <button id="storybook-details-storybook-mode-button"
+                  class="mode-option focusable"
+                  data-focusable
+                  data-mode="storybook"
+                  data-copy="modeStorybook">Storybook</button>
+        </div>
+      </header>
+      <div class="storybook-page storybook-details-page">
+        <button id="storybook-details-back"
+                class="storybook-edit focusable"
+                data-focusable
+                data-copy="storybookDetailsBackButton">← Storybook</button>
+        <article class="storybook-details-card">
+          <div id="storybook-details-art" class="storybook-details-art"></div>
+          <div class="storybook-details-copy">
+            <p id="storybook-details-kicker" class="storybook-section-title" data-copy="storybookDetailsKicker">Story time</p>
+            <h1 id="storybook-details-title"></h1>
+            <p id="storybook-details-meta" class="storybook-library-count"></p>
+            <div id="storybook-details-progress" class="storybook-card-progress"><span></span></div>
+            <p id="storybook-details-resume" class="storybook-card-resume"></p>
+            <p id="storybook-details-overview" class="storybook-details-overview"></p>
+            <div class="storybook-details-actions">
+              <button id="storybook-details-play" class="button button-primary focusable" data-focusable></button>
+              <button id="storybook-details-restart" class="button button-secondary focusable" data-focusable data-copy="restartButton">Start from beginning</button>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+
     <section id="details-screen" class="screen details-screen" aria-label="Movie details" data-copy-aria-label="detailsAriaLabel">
       <div id="details-backdrop" class="details-backdrop"></div>
       <div class="details-shade"></div>

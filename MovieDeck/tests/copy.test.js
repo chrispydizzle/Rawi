@@ -77,6 +77,16 @@ var copy = load('js/copy.js', { window: {} }).RawiCopy;
   );
 }());
 
+(function exposesStorybookDetailsCopyDefaults() {
+  assert.strictEqual(copy.get('storybookDetailsBackButton'), '← Storybook');
+  assert.strictEqual(copy.get('storybookDetailsKicker'), 'Story time');
+  assert.strictEqual(copy.get('storybookStartButton'), 'Start story');
+  assert.strictEqual(
+    copy.get('storybookResumeButton', { time: '6m' }),
+    'Resume from 6m'
+  );
+}());
+
 (function exposesStorybookFavoriteToggleCopyDefaults() {
   assert.strictEqual(copy.get('storybookFavoriteAddButton'), 'Add to Storybook favorites');
   assert.strictEqual(copy.get('storybookFavoriteRemoveButton'), 'Remove from Storybook favorites');
