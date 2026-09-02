@@ -189,6 +189,7 @@
     resumeSlot.innerHTML = '';
     favorites.innerHTML = '';
     container.innerHTML = '';
+    container.scrollLeft = 0;
 
     if (resumeCard) {
       firstChoice = createStoryCard(resumeCard, 'storybook-resume-card', 'resume');
@@ -204,10 +205,8 @@
       favorites.appendChild(card);
     });
     favoritesSection.style.display = favoriteCards.length ? 'block' : 'none';
-
     scroller = document.createElement('div');
     scroller.className = 'storybook-door-scroller';
-    scroller.scrollLeft = 0;
     container.appendChild(scroller);
 
     strip = document.createElement('div');

@@ -15,12 +15,23 @@ function createDoor() {
 
 function createScroller(clientWidth, scrollWidth, scrollLeft, rect) {
   return {
+    className: 'storybook-doors',
     clientWidth: clientWidth,
     getBoundingClientRect: function () {
       return rect;
     },
+    id: 'storybook-doors',
     scrollLeft: scrollLeft,
+    style: {},
     scrollWidth: scrollWidth
+  };
+}
+
+function createDoorScroller(scroller) {
+  return {
+    className: 'storybook-door-scroller',
+    parentNode: scroller,
+    style: {}
   };
 }
 
@@ -217,7 +228,8 @@ function loadAnimationsHarness(matchMediaMatches, doors) {
     left: 90,
     right: 1490
   });
-  var track = createDoorTrack(scroller);
+  var doorScroller = createDoorScroller(scroller);
+  var track = createDoorTrack(doorScroller);
   var door = createFocusableDoor(track, {
     left: 1685,
     right: 1955,
@@ -243,7 +255,8 @@ function loadAnimationsHarness(matchMediaMatches, doors) {
     left: 90,
     right: 1490
   });
-  var track = createDoorTrack(scroller);
+  var doorScroller = createDoorScroller(scroller);
+  var track = createDoorTrack(doorScroller);
   var door = createFocusableDoor(track, {
     left: 1685,
     right: 1955,
@@ -264,7 +277,8 @@ function loadAnimationsHarness(matchMediaMatches, doors) {
     left: 120,
     right: 1360
   });
-  var track = createDoorTrack(scroller);
+  var doorScroller = createDoorScroller(scroller);
+  var track = createDoorTrack(doorScroller);
   var doorRect = {
     left: 1828,
     right: 2098,
@@ -282,6 +296,35 @@ function loadAnimationsHarness(matchMediaMatches, doors) {
   assert.strictEqual(harness.gsap.toCalls.length, 1);
   assert.strictEqual(harness.gsap.toCalls[0].vars.position, 810);
   harness.gsap.toCalls[0].vars.onComplete();
+  assert.strictEqual(scroller.scrollLeft, 810);
+  focusedRect = shiftDoorRect(doorRect, scroller.scrollLeft);
+  assert(focusedRect.left >= 192, 'expected left within overscan, got ' + focusedRect.left);
+  assert(focusedRect.right <= 1288, 'expected right within overscan, got ' + focusedRect.right);
+}());
+
+(function keepsOverflowedStoryDoorsWithinOverscanBoundsImmediatelyWhenReducedMotionIsRequested() {
+  var scroller = createScroller(1240, 2520, 0, {
+    left: 120,
+    right: 1360
+  });
+  var doorScroller = createDoorScroller(scroller);
+  var track = createDoorTrack(doorScroller);
+  var doorRect = {
+    left: 1828,
+    right: 2098,
+    width: 270,
+    height: 390,
+    top: 500,
+    bottom: 890
+  };
+  var door = createFocusableDoor(track, doorRect);
+  var harness = loadAnimationsHarness(false, []);
+  var focusedRect;
+
+  harness.animations.focusStorybookDoor(door, true);
+
+  assert.strictEqual(harness.gsap.toCalls.length, 0);
+  assert.strictEqual(track.style.transform, 'none');
   assert.strictEqual(scroller.scrollLeft, 810);
   focusedRect = shiftDoorRect(doorRect, scroller.scrollLeft);
   assert(focusedRect.left >= 192, 'expected left within overscan, got ' + focusedRect.left);

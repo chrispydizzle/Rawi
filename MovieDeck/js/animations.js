@@ -123,9 +123,11 @@
   }
 
   function completeDoorFocus(motion) {
+    var position = arguments.length > 1 ? arguments[1] : motion.position;
+
     if (doorFocusMotion !== motion) { return; }
     motion.track.style.transform = 'none';
-    motion.scroller.scrollLeft = motion.position;
+    motion.scroller.scrollLeft = position;
     doorFocusMotion = null;
     doorFocusTween = null;
   }
@@ -134,7 +136,29 @@
     var motion = doorFocusMotion;
     if (!motion) { return; }
     if (doorFocusTween) { doorFocusTween.kill(); }
-    completeDoorFocus(motion);
+    completeDoorFocus(motion, motion.position);
+  }
+
+  function hasClass(node, className) {
+    if (!node) { return false; }
+    if (node.classList && node.classList.contains) {
+      return node.classList.contains(className);
+    }
+    if (typeof node.className !== 'string') { return false; }
+    return (' ' + node.className + ' ').indexOf(' ' + className + ' ') !== -1;
+  }
+
+  function resolveStorybookDoorScroller(track) {
+    var current = track ? track.parentNode : null;
+
+    while (current) {
+      if (current.id === 'storybook-doors' || hasClass(current, 'storybook-doors')) {
+        return current;
+      }
+      current = current.parentNode;
+    }
+
+    return track ? track.parentNode : null;
   }
 
   function focusStorybookDoor(door, forceReducedMotion) {
@@ -148,10 +172,10 @@
     var margin = 72;
     var motion;
 
-    if (!door || !door.parentNode || !door.parentNode.parentNode) { return; }
+    if (!door || !door.parentNode) { return; }
     track = door.parentNode;
-    scroller = track.parentNode;
-    if (!scroller.getBoundingClientRect || !door.getBoundingClientRect) { return; }
+    scroller = resolveStorybookDoorScroller(track);
+    if (!scroller || !scroller.getBoundingClientRect || !door.getBoundingClientRect) { return; }
 
     settleDoorFocus();
     viewportRect = scroller.getBoundingClientRect();
@@ -184,13 +208,14 @@
       position: start,
       scroller: scroller,
       start: start,
+      target: target,
       track: track
     };
     doorFocusMotion = motion;
     doorFocusTween = gsap.to(motion, {
       duration: 0.34,
       ease: 'back.out(1.05)',
-      onComplete: function () { completeDoorFocus(motion); },
+      onComplete: function () { completeDoorFocus(motion, motion.target); },
       onUpdate: function () {
         motion.track.style.transform = 'translate3d(' + (motion.start - motion.position) + 'px, 0, 0)';
       },
