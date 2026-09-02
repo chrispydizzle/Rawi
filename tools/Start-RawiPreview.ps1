@@ -10,6 +10,7 @@ param(
     [string]$StorybookScreen = 'home',
 
     [Parameter(Mandatory = $false)]
+    [ValidateSet('singDance', 'bedtime', 'animals', 'learning', 'movement')]
     [string]$StorybookCategoryKey,
 
     [Parameter(Mandatory = $false)]

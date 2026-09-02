@@ -164,20 +164,42 @@ function runPreview(root, env, args) {
   );
 }
 
-function browserCapablePreviewEnvironment(sharedTemp) {
-  var env = previewEnvironment(sharedTemp);
+function runPreviewWithoutNoBrowser(root, env, args) {
+  return runPowerShell(
+    ['-File', path.join(root, 'tools', 'Start-RawiPreview.ps1')].concat(args || []),
+    env
+  );
+}
 
-  if (process.env['ProgramFiles(x86)']) {
-    env['ProgramFiles(x86)'] = process.env['ProgramFiles(x86)'];
-  } else {
-    delete env['ProgramFiles(x86)'];
-  }
-  if (process.env.ProgramFiles) {
-    env.ProgramFiles = process.env.ProgramFiles;
-  } else {
-    delete env.ProgramFiles;
-  }
-  return env;
+function createFakeEdgeStub(env) {
+  // A stub file (never executed) so the helper's `Test-Path $edge` guard is
+  // satisfied inside the sandboxed ProgramFiles used by these tests, without
+  // depending on a real Microsoft Edge install being present on the host.
+  var edgeDir = path.join(env['ProgramFiles(x86)'], 'Microsoft', 'Edge', 'Application');
+  var edgePath = path.join(edgeDir, 'msedge.exe');
+
+  fs.mkdirSync(edgeDir, { recursive: true });
+  fs.writeFileSync(edgePath, '');
+  return edgePath;
+}
+
+function instrumentPreviewScriptWithLaunchMarker(scriptPath, markerPath) {
+  // Replace the single Edge Start-Process launch statement in this temp copy
+  // of the helper with a marker write, so tests can prove the launch branch
+  // was (or was not) reached without ever starting a real browser process.
+  var original = fs.readFileSync(scriptPath, 'utf8');
+  var target = "        Start-Process $edge -ArgumentList '--new-window', '--window-size=1920,1080', $url";
+  var replacement = "        Set-Content -LiteralPath '" + markerPath.replace(/'/g, "''") + "' -Value $url";
+  var occurrences = original.split(target).length - 1;
+
+  assert.strictEqual(
+    occurrences,
+    1,
+    'expected exactly one Edge Start-Process launch statement to replace with the marker probe in ' +
+      scriptPath + '; found ' + occurrences
+  );
+
+  fs.writeFileSync(scriptPath, original.split(target).join(replacement));
 }
 
 function runPowerShellCommand(command, env) {
@@ -293,37 +315,6 @@ function forceStopOwnedPreviewProcesses(root, env) {
   });
 }
 
-function findInstalledEdgePath(env) {
-  var result = runPowerShellCommand(
-    '$edge = "${env:ProgramFiles(x86)}\\Microsoft\\Edge\\Application\\msedge.exe"; ' +
-      'if (!(Test-Path $edge)) { $edge = "$env:ProgramFiles\\Microsoft\\Edge\\Application\\msedge.exe" }; ' +
-      'if (Test-Path $edge) { $edge }',
-    env
-  );
-
-  assert.strictEqual(result.status, 0, joinOutput(result));
-  return String(result.stdout || '').trim();
-}
-
-function getBrowserProcessIdsForUrl(url, env) {
-  var needle = String(url).replace(/'/g, "''");
-  var result = runPowerShellCommand(
-    "$needle = '" + needle + "'; " +
-      'Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | ' +
-      'Where-Object { $_.ProcessId -ne $PID -and $_.CommandLine -and $_.CommandLine.Contains($needle) } | ' +
-      'Select-Object -ExpandProperty ProcessId',
-    env
-  );
-  var output;
-
-  assert.strictEqual(result.status, 0, joinOutput(result));
-  output = String(result.stdout || '').trim();
-  if (!output) { return []; }
-  return output.split(/\r?\n/).filter(Boolean).map(function (value) {
-    return Number(String(value).trim());
-  });
-}
-
 function getPreviewStatusCode(url, env) {
   var result = runPowerShellCommand(
     "(Invoke-WebRequest '" + String(url).replace(/'/g, "''") + "' -UseBasicParsing -TimeoutSec 10).StatusCode",
@@ -428,47 +419,72 @@ function testReusesOwnedPreviewForStorybookPhase3Routes() {
   }
 }
 
-function testNoBrowserServesStorybookPhase3RoutesWithoutOpeningAnInstalledBrowser() {
+function testInstrumentedLaunchMarkerProbeProvesNoBrowserSuppressesTheEdgeLaunch() {
   var workspace = makeWorkspace();
   var sharedTemp = path.join(workspace, 'shared-temp');
   var root = createPreviewCopy(workspace, 'owner-a', 'Owner A');
-  var env = browserCapablePreviewEnvironment(sharedTemp);
+  var env = previewEnvironment(sharedTemp);
+  var scriptPath = path.join(root, 'tools', 'Start-RawiPreview.ps1');
+  var markerPath = path.join(workspace, 'edge-launch-marker.txt');
   var port = getFreePort();
   var listenerPid = null;
 
+  createFakeEdgeStub(env);
+  instrumentPreviewScriptWithLaunchMarker(scriptPath, markerPath);
+
   try {
-    var edgePath = findInstalledEdgePath(env);
     var baseUrl = 'http://127.0.0.1:' + port + '/';
     var magicUrl = baseUrl + '?preview=storybook&storybookScreen=magic';
-    var start;
-    var magicRoute;
+    var positiveControl;
+    var negativeControl;
     var stopResult;
 
-    assert.notStrictEqual(
-      edgePath,
-      '',
-      hostLabel() + 'expected a real installed Microsoft Edge so -NoBrowser is proven without faking ProgramFiles.'
-    );
-
-    start = runPreview(root, env, ['-Port', String(port), '-StorybookMock']);
-    assert.strictEqual(start.status, 0, hostLabel() + joinOutput(start));
+    // Positive control: omit -NoBrowser on an owned temp port. The launch
+    // branch is reached, so the marker probe must fire with the exact
+    // preview URL. This proves the probe can fail the negative assertion
+    // below, without ever starting a real browser process.
+    positiveControl = runPreviewWithoutNoBrowser(root, env, ['-Port', String(port), '-StorybookMock', '-StorybookScreen', 'magic']);
+    assert.strictEqual(positiveControl.status, 0, hostLabel() + joinOutput(positiveControl));
     listenerPid = Number(getPreviewState(root, env).ProcessId);
-    assert(listenerPid, 'expected preview state metadata after starting the preview with -NoBrowser');
+    assert(listenerPid, 'expected preview state metadata after the positive-control launch');
     assert.strictEqual(waitForProcessState(listenerPid, env, true), true);
-
-    magicRoute = runPreview(root, env, ['-Port', String(port), '-StorybookMock', '-StorybookScreen', 'magic']);
-    assert.strictEqual(magicRoute.status, 0, hostLabel() + joinOutput(magicRoute));
-    assert.notStrictEqual(
-      joinOutput(magicRoute).indexOf('Rawi preview: ' + magicUrl),
-      -1,
-      hostLabel() + joinOutput(magicRoute)
+    assert.strictEqual(
+      fs.existsSync(markerPath),
+      true,
+      hostLabel() + 'expected the instrumented launch-marker probe to fire when -NoBrowser is omitted.'
     );
-    assert.strictEqual(Number(getPreviewState(root, env).ProcessId), listenerPid, hostLabel() + joinOutput(magicRoute));
-    assert.strictEqual(getPreviewStatusCode(magicUrl, env), 200, hostLabel() + joinOutput(magicRoute));
-    assert.deepStrictEqual(
-      getBrowserProcessIdsForUrl(baseUrl, env),
-      [],
-      hostLabel() + '-NoBrowser must not launch ' + edgePath + ' for ' + baseUrl
+    assert.strictEqual(
+      fs.readFileSync(markerPath, 'utf8').trim(),
+      magicUrl,
+      hostLabel() + 'expected the marker to record the exact preview URL that would have been opened.'
+    );
+
+    stopResult = runPreview(root, env, ['-Port', String(port), '-Stop']);
+    assert.strictEqual(stopResult.status, 0, hostLabel() + joinOutput(stopResult));
+    assert.strictEqual(waitForProcessState(listenerPid, env, false), true, hostLabel() + joinOutput(stopResult));
+    assert.strictEqual(getPreviewState(root, env), null, hostLabel() + joinOutput(stopResult));
+    assert.deepStrictEqual(getOwnedPreviewProcessIds(root, env), [], hostLabel() + joinOutput(stopResult));
+    listenerPid = null;
+    fs.unlinkSync(markerPath);
+
+    // Negative control: the same instrumented helper, invoked through the
+    // normal automated `runPreview` boundary that always injects -NoBrowser.
+    // The route must still serve correctly, and the marker must stay absent.
+    negativeControl = runPreview(root, env, ['-Port', String(port), '-StorybookMock', '-StorybookScreen', 'magic']);
+    assert.strictEqual(negativeControl.status, 0, hostLabel() + joinOutput(negativeControl));
+    assert.notStrictEqual(
+      joinOutput(negativeControl).indexOf('Rawi preview: ' + magicUrl),
+      -1,
+      hostLabel() + joinOutput(negativeControl)
+    );
+    listenerPid = Number(getPreviewState(root, env).ProcessId);
+    assert(listenerPid, 'expected preview state metadata after the automated -NoBrowser invocation');
+    assert.strictEqual(waitForProcessState(listenerPid, env, true), true);
+    assert.strictEqual(getPreviewStatusCode(magicUrl, env), 200, hostLabel() + joinOutput(negativeControl));
+    assert.strictEqual(
+      fs.existsSync(markerPath),
+      false,
+      hostLabel() + 'expected the launch-marker probe to stay absent when the automated boundary injects -NoBrowser.'
     );
     assert.deepStrictEqual(
       getProcessTreeWindowHandles(listenerPid, env).filter(function (entry) {
@@ -487,6 +503,7 @@ function testNoBrowserServesStorybookPhase3RoutesWithoutOpeningAnInstalledBrowse
   } finally {
     forceStopOwnedPreviewProcesses(root, env);
     forceStopProcess(listenerPid, env);
+    if (fs.existsSync(markerPath)) { fs.unlinkSync(markerPath); }
     deleteTree(workspace);
   }
 }
@@ -566,8 +583,33 @@ function testRefusesDifferentAppPathOwnershipAndStopsOnlyOwnedPreview() {
   }
 }
 
+function testRejectsInvalidStorybookCategoryKeyBeforeStartingAListener() {
+  var workspace = makeWorkspace();
+  var sharedTemp = path.join(workspace, 'shared-temp');
+  var root = createPreviewCopy(workspace, 'owner-a', 'Owner A');
+  var env = previewEnvironment(sharedTemp);
+  var port = getFreePort();
+
+  try {
+    var result = runPreview(root, env, ['-Port', String(port), '-StorybookMock', '-StorybookCategoryKey', 'aminals']);
+    var output = joinOutput(result);
+
+    assert.notStrictEqual(result.status, 0, hostLabel() + output);
+    assert.notStrictEqual(
+      /ValidateSet|does not belong to the set|cannot validate argument/i.test(output),
+      false,
+      hostLabel() + output
+    );
+    assert.deepStrictEqual(getOwnedPreviewProcessIds(root, env), [], hostLabel() + output);
+  } finally {
+    forceStopOwnedPreviewProcesses(root, env);
+    deleteTree(workspace);
+  }
+}
+
 powerShellHosts.forEach(function (host) {
   withPowerShellHost(host, testReusesOwnedPreviewForStorybookPhase3Routes);
-  withPowerShellHost(host, testNoBrowserServesStorybookPhase3RoutesWithoutOpeningAnInstalledBrowser);
+  withPowerShellHost(host, testInstrumentedLaunchMarkerProbeProvesNoBrowserSuppressesTheEdgeLaunch);
   withPowerShellHost(host, testRefusesDifferentAppPathOwnershipAndStopsOnlyOwnedPreview);
+  withPowerShellHost(host, testRejectsInvalidStorybookCategoryKeyBeforeStartingAListener);
 });

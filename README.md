@@ -78,7 +78,7 @@ Tizen app-exit API. On TV, **All done** exits the app.
 .\tools\Start-RawiPreview.ps1 -StorybookMock -StorybookScreen ending -StorybookItemId bluey
 ```
 
-`Tonight's Little Menu` is stable for the app session, category shortcuts are tag-backed browse shortcuts rather than access control, and Magic Pick always opens a confirmation screen before playback. In preview mode, the browser proof below must show `jellyfinRequests:[]` even when `moviedeck.server` points at a configured Jellyfin origin.
+`Tonight's Little Menu` is stable for the app session, category shortcuts are tag-backed browse shortcuts rather than access control, and Magic Pick always opens a confirmation screen before playback. In preview mode, none of the routes above contact Jellyfin: opening a browser DevTools network tab while running them must show zero requests to `moviedeck.server`, even when it points at a configured Jellyfin origin.
 
 ## Repository layout
 

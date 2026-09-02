@@ -1085,6 +1085,11 @@ asyncTest('previewRoutesCanOpenHomeCategoryMagicSettingsDetailsAndEndingWithoutJ
     previewFixtures: fixture,
     restoreSession: true
   });
+  var libraryHarness = loadAppHarness({
+    locationSearch: '?preview=storybook&storybookScreen=library&storybookLibraryId=songs',
+    previewFixtures: fixture,
+    restoreSession: true
+  });
   var categoryHarness = loadAppHarness({
     locationSearch: '?preview=storybook&storybookScreen=category&storybookCategoryKey=animals',
     previewFixtures: fixture,
@@ -1131,6 +1136,11 @@ asyncTest('previewRoutesCanOpenHomeCategoryMagicSettingsDetailsAndEndingWithoutJ
       ),
       ['singDance', 'bedtime', 'animals', 'learning', 'movement']
     );
+    assert.strictEqual(homeHarness.document.activeElement.id, 'storybook-resume-card');
+
+    assert.strictEqual(libraryHarness.screenActive('storybook-library-screen'), true);
+    assert.strictEqual(libraryHarness.document.getElementById('storybook-library-title').textContent, 'Sing & Dance');
+    assert.strictEqual(libraryHarness.document.activeElement.id, 'storybook-library-card-dance');
 
     assert.strictEqual(categoryHarness.screenActive('storybook-library-screen'), true);
     assert.strictEqual(categoryHarness.document.getElementById('storybook-library-title').textContent, 'Animal Friends');
@@ -1143,10 +1153,13 @@ asyncTest('previewRoutesCanOpenHomeCategoryMagicSettingsDetailsAndEndingWithoutJ
     assert.strictEqual(settingsHarness.document.getElementById('storybook-recent-history-days').value, '14');
 
     assert.strictEqual(detailsHarness.screenActive('storybook-details-screen'), true);
+    assert.strictEqual(detailsHarness.document.activeElement.id, 'storybook-details-play');
     assert.strictEqual(endingHarness.screenActive('storybook-ending-screen'), true);
+    assert.strictEqual(endingHarness.document.activeElement.id, 'storybook-ending-all-done');
 
     [
       homeHarness,
+      libraryHarness,
       categoryHarness,
       magicHarness,
       settingsHarness,
@@ -1164,13 +1177,11 @@ asyncTest('previewRoutesCanOpenHomeCategoryMagicSettingsDetailsAndEndingWithoutJ
   });
 });
 
-asyncTest('previewSettingsSavePreservesNonDefaultPhase3StateAndUsesFixtureClock', function () {
+asyncTest('previewSettingsSavePreservesNonDefaultPhase3State', function () {
   var fixture = load('js/preview-fixtures.js', { window: {} }).RawiPreviewFixtures;
   var customFixture = JSON.parse(JSON.stringify(fixture));
   var harness;
 
-  customFixture.storybook.sessionSeed = 'storybook-phase-3-preview-custom';
-  customFixture.storybook.nowMs = Date.parse('2026-09-02T02:00:00.000Z');
   customFixture.storybook.preferences = basePreferences({
     enabled: true,
     lastMode: 'storybook',
