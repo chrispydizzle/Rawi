@@ -639,6 +639,8 @@ git commit -m "feat: add storybook catalogue foundation" -m "Co-authored-by: Cop
 
 **Validation evidence for the remaining prune-safety finding:** the added `storybook-catalogue.test.js` regression now proves that a missing selected library forces `canPruneFavorites === false` and leaves `favoriteIdsToPrune` empty even when the remaining libraries report successful `/Views` and video-request completion. The full suite and `git diff --check` both passed after the fix.
 
+**Validation evidence for the final settings-save regression:** `app.js` now preserves `storybookState.favoriteItemIds` when saving Storybook settings, and the new `storybook-app.test.js` regression seeds version-2 preferences with favorites, changes child/library/reduced-motion settings, and confirms the saved normalized preferences still contain the favorite IDs. The targeted `storybook-app.test.js` + `storybook-preferences.test.js` run, the full suite, and `git diff --check` all passed.
+
 ---
 
 ### Task 2: Storybook Home Resume and Favorites

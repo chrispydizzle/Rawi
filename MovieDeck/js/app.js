@@ -596,6 +596,7 @@
       lastMode: storybookSettingsIntent.activateStorybookOnSave ? 'storybook' : storybookSettingsIntent.modeOnOpen,
       childName: nextPreferences.childName,
       libraryIds: nextPreferences.libraryIds,
+      favoriteItemIds: storybookState.favoriteItemIds,
       reducedMotion: nextPreferences.reducedMotion
     });
     storybookRestoreStatus = storybookPreferences.getRestoreStatus ?

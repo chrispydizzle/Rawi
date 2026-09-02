@@ -445,22 +445,24 @@ function loadAppHarness(options) {
   var storybookMotionCalls = [];
   var storybookStopCalls = 0;
   var currentPreferences = JSON.parse(JSON.stringify(options.preferences || {
-    version: 1,
+    version: 2,
     enabled: false,
     lastMode: 'adult',
     childName: '',
     libraryIds: [],
+    favoriteItemIds: [],
     reducedMotion: false
   }));
   var librariesDeferred = options.librariesDeferred || null;
   var restoreValue = options.restoreSession !== false;
   function normalizePreferences(nextState) {
     return {
-      version: 1,
+      version: 2,
       enabled: nextState && nextState.enabled === true,
       lastMode: nextState && nextState.lastMode === 'storybook' ? 'storybook' : 'adult',
       childName: nextState && typeof nextState.childName === 'string' ? nextState.childName : '',
       libraryIds: nextState && Array.isArray(nextState.libraryIds) ? nextState.libraryIds.slice() : [],
+      favoriteItemIds: nextState && Array.isArray(nextState.favoriteItemIds) ? nextState.favoriteItemIds.slice() : [],
       reducedMotion: nextState && nextState.reducedMotion === true
     };
   }
@@ -607,11 +609,12 @@ function loadAppHarness(options) {
     RawiStorybookPreferences: {
       defaults: function () {
         return {
-          version: 1,
+          version: 2,
           enabled: false,
           lastMode: 'adult',
           childName: '',
           libraryIds: [],
+          favoriteItemIds: [],
           reducedMotion: false
         };
       },
@@ -925,11 +928,65 @@ asyncTest('previewIgnoresRecoverableStorybookPreferenceCorruption', function () 
     assert.deepStrictEqual(
       JSON.parse(JSON.stringify(harness.savedState())),
       {
-        version: 1,
+        version: 2,
         enabled: true,
         lastMode: 'storybook',
         childName: 'Nova',
         libraryIds: ['pixar'],
+        favoriteItemIds: [],
+        reducedMotion: true
+      }
+    );
+  });
+});
+
+asyncTest('savingStorybookSettingsRetainsFavoriteItemIdsFromMigratedPreferences', function () {
+  var harness = loadAppHarness({
+    libraries: [
+      { Id: 'kids', Name: 'Kids' },
+      { Id: 'disney', Name: 'Disney' }
+    ],
+    preferences: {
+      version: 2,
+      enabled: true,
+      lastMode: 'storybook',
+      childName: 'Nova',
+      libraryIds: ['kids'],
+      favoriteItemIds: ['bluey', 'dance'],
+      reducedMotion: false
+    },
+    restoreSession: true,
+    videosByLibrary: {
+      disney: [{ Id: 'video-2', Name: 'Second video' }],
+      kids: [{ Id: 'video-1', Name: 'First video' }]
+    }
+  });
+
+  return flush(12).then(function () {
+    assert.strictEqual(harness.screenActive('storybook-screen'), true);
+    assert.deepStrictEqual(
+      JSON.parse(JSON.stringify(harness.currentPreferences().favoriteItemIds)),
+      ['bluey', 'dance']
+    );
+
+    harness.document.getElementById('storybook-edit-libraries').click();
+    var checkboxes = harness.document.querySelectorAll('#storybook-library-options input[type="checkbox"]');
+    harness.document.getElementById('storybook-child-name').value = 'Ava';
+    checkboxes[0].checked = false;
+    checkboxes[1].checked = true;
+    harness.document.getElementById('storybook-reduced-motion').checked = true;
+    harness.document.getElementById('storybook-save').click();
+    return flush(12);
+  }).then(function () {
+    assert.deepStrictEqual(
+      JSON.parse(JSON.stringify(harness.savedState())),
+      {
+        version: 2,
+        enabled: true,
+        lastMode: 'storybook',
+        childName: 'Ava',
+        libraryIds: ['disney'],
+        favoriteItemIds: ['bluey', 'dance'],
         reducedMotion: true
       }
     );
@@ -1146,11 +1203,12 @@ asyncTest('keepsTheJellyfinSessionWhileRecoveringMalformedStorybookPreferences',
     assert.deepStrictEqual(
       JSON.parse(JSON.stringify(harness.savedState())),
       {
-        version: 1,
+        version: 2,
         enabled: false,
         lastMode: 'adult',
         childName: '',
         libraryIds: [],
+        favoriteItemIds: [],
         reducedMotion: false
       }
     );
