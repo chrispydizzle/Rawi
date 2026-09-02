@@ -99,3 +99,17 @@ var copy = load('js/copy.js', { window: {} }).RawiCopy;
     'Removed First Story from Storybook favorites.'
   );
 }());
+
+(function exposesStorybookEndingCopyDefaults() {
+  assert.strictEqual(
+    copy.get('storybookEndingTitle', { child: 'Nova' }),
+    'All done, Nova.'
+  );
+  assert.strictEqual(copy.get('storybookEndingTitleWithoutName'), 'All done.');
+  assert.strictEqual(
+    copy.get('storybookEndingBody', { title: 'First Story' }),
+    'That was First Story. Would you like to pick another story?'
+  );
+  assert.strictEqual(copy.get('storybookEndingPrimaryButton'), 'All done');
+  assert.strictEqual(copy.get('storybookEndingSecondaryButton'), 'Pick another');
+}());

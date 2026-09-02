@@ -166,6 +166,7 @@ function loadViewHarness() {
   var openLibraries = [];
   var openItems = [];
   var openSettingsCount = 0;
+  var endingActions = [];
   var playbackStarts = [];
   var resetCount = 0;
   var buttons = {
@@ -184,6 +185,10 @@ function loadViewHarness() {
     detailsResume: append(document, document.body, 'p', 'storybook-details-resume'),
     detailsStorybook: append(document, document.body, 'button', 'storybook-details-storybook-mode-button'),
     detailsTitle: append(document, document.body, 'h1', 'storybook-details-title'),
+    endingBody: append(document, document.body, 'p', 'storybook-ending-body'),
+    endingPrimary: append(document, document.body, 'button', 'storybook-ending-all-done'),
+    endingSecondary: append(document, document.body, 'button', 'storybook-ending-pick-another'),
+    endingTitle: append(document, document.body, 'h1', 'storybook-ending-title'),
     doors: append(document, document.body, 'div', 'storybook-doors'),
     edit: append(document, document.body, 'button', 'storybook-edit-libraries'),
     emptyState: append(document, document.body, 'p', 'storybook-empty-state'),
@@ -263,6 +268,13 @@ function loadViewHarness() {
           if (key === 'storybookDetailsKicker') { return 'Story time'; }
           if (key === 'storybookStartButton') { return 'Start story'; }
           if (key === 'storybookResumeButton') { return 'Resume from ' + values.time; }
+          if (key === 'storybookEndingTitle') { return 'All done, ' + values.child + '.'; }
+          if (key === 'storybookEndingTitleWithoutName') { return 'All done.'; }
+          if (key === 'storybookEndingBody') {
+            return 'That was ' + values.title + '. Would you like to pick another story?';
+          }
+          if (key === 'storybookEndingPrimaryButton') { return 'All done'; }
+          if (key === 'storybookEndingSecondaryButton') { return 'Pick another'; }
           if (key === 'storybookLibraryBackButton') { return '← Storybook'; }
           if (key === 'storybookLibraryEmpty') {
             return 'No stories are available in ' + values.library + ' right now.';
@@ -319,6 +331,9 @@ function loadViewHarness() {
     },
     onStartStorybookPlayback: function (fromBeginning) {
       playbackStarts.push(fromBeginning);
+    },
+    onStorybookEndingAction: function (action) {
+      endingActions.push(action);
     }
   });
 
@@ -343,6 +358,7 @@ function loadViewHarness() {
     openLibraries: openLibraries,
     openItems: openItems,
     openSettingsCount: function () { return openSettingsCount; },
+    endingActions: function () { return endingActions.slice(); },
     playbackStarts: function () { return playbackStarts.slice(); },
     resetCount: function () { return resetCount; },
     view: window.RawiStorybookView
@@ -596,6 +612,27 @@ function loadViewHarness() {
     [false, true]
   );
   assert.strictEqual(harness.closeDetailsCount(), 1);
+}());
+
+(function rendersGentleEndingAndFocusesAllDone() {
+  var harness = loadViewHarness();
+
+  harness.view.renderEnding({ childName: 'Nova', title: 'First Story' });
+
+  assert.strictEqual(harness.buttons.endingTitle.textContent, 'All done, Nova.');
+  assert.strictEqual(
+    harness.buttons.endingBody.textContent,
+    'That was First Story. Would you like to pick another story?'
+  );
+  assert.strictEqual(harness.document.activeElement.id, 'storybook-ending-all-done');
+
+  harness.buttons.endingSecondary.click();
+  harness.buttons.endingPrimary.click();
+
+  assert.deepStrictEqual(
+    JSON.parse(JSON.stringify(harness.endingActions())),
+    ['pick', 'done']
+  );
 }());
 
 (function storybookDetailsTopbarModeButtonsInvokeOnModeChange() {

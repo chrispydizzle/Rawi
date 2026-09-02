@@ -349,6 +349,7 @@ function buildDom(document) {
   var storybookScreen = append(document.body, 'section', 'storybook-screen', 'screen');
   var storybookLibraryScreen = append(document.body, 'section', 'storybook-library-screen', 'screen');
   var storybookDetailsScreen = append(document.body, 'section', 'storybook-details-screen', 'screen');
+  var storybookEndingScreen = append(document.body, 'section', 'storybook-ending-screen', 'screen');
   var detailsScreen = append(document.body, 'section', 'details-screen', 'screen');
   var settingsScreen = append(document.body, 'section', 'storybook-settings-screen', 'screen');
   var playerScreen = append(document.body, 'section', 'player-screen', 'screen');
@@ -425,6 +426,11 @@ function buildDom(document) {
   append(storybookDetailsScreen, 'p', 'storybook-details-overview', '');
   focusable(append(storybookDetailsScreen, 'button', 'storybook-details-play', ''));
   focusable(append(storybookDetailsScreen, 'button', 'storybook-details-restart', ''));
+
+  append(storybookEndingScreen, 'h1', 'storybook-ending-title', '');
+  append(storybookEndingScreen, 'p', 'storybook-ending-body', '');
+  focusable(append(storybookEndingScreen, 'button', 'storybook-ending-all-done', ''));
+  focusable(append(storybookEndingScreen, 'button', 'storybook-ending-pick-another', ''));
 
   focusable(append(detailsScreen, 'button', 'details-back', ''));
   focusable(append(detailsScreen, 'button', 'details-adult-mode-button', '')).setAttribute('data-mode', 'adult');
@@ -557,6 +563,11 @@ function loadAppHarness(options) {
     storybookHomeHint: 'Pick a favorite or open a story door.',
     storybookDetailsBackButton: '← Storybook',
     storybookDetailsKicker: 'Story time',
+    storybookEndingTitle: 'All done, {child}.',
+    storybookEndingTitleWithoutName: 'All done.',
+    storybookEndingBody: 'That was {title}. Would you like to pick another story?',
+    storybookEndingPrimaryButton: 'All done',
+    storybookEndingSecondaryButton: 'Pick another',
     storybookItemAriaLabel: 'Open {title}',
     storybookLibraryBackButton: '← Storybook',
     storybookLibraryEmpty: 'No stories are available in {library} right now.',
@@ -1789,6 +1800,192 @@ asyncTest('adultPlaybackErrorsStillReturnToAdultDetails', function () {
     assert.strictEqual(harness.screenActive('storybook-details-screen'), false);
     assert.strictEqual(harness.document.activeElement.id, 'play-button');
     assert.strictEqual(harness.toastText(), 'Browser refused playback.');
+  });
+});
+
+asyncTest('storybookCompletionShowsEndingScreenWithoutToastOrAutoplay', function () {
+  var harness = loadAppHarness({
+    libraries: [{ Id: 'kids', Name: 'Kids' }],
+    preferences: {
+      version: 2,
+      enabled: true,
+      lastMode: 'storybook',
+      childName: 'Nova',
+      libraryIds: ['kids'],
+      favoriteItemIds: [],
+      reducedMotion: false
+    },
+    restoreSession: true,
+    resume: [
+      { Id: 'story-1', Name: 'First Story', UserData: { PlaybackPositionTicks: 600000000, PlayedPercentage: 14 } }
+    ],
+    videosByLibrary: {
+      kids: [{ Id: 'story-1', Name: 'First Story', RunTimeTicks: 7200000000, Overview: 'A calm bedtime story.', UserData: { PlaybackPositionTicks: 600000000, PlayedPercentage: 14 } }]
+    }
+  });
+
+  return flush(12).then(function () {
+    harness.document.getElementById('storybook-resume-card').click();
+    harness.document.getElementById('storybook-details-play').click();
+    harness.playerCallbacks().onStop(true);
+
+    assert.strictEqual(harness.screenActive('storybook-ending-screen'), true);
+    assert.strictEqual(harness.toastText(), '');
+    assert.deepStrictEqual(harness.playCalls(), [{ id: 'story-1', fromBeginning: false }]);
+    assert.strictEqual(harness.document.activeElement.id, 'storybook-ending-all-done');
+    assert.strictEqual(harness.document.getElementById('storybook-ending-adult-mode-button'), null);
+    assert.strictEqual(harness.document.getElementById('storybook-ending-storybook-mode-button'), null);
+
+    harness.document.getElementById('storybook-ending-pick-another').click();
+    assert.strictEqual(harness.screenActive('storybook-screen'), true);
+    assert.strictEqual(harness.document.activeElement.id, 'storybook-resume-card');
+  });
+});
+
+asyncTest('storybookEndingBackKeyActsLikePickAnother', function () {
+  var harness = loadAppHarness({
+    libraries: [{ Id: 'kids', Name: 'Kids' }],
+    preferences: {
+      version: 2,
+      enabled: true,
+      lastMode: 'storybook',
+      childName: 'Nova',
+      libraryIds: ['kids'],
+      favoriteItemIds: [],
+      reducedMotion: false
+    },
+    restoreSession: true,
+    resume: [
+      { Id: 'story-1', Name: 'First Story', UserData: { PlaybackPositionTicks: 600000000, PlayedPercentage: 14 } }
+    ],
+    videosByLibrary: {
+      kids: [{ Id: 'story-1', Name: 'First Story', RunTimeTicks: 7200000000, Overview: 'A calm bedtime story.', UserData: { PlaybackPositionTicks: 600000000, PlayedPercentage: 14 } }]
+    }
+  });
+
+  return flush(12).then(function () {
+    harness.document.getElementById('storybook-resume-card').click();
+    harness.document.getElementById('storybook-details-play').click();
+    harness.playerCallbacks().onStop(true);
+
+    harness.document.dispatchEvent('keydown', {
+      keyCode: 10009,
+      preventDefault: function () {}
+    });
+
+    assert.strictEqual(harness.screenActive('storybook-screen'), true);
+    assert.strictEqual(harness.document.activeElement.id, 'storybook-resume-card');
+  });
+});
+
+asyncTest('storybookEndingAllDoneReturnsHomeWhenTizenExitIsUnavailable', function () {
+  var harness = loadAppHarness({
+    libraries: [{ Id: 'kids', Name: 'Kids' }],
+    preferences: {
+      version: 2,
+      enabled: true,
+      lastMode: 'storybook',
+      childName: 'Nova',
+      libraryIds: ['kids'],
+      favoriteItemIds: [],
+      reducedMotion: false
+    },
+    restoreSession: true,
+    resume: [
+      { Id: 'story-1', Name: 'First Story', UserData: { PlaybackPositionTicks: 600000000, PlayedPercentage: 14 } }
+    ],
+    videosByLibrary: {
+      kids: [{ Id: 'story-1', Name: 'First Story', RunTimeTicks: 7200000000, Overview: 'A calm bedtime story.', UserData: { PlaybackPositionTicks: 600000000, PlayedPercentage: 14 } }]
+    }
+  });
+
+  return flush(12).then(function () {
+    harness.document.getElementById('storybook-resume-card').click();
+    harness.document.getElementById('storybook-details-play').click();
+    harness.playerCallbacks().onStop(true);
+
+    harness.document.getElementById('storybook-ending-all-done').click();
+
+    assert.strictEqual(harness.screenActive('storybook-screen'), true);
+    assert.strictEqual(harness.document.activeElement.id, 'storybook-resume-card');
+  });
+});
+
+asyncTest('reducedMotionSkipsGeneralScreenEntryAnimationOnAllStorybookPresentationScreensButNotSettings', function () {
+  var harness = loadAppHarness({
+    libraries: [{ Id: 'kids', Name: 'Kids' }],
+    prefersReducedMotion: true,
+    preferences: {
+      version: 2,
+      enabled: true,
+      lastMode: 'storybook',
+      childName: 'Nova',
+      libraryIds: ['kids'],
+      favoriteItemIds: ['story-1'],
+      reducedMotion: false
+    },
+    restoreSession: true,
+    resume: [
+      { Id: 'story-1', Name: 'First Story', UserData: { PlaybackPositionTicks: 600000000, PlayedPercentage: 14 } }
+    ],
+    videosByLibrary: {
+      kids: [{ Id: 'story-1', Name: 'First Story', RunTimeTicks: 7200000000, Overview: 'A calm bedtime story.', UserData: { PlaybackPositionTicks: 600000000, PlayedPercentage: 14 } }]
+    }
+  });
+  var baselineCount;
+
+  return flush(12).then(function () {
+    assert.strictEqual(harness.screenActive('storybook-screen'), true);
+    baselineCount = harness.screenEntries().length;
+
+    harness.document.getElementById('storybook-door-kids').click();
+    assert.strictEqual(harness.screenActive('storybook-library-screen'), true);
+
+    harness.document.getElementById('storybook-library-card-story-1').click();
+    assert.strictEqual(harness.screenActive('storybook-details-screen'), true);
+
+    harness.document.getElementById('storybook-details-play').click();
+    harness.playerCallbacks().onStop(true);
+    assert.strictEqual(harness.screenActive('storybook-ending-screen'), true);
+
+    harness.document.getElementById('storybook-ending-pick-another').click();
+    assert.strictEqual(harness.screenActive('storybook-screen'), true);
+
+    harness.document.getElementById('storybook-edit-libraries').click();
+    assert.strictEqual(harness.screenActive('storybook-settings-screen'), true);
+
+    assert.deepStrictEqual(
+      JSON.parse(JSON.stringify(harness.screenEntries().slice(baselineCount))),
+      ['player-screen', 'storybook-settings-screen']
+    );
+  });
+});
+
+asyncTest('adultCompletionStillReturnsToAdultDetailsAndShowsToast', function () {
+  var harness = loadAppHarness({
+    libraries: [{ Id: 'kids', Name: 'Kids' }],
+    preferences: {
+      version: 2,
+      enabled: true,
+      lastMode: 'adult',
+      childName: 'Nova',
+      libraryIds: ['kids'],
+      favoriteItemIds: [],
+      reducedMotion: false
+    },
+    restoreSession: true,
+    videosByLibrary: {
+      kids: [{ Id: 'story-1', Name: 'First Story', RunTimeTicks: 7200000000 }]
+    }
+  });
+
+  return flush(12).then(function () {
+    harness.document.getElementById('hero-open').click();
+    harness.document.getElementById('play-button').click();
+    harness.playerCallbacks().onStop(true);
+
+    assert.strictEqual(harness.screenActive('details-screen'), true);
+    assert.strictEqual(harness.toastText(), 'Finished First Story');
   });
 });
 

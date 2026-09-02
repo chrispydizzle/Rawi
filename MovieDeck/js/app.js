@@ -47,10 +47,15 @@
     libraryId: '',
     source: 'home'
   };
+  var storybookEndingState = {
+    childName: '',
+    title: ''
+  };
   var STORYBOOK_PRESENTATION_SCREENS = {
     'storybook-screen': true,
     'storybook-library-screen': true,
-    'storybook-details-screen': true
+    'storybook-details-screen': true,
+    'storybook-ending-screen': true
   };
   var playerReturnState = {
     focusId: 'play-button',
@@ -673,6 +678,39 @@
     renderStorybookHome(storybookDetailsState.focusId);
   }
 
+  function showStorybookEnding() {
+    storybookEndingState = {
+      childName: storybookState.childName,
+      title: name(selectedItem)
+    };
+    playerReturnState = {
+      focusId: 'play-button',
+      mode: 'adult',
+      screenId: 'details-screen'
+    };
+    showScreen('storybook-ending-screen');
+    storybookView.renderEnding(storybookEndingState);
+  }
+
+  function handleStorybookEndingAction(action) {
+    var application;
+
+    if (action === 'done' &&
+        global.tizen &&
+        global.tizen.application &&
+        global.tizen.application.getCurrentApplication) {
+      application = global.tizen.application.getCurrentApplication();
+      if (application && application.exit) {
+        application.exit();
+        return;
+      }
+    }
+
+    selectedItem = null;
+    showScreen('storybook-screen');
+    renderStorybookHome();
+  }
+
   function openLibrary() {
     updateProfile();
     showScreen('browse-screen');
@@ -991,21 +1029,29 @@
   }
 
   function returnFromPlayback(completed, error) {
-    if (playerReturnState.screenId === 'storybook-details-screen') {
-      showScreen('storybook-details-screen');
-      storybookView.renderDetails(storybookDetailsModel(selectedItem));
-    } else {
-      showScreen(playerReturnState.screenId, playerReturnState.focusId);
-    }
-
     if (error) {
+      if (playerReturnState.mode === 'storybook') {
+        showScreen('storybook-details-screen');
+        storybookView.renderDetails(storybookDetailsModel(selectedItem));
+      } else {
+        showScreen('details-screen', 'play-button');
+      }
       showToast(describeError(error, copy.get('playbackFailed')));
       return;
     }
 
-    if (completed && playerReturnState.mode === 'adult') {
-      showToast(copy.get('finishedToast', { title: name(selectedItem) }));
+    if (playerReturnState.mode === 'storybook') {
+      if (completed) {
+        showStorybookEnding();
+        return;
+      }
+      showScreen('storybook-details-screen');
+      storybookView.renderDetails(storybookDetailsModel(selectedItem));
+      return;
     }
+
+    showScreen('details-screen', 'play-button');
+    if (completed) { showToast(copy.get('finishedToast', { title: name(selectedItem) })); }
   }
 
   function startPlayback(fromBeginning) {
@@ -1075,6 +1121,10 @@
       cancelStorybookSettings();
       return;
     }
+    if (activeScreen === 'storybook-ending-screen') {
+      handleStorybookEndingAction('pick');
+      return;
+    }
     if (activeScreen === 'storybook-details-screen') { closeStorybookDetails(); return; }
     if (activeScreen === 'storybook-library-screen') {
       closeStorybookLibrary();
@@ -1099,7 +1149,11 @@
 
     document.addEventListener('keydown', function (event) {
       var code = event.keyCode;
-      if (player.isPlaying()) { event.preventDefault(); player.handleKey(code); return; }
+      if (activeScreen === 'player-screen' && player.isPlaying()) {
+        event.preventDefault();
+        player.handleKey(code);
+        return;
+      }
       if (code === 37) { event.preventDefault(); spatialMove('left'); }
       else if (code === 38) { event.preventDefault(); spatialMove('up'); }
       else if (code === 39) { event.preventDefault(); spatialMove('right'); }
@@ -1128,6 +1182,7 @@
         if (!currentStorybookCatalogue || !currentStorybookCatalogue.itemById[itemId]) { return; }
         openStorybookDetails(currentStorybookCatalogue.itemById[itemId], source);
       },
+      onStorybookEndingAction: handleStorybookEndingAction,
       onStartStorybookPlayback: startPlayback,
       onResetSettingsRecovery: resetStorybookSettingsRecovery,
       onPreferencesChange: saveStorybookSettings

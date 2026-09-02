@@ -320,6 +320,14 @@
     focusWhenReady(byId('storybook-details-play'));
   }
 
+  function renderEnding(model) {
+    byId('storybook-ending-title').textContent = model.childName ?
+      copy.get('storybookEndingTitle', { child: model.childName }) :
+      copy.get('storybookEndingTitleWithoutName');
+    byId('storybook-ending-body').textContent = copy.get('storybookEndingBody', { title: model.title });
+    focusWhenReady(byId('storybook-ending-all-done'));
+  }
+
   function renderSettings(libraries, preferences, missingIds, recovery) {
     var container = byId('storybook-library-options');
     var childName = byId('storybook-child-name');
@@ -412,6 +420,12 @@
     byId('storybook-details-restart').addEventListener('click', function () {
       callbacks.onStartStorybookPlayback(true);
     });
+    byId('storybook-ending-all-done').addEventListener('click', function () {
+      callbacks.onStorybookEndingAction('done');
+    });
+    byId('storybook-ending-pick-another').addEventListener('click', function () {
+      callbacks.onStorybookEndingAction('pick');
+    });
     byId('storybook-library-back').addEventListener('click', callbacks.onCloseStorybookLibrary);
     byId('storybook-save').addEventListener('click', saveSettings);
     byId('storybook-cancel').addEventListener('click', callbacks.onCancelSettings);
@@ -425,6 +439,7 @@
   global.RawiStorybookView = {
     init: init,
     renderDetails: renderDetails,
+    renderEnding: renderEnding,
     renderHome: renderHome,
     renderLibrary: renderLibrary,
     renderSettings: renderSettings,
