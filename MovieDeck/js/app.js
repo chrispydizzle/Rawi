@@ -497,6 +497,9 @@
     nextState.childName = overrides.childName !== undefined ? overrides.childName : nextState.childName;
     nextState.libraryIds = overrides.libraryIds !== undefined ? copyIds(overrides.libraryIds) : nextState.libraryIds;
     nextState.favoriteItemIds = overrides.favoriteItemIds !== undefined ? copyIds(overrides.favoriteItemIds) : nextState.favoriteItemIds;
+    nextState.categoryTags = overrides.categoryTags !== undefined ? copyCategoryTags(overrides.categoryTags) : nextState.categoryTags;
+    nextState.durationLabels = overrides.durationLabels !== undefined ? copyDurationLabels(overrides.durationLabels) : nextState.durationLabels;
+    nextState.recentHistoryDays = overrides.recentHistoryDays !== undefined ? copyRecentHistoryDays(overrides.recentHistoryDays) : nextState.recentHistoryDays;
     nextState.reducedMotion = overrides.reducedMotion !== undefined ? overrides.reducedMotion : nextState.reducedMotion;
     saved = storybookPreferences.save(nextState, options);
     storybookRestoreStatus = storybookPreferences.getRestoreStatus ?
@@ -1298,6 +1301,9 @@
       lastMode: storybookSettingsIntent.activateStorybookOnSave ? 'storybook' : storybookSettingsIntent.modeOnOpen,
       childName: nextPreferences.childName,
       libraryIds: nextPreferences.libraryIds,
+      categoryTags: nextPreferences.categoryTags,
+      durationLabels: nextPreferences.durationLabels,
+      recentHistoryDays: nextPreferences.recentHistoryDays,
       reducedMotion: nextPreferences.reducedMotion
     });
     if (saveResult.blocked) {
@@ -1447,7 +1453,19 @@
   function spatialMove(direction) {
     var current = document.activeElement;
     var nodes = Array.prototype.slice.call(document.querySelectorAll('#' + activeScreen + ' [data-focusable]:not([disabled])'));
+    var settingsIndex;
+    var settingsNextIndex;
     if (!current || nodes.indexOf(current) === -1) { if (nodes[0]) { nodes[0].focus(); } return; }
+
+    if (activeScreen === 'storybook-settings-screen') {
+      settingsIndex = nodes.indexOf(current);
+      settingsNextIndex = (direction === 'down' || direction === 'right') ? settingsIndex + 1 : settingsIndex - 1;
+      if (settingsNextIndex < 0 || settingsNextIndex >= nodes.length) { return; }
+      nodes[settingsNextIndex].focus();
+      ensureStorybookControlVisible(nodes[settingsNextIndex]);
+      return;
+    }
+
     var origin = current.getBoundingClientRect();
     var ox = origin.left + origin.width / 2;
     var oy = origin.top + origin.height / 2;
@@ -1470,9 +1488,6 @@
         return;
       }
       best.focus();
-      if (activeScreen === 'storybook-settings-screen') {
-        ensureStorybookControlVisible(best);
-      }
     }
   }
 

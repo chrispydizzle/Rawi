@@ -550,3 +550,15 @@ body.mode-storybook.storybook-reduced-motion .storybook-door {
   position: relative;
   right: auto;
 }
+#storybook-settings-screen input[type="text"],
+#storybook-settings-screen input[type="number"] {
+  display: block;
+  margin: 8px 0 18px;
+  width: 100%;
+}
+#storybook-settings-screen fieldset {
+  margin: 18px 0;
+}
+#storybook-settings-screen legend {
+  margin-bottom: 10px;
+}

@@ -201,6 +201,44 @@ function append(document, parent, tagName, id) {
   return element;
 }
 
+function settingsPreferences(overrides) {
+  var result = {
+    childName: 'Nova',
+    libraryIds: ['kids'],
+    categoryTags: {
+      singDance: 'sing-along',
+      bedtime: 'bedtime',
+      animals: 'animals',
+      learning: 'learning',
+      movement: 'movement'
+    },
+    durationLabels: {
+      enabled: true,
+      quickMaxMinutes: 12,
+      cozyMaxMinutes: 30
+    },
+    recentHistoryDays: 14,
+    reducedMotion: false
+  };
+  var source = overrides || {};
+
+  Object.keys(source).forEach(function (key) {
+    if (key === 'categoryTags' || key === 'durationLabels') { return; }
+    result[key] = source[key];
+  });
+  if (source.categoryTags) {
+    Object.keys(source.categoryTags).forEach(function (key) {
+      result.categoryTags[key] = source.categoryTags[key];
+    });
+  }
+  if (source.durationLabels) {
+    Object.keys(source.durationLabels).forEach(function (key) {
+      result.durationLabels[key] = source.durationLabels[key];
+    });
+  }
+  return result;
+}
+
 function loadViewHarness(options) {
   options = options || {};
   var document = new FakeDocument();
@@ -219,10 +257,20 @@ function loadViewHarness(options) {
   var resetCount = 0;
   var storybookHomeAnimationCalls = 0;
   var magicActions = [];
+  var preferenceChanges = [];
   var buttons = {
     adult: append(document, document.body, 'button', 'storybook-home-adult-mode-button'),
     cancel: append(document, document.body, 'button', 'storybook-cancel'),
+    categoryAnimalsTag: append(document, document.body, 'input', 'storybook-category-tag-animals'),
+    categoryBedtimeTag: append(document, document.body, 'input', 'storybook-category-tag-bedtime'),
+    categoryLearningTag: append(document, document.body, 'input', 'storybook-category-tag-learning'),
+    categoryMovementTag: append(document, document.body, 'input', 'storybook-category-tag-movement'),
+    categorySingDanceTag: append(document, document.body, 'input', 'storybook-category-tag-singDance'),
     childName: append(document, document.body, 'input', 'storybook-child-name'),
+    durationCozyMax: append(document, document.body, 'input', 'storybook-duration-cozy-max'),
+    durationEnabled: append(document, document.body, 'input', 'storybook-duration-labels-enabled'),
+    durationQuickMax: append(document, document.body, 'input', 'storybook-duration-quick-max'),
+    recentHistoryDays: append(document, document.body, 'input', 'storybook-recent-history-days'),
     detailsAdult: append(document, document.body, 'button', 'storybook-details-adult-mode-button'),
     detailsArt: append(document, document.body, 'div', 'storybook-details-art'),
     detailsBack: append(document, document.body, 'button', 'storybook-details-back'),
@@ -393,6 +441,14 @@ function loadViewHarness(options) {
           if (key === 'storybookCategoryLearning') { return 'Little Lessons'; }
           if (key === 'storybookCategoryMovement') { return 'Move Around'; }
           if (key === 'storybookLittleMenuTitle') { return "Tonight's Little Menu"; }
+          if (key === 'storybookCategoryTagsLabel') { return 'Jellyfin tags for Storybook categories'; }
+          if (key === 'storybookDurationSettingsLabel') { return 'Friendly duration labels'; }
+          if (key === 'storybookDurationLabelsEnabledLabel') { return 'Show friendly duration labels on Storybook cards and details'; }
+          if (key === 'storybookDurationQuickMaxLabel') { return 'Quick story up to this many minutes'; }
+          if (key === 'storybookDurationCozyMaxLabel') { return 'Cozy episode up to this many minutes'; }
+          if (key === 'storybookRecentHistoryDaysLabel') { return 'Hide completed stories for this many days'; }
+          if (key === 'storybookDurationThresholdError') { return 'Quick story minutes must be at least 1, and Cozy episode minutes must be greater than or equal to Quick story minutes.'; }
+          if (key === 'storybookRecentHistoryDaysError') { return 'Recent history days must be 0 or more.'; }
           return key;
         }
       }
@@ -434,7 +490,9 @@ function loadViewHarness(options) {
     onMagicPickSecondary: function () {
       magicActions.push('secondary');
     },
-    onPreferencesChange: function () {},
+    onPreferencesChange: function (nextPreferences) {
+      preferenceChanges.push(JSON.parse(JSON.stringify(nextPreferences)));
+    },
     onResetSettingsRecovery: function () {
       resetCount += 1;
     },
@@ -479,6 +537,9 @@ function loadViewHarness(options) {
       if (callback) { callback(); }
     },
     resetCount: function () { return resetCount; },
+    preferenceChanges: function () {
+      return JSON.parse(JSON.stringify(preferenceChanges));
+    },
     view: window.RawiStorybookView
   };
 }
@@ -860,11 +921,7 @@ function loadViewHarness(options) {
 
   harness.view.renderSettings(
     [{ Id: 'kids', Name: 'Kids' }],
-    {
-      childName: 'Nova',
-      libraryIds: ['kids'],
-      reducedMotion: false
-    },
+    settingsPreferences({ libraryIds: ['kids'] }),
     ['missing-one'],
     null
   );
@@ -875,11 +932,7 @@ function loadViewHarness(options) {
 
   harness.view.renderSettings(
     [{ Id: 'kids', Name: 'Kids' }],
-    {
-      childName: 'Nova',
-      libraryIds: ['kids'],
-      reducedMotion: false
-    },
+    settingsPreferences({ libraryIds: ['kids'] }),
     ['missing-one', 'missing-two'],
     null
   );
@@ -894,11 +947,7 @@ function loadViewHarness(options) {
 
   harness.view.renderSettings(
     [{ Id: 'kids', Name: 'Kids' }],
-    {
-      childName: 'Nova',
-      libraryIds: ['kids'],
-      reducedMotion: false
-    },
+    settingsPreferences({ libraryIds: ['kids'] }),
     [],
     {
       needsRecovery: true,
@@ -921,11 +970,7 @@ function loadViewHarness(options) {
 
   harness.view.renderSettings(
     [{ Id: 'kids', Name: 'Kids' }],
-    {
-      childName: 'Nova',
-      libraryIds: ['kids'],
-      reducedMotion: false
-    },
+    settingsPreferences({ libraryIds: ['kids'] }),
     [],
     {
       needsRecovery: true,
@@ -942,11 +987,7 @@ function loadViewHarness(options) {
 
   harness.view.renderSettings(
     [{ Id: 'kids', Name: 'Kids' }],
-    {
-      childName: 'Nova',
-      libraryIds: ['kids'],
-      reducedMotion: false
-    },
+    settingsPreferences({ libraryIds: ['kids'] }),
     [],
     null
   );
@@ -959,11 +1000,7 @@ function loadViewHarness(options) {
 
   harness.view.renderSettings(
     [],
-    {
-      childName: 'Nova',
-      libraryIds: [],
-      reducedMotion: false
-    },
+    settingsPreferences({ libraryIds: [] }),
     [],
     null
   );
@@ -992,6 +1029,121 @@ function loadViewHarness(options) {
     }),
     ['first-match', 'nested-match']
   );
+}());
+
+(function querySelectorAllReturnsLabelWrappedCheckboxesInDocumentOrder() {
+  var harness = loadViewHarness();
+  var checkboxes;
+  var selected;
+
+  harness.view.renderSettings(
+    [
+      { Id: 'alpha', Name: 'Alpha' },
+      { Id: 'beta', Name: 'Beta' },
+      { Id: 'gamma', Name: 'Gamma' }
+    ],
+    settingsPreferences({ libraryIds: ['alpha', 'gamma'] }),
+    [],
+    null
+  );
+  checkboxes = harness.document.querySelectorAll(
+    '#storybook-library-options input[type="checkbox"]'
+  );
+  selected = Array.prototype.filter.call(checkboxes, function (node) {
+    return node.checked;
+  }).map(function (node) {
+    return node.value;
+  });
+
+  assert.deepStrictEqual(
+    Array.prototype.map.call(checkboxes, function (node) {
+      return node.value + ':' + String(node.checked);
+    }),
+    ['alpha:true', 'beta:false', 'gamma:true']
+  );
+  assert.deepStrictEqual(selected, ['alpha', 'gamma']);
+  assert.deepStrictEqual(harness.document.querySelectorAll('[data-mode]'), harness.document.modeButtons);
+}());
+
+(function settingsSaveEmitsCategoryTagsDurationLabelsAndHistoryWindow() {
+  var harness = loadViewHarness();
+
+  harness.view.renderSettings(
+    [{ Id: 'kids', Name: 'Kids' }],
+    settingsPreferences(),
+    [],
+    null
+  );
+
+  harness.buttons.categoryAnimalsTag.value = 'zoo';
+  harness.buttons.durationEnabled.checked = false;
+  harness.buttons.durationQuickMax.value = '10';
+  harness.buttons.durationCozyMax.value = '25';
+  harness.buttons.recentHistoryDays.value = '3';
+  harness.buttons.save.click();
+
+  assert.deepStrictEqual(harness.preferenceChanges().slice(-1)[0], {
+    enabled: true,
+    childName: 'Nova',
+    libraryIds: ['kids'],
+    categoryTags: {
+      singDance: 'sing-along',
+      bedtime: 'bedtime',
+      animals: 'zoo',
+      learning: 'learning',
+      movement: 'movement'
+    },
+    durationLabels: {
+      enabled: false,
+      quickMaxMinutes: 10,
+      cozyMaxMinutes: 25
+    },
+    recentHistoryDays: 3,
+    reducedMotion: false
+  });
+}());
+
+(function settingsRejectsInvalidDurationThresholdsAndKeepsFocusOnCozyField() {
+  var harness = loadViewHarness();
+
+  harness.view.renderSettings(
+    [{ Id: 'kids', Name: 'Kids' }],
+    settingsPreferences(),
+    [],
+    null
+  );
+
+  harness.buttons.durationQuickMax.value = '18';
+  harness.buttons.durationCozyMax.value = '12';
+  harness.buttons.save.click();
+
+  assert.strictEqual(
+    harness.buttons.settingsError.textContent,
+    'Quick story minutes must be at least 1, and Cozy episode minutes must be greater than or equal to Quick story minutes.'
+  );
+  assert.strictEqual(harness.document.activeElement.id, 'storybook-duration-cozy-max');
+  assert.strictEqual(harness.preferenceChanges().length, 0);
+}());
+
+(function settingsRejectsNegativeRecentHistoryDaysAndKeepsFocusOnHistoryField() {
+  var harness = loadViewHarness();
+
+  harness.view.renderSettings(
+    [{ Id: 'kids', Name: 'Kids' }],
+    settingsPreferences(),
+    [],
+    null
+  );
+
+  harness.buttons.recentHistoryDays.value = '-1';
+  harness.buttons.save.click();
+
+  assert.strictEqual(
+    harness.buttons.settingsError.textContent,
+    'Recent history days must be 0 or more.'
+  );
+  assert.strictEqual(harness.document.activeElement.id, 'storybook-recent-history-days');
+  assert.strictEqual(harness.preferenceChanges().length, 0);
 }());
 
 (function rendersFriendlyDurationLabelsAcrossStorybookCardsAndDetails() {

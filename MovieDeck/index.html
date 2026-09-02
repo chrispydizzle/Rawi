@@ -366,6 +366,32 @@
           <legend data-copy="storybookLibrariesLabel">Visible libraries</legend>
           <div id="storybook-library-options"></div>
         </fieldset>
+        <fieldset>
+          <legend data-copy="storybookCategoryTagsLabel">Jellyfin tags for Storybook categories</legend>
+          <label for="storybook-category-tag-singDance" data-copy="storybookCategorySingDance">Sing & Dance</label>
+          <input id="storybook-category-tag-singDance" class="focusable" data-focusable type="text" maxlength="40">
+          <label for="storybook-category-tag-bedtime" data-copy="storybookCategoryBedtime">Bedtime Stories</label>
+          <input id="storybook-category-tag-bedtime" class="focusable" data-focusable type="text" maxlength="40">
+          <label for="storybook-category-tag-animals" data-copy="storybookCategoryAnimals">Animal Friends</label>
+          <input id="storybook-category-tag-animals" class="focusable" data-focusable type="text" maxlength="40">
+          <label for="storybook-category-tag-learning" data-copy="storybookCategoryLearning">Little Lessons</label>
+          <input id="storybook-category-tag-learning" class="focusable" data-focusable type="text" maxlength="40">
+          <label for="storybook-category-tag-movement" data-copy="storybookCategoryMovement">Move Around</label>
+          <input id="storybook-category-tag-movement" class="focusable" data-focusable type="text" maxlength="40">
+        </fieldset>
+        <fieldset>
+          <legend data-copy="storybookDurationSettingsLabel">Friendly duration labels</legend>
+          <label class="settings-check">
+            <input id="storybook-duration-labels-enabled" class="focusable" data-focusable type="checkbox">
+            <span data-copy="storybookDurationLabelsEnabledLabel">Show friendly duration labels on Storybook cards and details</span>
+          </label>
+          <label for="storybook-duration-quick-max" data-copy="storybookDurationQuickMaxLabel">Quick story up to this many minutes</label>
+          <input id="storybook-duration-quick-max" class="focusable" data-focusable type="number" min="1" max="240">
+          <label for="storybook-duration-cozy-max" data-copy="storybookDurationCozyMaxLabel">Cozy episode up to this many minutes</label>
+          <input id="storybook-duration-cozy-max" class="focusable" data-focusable type="number" min="1" max="240">
+        </fieldset>
+        <label for="storybook-recent-history-days" data-copy="storybookRecentHistoryDaysLabel">Hide completed stories for this many days</label>
+        <input id="storybook-recent-history-days" class="focusable" data-focusable type="number" min="0" max="365">
         <label class="settings-check">
           <input id="storybook-reduced-motion" class="focusable" data-focusable type="checkbox">
           <span data-copy="storybookReducedMotionLabel">Use less motion</span>

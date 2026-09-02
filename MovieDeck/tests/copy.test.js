@@ -137,6 +137,17 @@ var copy = load('js/copy.js', { window: {} }).RawiCopy;
   );
 }());
 
+(function exposesStorybookPhase3SettingsCopyDefaults() {
+  assert.strictEqual(copy.get('storybookCategoryTagsLabel'), 'Jellyfin tags for Storybook categories');
+  assert.strictEqual(copy.get('storybookDurationSettingsLabel'), 'Friendly duration labels');
+  assert.strictEqual(copy.get('storybookDurationLabelsEnabledLabel'), 'Show friendly duration labels on Storybook cards and details');
+  assert.strictEqual(copy.get('storybookDurationQuickMaxLabel'), 'Quick story up to this many minutes');
+  assert.strictEqual(copy.get('storybookDurationCozyMaxLabel'), 'Cozy episode up to this many minutes');
+  assert.strictEqual(copy.get('storybookRecentHistoryDaysLabel'), 'Hide completed stories for this many days');
+  assert.strictEqual(copy.get('storybookDurationThresholdError'), 'Quick story minutes must be at least 1, and Cozy episode minutes must be greater than or equal to Quick story minutes.');
+  assert.strictEqual(copy.get('storybookRecentHistoryDaysError'), 'Recent history days must be 0 or more.');
+}());
+
 (function exposesStorybookLittleMenuCopyDefault() {
   assert.strictEqual(copy.get('storybookLittleMenuTitle'), "Tonight's Little Menu");
 }());

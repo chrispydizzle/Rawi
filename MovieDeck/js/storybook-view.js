@@ -436,6 +436,20 @@
     focusWhenReady(byId('storybook-ending-all-done'));
   }
 
+  function parsedIntegerValue(id) {
+    var raw = String(byId(id).value || '').trim();
+    var parsed = parseInt(raw, 10);
+    if (!raw || isNaN(parsed)) {
+      return null;
+    }
+    return parsed;
+  }
+
+  function showSettingsValidationError(messageKey, focusId) {
+    byId('storybook-settings-error').textContent = copy.get(messageKey);
+    focusWhenReady(byId(focusId));
+  }
+
   function renderSettings(libraries, preferences, missingIds, recovery) {
     var container = byId('storybook-library-options');
     var childName = byId('storybook-child-name');
@@ -458,6 +472,8 @@
       checkbox.className = 'focusable';
       checkbox.setAttribute('data-focusable', '');
       checkbox.disabled = locked;
+      checkbox.id = 'storybook-library-input-' + checkbox.value;
+      label.setAttribute('for', checkbox.id);
       text.textContent = itemName(library);
       label.className = 'library-option';
       label.appendChild(checkbox);
@@ -468,8 +484,27 @@
 
     childName.value = preferences.childName;
     reducedMotion.checked = preferences.reducedMotion;
+    byId('storybook-category-tag-singDance').value = preferences.categoryTags.singDance;
+    byId('storybook-category-tag-bedtime').value = preferences.categoryTags.bedtime;
+    byId('storybook-category-tag-animals').value = preferences.categoryTags.animals;
+    byId('storybook-category-tag-learning').value = preferences.categoryTags.learning;
+    byId('storybook-category-tag-movement').value = preferences.categoryTags.movement;
+    byId('storybook-duration-labels-enabled').checked = preferences.durationLabels.enabled;
+    byId('storybook-duration-quick-max').value = String(preferences.durationLabels.quickMaxMinutes);
+    byId('storybook-duration-cozy-max').value = String(preferences.durationLabels.cozyMaxMinutes);
+    byId('storybook-recent-history-days').value = String(preferences.recentHistoryDays);
+
     toggleDisabled(childName, locked);
     toggleDisabled(reducedMotion, locked);
+    toggleDisabled(byId('storybook-category-tag-singDance'), locked);
+    toggleDisabled(byId('storybook-category-tag-bedtime'), locked);
+    toggleDisabled(byId('storybook-category-tag-animals'), locked);
+    toggleDisabled(byId('storybook-category-tag-learning'), locked);
+    toggleDisabled(byId('storybook-category-tag-movement'), locked);
+    toggleDisabled(byId('storybook-duration-labels-enabled'), locked);
+    toggleDisabled(byId('storybook-duration-quick-max'), locked);
+    toggleDisabled(byId('storybook-duration-cozy-max'), locked);
+    toggleDisabled(byId('storybook-recent-history-days'), locked);
     toggleDisabled(saveButton, locked || !hasLibraryChoices);
 
     if (settingsWarning) {
@@ -494,15 +529,47 @@
 
   function saveSettings() {
     var preferences;
+    var quickMaxMinutes;
+    var cozyMaxMinutes;
+    var recentHistoryDays;
 
     if (byId('storybook-save').disabled) { return; }
+    quickMaxMinutes = parsedIntegerValue('storybook-duration-quick-max');
+    cozyMaxMinutes = parsedIntegerValue('storybook-duration-cozy-max');
+    recentHistoryDays = parsedIntegerValue('storybook-recent-history-days');
+    byId('storybook-settings-error').textContent = '';
+    if (quickMaxMinutes === null || quickMaxMinutes < 1 || cozyMaxMinutes === null || cozyMaxMinutes < quickMaxMinutes) {
+      showSettingsValidationError(
+        'storybookDurationThresholdError',
+        cozyMaxMinutes !== null && cozyMaxMinutes < quickMaxMinutes ?
+          'storybook-duration-cozy-max' :
+          'storybook-duration-quick-max'
+      );
+      return;
+    }
+    if (recentHistoryDays === null || recentHistoryDays < 0) {
+      showSettingsValidationError('storybookRecentHistoryDaysError', 'storybook-recent-history-days');
+      return;
+    }
     preferences = {
       enabled: true,
       childName: byId('storybook-child-name').value,
       libraryIds: selectedLibraryIds(),
+      categoryTags: {
+        singDance: byId('storybook-category-tag-singDance').value,
+        bedtime: byId('storybook-category-tag-bedtime').value,
+        animals: byId('storybook-category-tag-animals').value,
+        learning: byId('storybook-category-tag-learning').value,
+        movement: byId('storybook-category-tag-movement').value
+      },
+      durationLabels: {
+        enabled: byId('storybook-duration-labels-enabled').checked,
+        quickMaxMinutes: quickMaxMinutes,
+        cozyMaxMinutes: cozyMaxMinutes
+      },
+      recentHistoryDays: recentHistoryDays,
       reducedMotion: byId('storybook-reduced-motion').checked
     };
-    byId('storybook-settings-error').textContent = '';
     if (!preferences.libraryIds.length) {
       byId('storybook-settings-error').textContent = copy.get('storybookNoLibraries');
       return;
