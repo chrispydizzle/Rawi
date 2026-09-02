@@ -4499,6 +4499,15 @@ git add README.md MovieDeck\config.xml MovieDeck\index.html MovieDeck\js\api.js 
 git commit -m "feat: complete storybook phase 2" -m "Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
 ```
 
+**Validation evidence for the Task 7 browser focus defect:** `MovieDeck\js\animations.js` now accepts `animateStorybookHome(forceReducedMotion, onReady)` and fires `onReady` exactly once on reduced/no-door paths or after the entrance tween completes before the bounded floating loops start; `MovieDeck\js\storybook-view.js` now requests Storybook home focus only through that readiness callback and ignores stale renders with a token gate. New regression coverage: `reportsStorybookHomeReadyImmediatelyWhenNoDoorsArePresent`, `waitsForStorybookHomeReadinessBeforeFocusingPreferredDoor`, `storybookLibraryBackWaitsForHomeReadyBeforeRestoringOriginDoorFocus`, `storybookLibraryBackRestoresOriginDoorFocusImmediatelyWhenReducedMotionIsEnabled`, and `storybookEndingPickAnotherWaitsForHomeReadyBeforeFocusingResumeCard`.
+
+- `node .\MovieDeck\tests\run-tests.js animations.test.js storybook-view.test.js storybook-app.test.js` → `All Rawi tests passed.`
+- `node .\MovieDeck\tests\run-tests.js` → `All Rawi tests passed.`
+- `node -c C:\Code\Rawi\.worktrees\storybook-mode-phase-2\MovieDeck\js\animations.js && node -c C:\Code\Rawi\.worktrees\storybook-mode-phase-2\MovieDeck\js\storybook-view.js && node -c C:\Code\Rawi\.worktrees\storybook-mode-phase-2\MovieDeck\tests\animations.test.js && node -c C:\Code\Rawi\.worktrees\storybook-mode-phase-2\MovieDeck\tests\storybook-view.test.js && node -c C:\Code\Rawi\.worktrees\storybook-mode-phase-2\MovieDeck\tests\storybook-app.test.js && git -C C:\Code\Rawi\.worktrees\storybook-mode-phase-2 diff --check` → clean exit.
+- `& C:\Code\Rawi\.worktrees\storybook-mode-phase-2\tools\Deploy-Rawi.ps1 -PackageOnly -NoVersionIncrement` → `Packaging Rawi 0.1.12...` and `Package ready: C:\Code\Rawi\.worktrees\storybook-mode-phase-2\dist\Rawi.wgt`.
+- Package inspection printed `OK config.xml`, `OK index.html`, `OK css/storybook.css`, `OK js/storybook-catalogue.js`, `OK js/storybook-view.js`, `OK js/app.js`, `OK js/preview-fixtures.js`, `OK js/api.js`, and `OK js/animations.js` with no version or ID errors.
+- Named browser session `task7-storybook-focus` against `http://127.0.0.1:4175/?preview=storybook`: opening **Open Sing & Dance**, clicking **← Storybook**, and waiting 1000 ms left `document.activeElement` at `{"id":"storybook-door-songs","tag":"BUTTON"}`. After enabling **Use less motion** and saving, the immediate home focus read `{"id":"storybook-resume-card","tag":"BUTTON"}`; opening **Open Little Lessons** and clicking **← Storybook** without an extra wait returned `{"id":"storybook-door-lessons","tag":"BUTTON"}`. Opening `?preview=storybook&storybookScreen=ending&storybookItemId=bluey`, clicking **Pick another**, and waiting 1000 ms returned `{"id":"storybook-resume-card","tag":"BUTTON"}`. After `agent-browser --session task7-storybook-focus close`, `agent-browser --session task7-storybook-focus session info --json` reported `"active":false`.
+
 ---
 
 ## Phase 2 Completion Gate

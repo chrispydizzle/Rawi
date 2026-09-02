@@ -6,6 +6,7 @@
   var doorFocusTween = null;
   var scrollMotion = null;
   var scrollTween = null;
+  var storybookHomeReadyState = null;
   var storybookDoors = [];
 
   if (!gsap) {
@@ -65,6 +66,10 @@
   }
 
   function resetStorybookDoors() {
+    if (storybookHomeReadyState) {
+      storybookHomeReadyState.cancelled = true;
+      storybookHomeReadyState = null;
+    }
     if (!storybookDoors.length) { return; }
     gsap.killTweensOf(storybookDoors);
     gsap.set(storybookDoors, {
@@ -73,20 +78,40 @@
     storybookDoors = [];
   }
 
-  function animateStorybookHome(forceReducedMotion) {
+  function runStorybookHomeReady(state) {
+    if (!state || state.cancelled || state.called) { return; }
+    state.called = true;
+    storybookHomeReadyState = null;
+    if (typeof state.onReady === 'function') {
+      state.onReady();
+    }
+  }
+
+  function animateStorybookHome(forceReducedMotion, onReady) {
     var entranceDuration = 0.45;
     var entranceStagger = 0.08;
     var animatedDoors;
     var doors = document.querySelectorAll('#storybook-doors .storybook-door');
+    var readyState;
 
     resetStorybookDoors();
-    if (!doors.length) { return; }
+    readyState = {
+      called: false,
+      cancelled: false,
+      onReady: onReady
+    };
+    storybookHomeReadyState = readyState;
+    if (!doors.length) {
+      runStorybookHomeReady(readyState);
+      return;
+    }
     storybookDoors = Array.prototype.slice.call(doors);
     animatedDoors = storybookDoors;
     gsap.set(storybookDoors, {
       clearProps: 'opacity,visibility,transform'
     });
-    if (forceReducedMotion || prefersReducedMotion()) {
+    if (forceReducedMotion || prefersReducedMotion() || typeof gsap.fromTo !== 'function') {
+      runStorybookHomeReady(readyState);
       return;
     }
     gsap.fromTo(storybookDoors, {
@@ -95,10 +120,11 @@
     }, {
       autoAlpha: 1,
       clearProps: 'opacity,visibility',
-      duration: 0.45,
+      duration: entranceDuration,
       ease: 'back.out(1.05)',
       onComplete: function () {
-        if (storybookDoors !== animatedDoors) { return; }
+        if (storybookDoors !== animatedDoors || storybookHomeReadyState !== readyState) { return; }
+        runStorybookHomeReady(readyState);
         animatedDoors.slice(0, 3).forEach(function (door, index) {
           gsap.to(door, {
             delay: 0.05 + entranceStagger * index,
@@ -112,7 +138,7 @@
         });
       },
       overwrite: true,
-      stagger: 0.08,
+      stagger: entranceStagger,
       y: 0
     });
   }

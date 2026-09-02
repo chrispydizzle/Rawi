@@ -156,7 +156,8 @@ function append(document, parent, tagName, id) {
   return element;
 }
 
-function loadViewHarness() {
+function loadViewHarness(options) {
+  options = options || {};
   var document = new FakeDocument();
   var animationCalls = [];
   var closeDetailsCount = 0;
@@ -168,7 +169,9 @@ function loadViewHarness() {
   var openSettingsCount = 0;
   var endingActions = [];
   var playbackStarts = [];
+  var pendingStorybookHomeReady = [];
   var resetCount = 0;
+  var storybookHomeAnimationCalls = 0;
   var buttons = {
     adult: append(document, document.body, 'button', 'storybook-home-adult-mode-button'),
     cancel: append(document, document.body, 'button', 'storybook-cancel'),
@@ -233,12 +236,25 @@ function loadViewHarness() {
     buttons.detailsStorybook
   ];
 
+  function shouldDeferStorybookHomeReady(callIndex) {
+    return Array.isArray(options.deferStorybookHomeReadyCalls) &&
+      options.deferStorybookHomeReadyCalls.indexOf(callIndex) !== -1;
+  }
+
   var window = load('js/storybook-view.js', {
     document: document,
     window: {
       MovieDeckAnimations: {
-        animateStorybookHome: function (reducedMotion) {
+        animateStorybookHome: function (reducedMotion, onReady) {
+          storybookHomeAnimationCalls += 1;
           animationCalls.push(reducedMotion);
+          if (typeof onReady === 'function') {
+            if (reducedMotion || !shouldDeferStorybookHomeReady(storybookHomeAnimationCalls)) {
+              onReady();
+            } else {
+              pendingStorybookHomeReady.push(onReady);
+            }
+          }
         },
         focusStorybookDoor: function (door, reducedMotion) {
           focusDoorCalls.push({
@@ -358,8 +374,15 @@ function loadViewHarness() {
     openLibraries: openLibraries,
     openItems: openItems,
     openSettingsCount: function () { return openSettingsCount; },
+    pendingStorybookHomeReadyCount: function () {
+      return pendingStorybookHomeReady.length;
+    },
     endingActions: function () { return endingActions.slice(); },
     playbackStarts: function () { return playbackStarts.slice(); },
+    releaseStorybookHomeReady: function () {
+      var callback = pendingStorybookHomeReady.shift();
+      if (callback) { callback(); }
+    },
     resetCount: function () { return resetCount; },
     view: window.RawiStorybookView
   };
@@ -458,6 +481,33 @@ function loadViewHarness() {
     JSON.parse(JSON.stringify(harness.openItems)),
     [{ id: 'bluey', source: 'resume' }]
   );
+}());
+
+(function waitsForStorybookHomeReadinessBeforeFocusingPreferredDoor() {
+  var harness = loadViewHarness({
+    deferStorybookHomeReadyCalls: [1]
+  });
+
+  harness.view.renderHome({
+    childName: 'Nova',
+    libraries: [
+      { id: 'kids', name: 'Kids' },
+      { id: 'disney', name: 'Disney' }
+    ],
+    preferredFocusId: 'storybook-door-disney',
+    reducedMotion: false
+  });
+
+  assert.strictEqual(harness.document.activeElement, null);
+  assert.strictEqual(harness.pendingStorybookHomeReadyCount(), 1);
+
+  harness.releaseStorybookHomeReady();
+
+  assert.strictEqual(harness.document.activeElement.id, 'storybook-door-disney');
+  assert.deepStrictEqual(harness.focusDoorCalls(), [{
+    id: 'disney',
+    reducedMotion: false
+  }]);
 }());
 
 (function rendersAllStoryDoorsWithoutCapAndUsesGenericGreeting() {

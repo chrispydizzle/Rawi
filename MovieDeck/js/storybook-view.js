@@ -3,6 +3,7 @@
 
   var copy = global.RawiCopy;
   var callbacks = {};
+  var homeRenderToken = 0;
 
   function byId(id) { return document.getElementById(id); }
   function itemId(item) {
@@ -73,6 +74,11 @@
       }, 0);
       return;
     }
+    control.focus();
+  }
+
+  function focusNow(control) {
+    if (!control || typeof control.focus !== 'function') { return; }
     control.focus();
   }
 
@@ -169,8 +175,12 @@
     var resumeCard = model && model.resume ? model.resume : null;
     var childName = model && model.childName ? model.childName : '';
     var reducedMotion = !!(model && model.reducedMotion);
+    var focusTarget = null;
+    var renderToken = homeRenderToken + 1;
     var scroller;
     var strip;
+
+    homeRenderToken = renderToken;
 
     byId('storybook-greeting').textContent = childName ?
       copy.get('storybookGreeting', { child: childName }) :
@@ -255,15 +265,25 @@
       'storybook-reduced-motion',
       reducedMotion
     );
-    if (global.MovieDeckAnimations) {
-      global.MovieDeckAnimations.animateStorybookHome(reducedMotion);
-    }
     if (model && model.preferredFocusId && byId(model.preferredFocusId)) {
-      focusWhenReady(byId(model.preferredFocusId));
+      focusTarget = byId(model.preferredFocusId);
     } else if (firstChoice) {
-      focusWhenReady(firstChoice);
+      focusTarget = firstChoice;
+    } else if (editButton) {
+      focusTarget = editButton;
     }
-    else if (editButton) { focusWhenReady(editButton); }
+
+    if (global.MovieDeckAnimations && global.MovieDeckAnimations.animateStorybookHome) {
+      global.MovieDeckAnimations.animateStorybookHome(reducedMotion, function () {
+        if (homeRenderToken !== renderToken) { return; }
+        focusNow(focusTarget);
+      });
+      return;
+    }
+
+    if (homeRenderToken === renderToken) {
+      focusNow(focusTarget);
+    }
   }
 
   function renderLibrary(model) {

@@ -141,9 +141,12 @@ function loadAnimationsHarness(matchMediaMatches, doors) {
 (function animatesOnlyTheFirstThreeStoryDoorsAfterEntrance() {
   var doors = [createDoor(), createDoor(), createDoor(), createDoor(), createDoor()];
   var harness = loadAnimationsHarness(false, doors);
+  var readyCalls = 0;
 
   assert.strictEqual(typeof harness.animations.animateStorybookHome, 'function');
-  harness.animations.animateStorybookHome(false);
+  harness.animations.animateStorybookHome(false, function () {
+    readyCalls += 1;
+  });
 
   assert.deepStrictEqual(harness.gsap.killTargets, []);
   assert.strictEqual(harness.gsap.setCalls.length, 1);
@@ -155,7 +158,10 @@ function loadAnimationsHarness(matchMediaMatches, doors) {
   assert.strictEqual(harness.gsap.fromToCalls.length, 1);
   assert.strictEqual(harness.gsap.fromToCalls[0].target.length, 5);
   assert.strictEqual(harness.gsap.toCalls.length, 0);
+  assert.strictEqual(readyCalls, 0);
   harness.gsap.fromToCalls[0].toVars.onComplete();
+  harness.gsap.fromToCalls[0].toVars.onComplete();
+  assert.strictEqual(readyCalls, 1);
   assert.strictEqual(harness.gsap.toCalls.length, 3);
   assert.strictEqual(harness.gsap.toCalls[0].target, doors[0]);
   assert.strictEqual(harness.gsap.toCalls[2].target, doors[2]);
@@ -168,8 +174,11 @@ function loadAnimationsHarness(matchMediaMatches, doors) {
 (function keepsStorybookHomeStaticWhenReducedMotionIsForced() {
   var doors = [createDoor(), createDoor()];
   var harness = loadAnimationsHarness(false, doors);
+  var readyCalls = 0;
 
-  harness.animations.animateStorybookHome(true);
+  harness.animations.animateStorybookHome(true, function () {
+    readyCalls += 1;
+  });
 
   assert.strictEqual(harness.gsap.fromToCalls.length, 0);
   assert.strictEqual(harness.gsap.toCalls.length, 0);
@@ -177,6 +186,7 @@ function loadAnimationsHarness(matchMediaMatches, doors) {
   assert.strictEqual(doors[0].style.opacity, '');
   assert.strictEqual(doors[0].style.visibility, '');
   assert.strictEqual(doors[0].style.transform, '');
+  assert.strictEqual(readyCalls, 1);
 }());
 
 (function keepsStorybookHomeStaticWhenMediaQueryRequestsReducedMotion() {
@@ -188,6 +198,20 @@ function loadAnimationsHarness(matchMediaMatches, doors) {
   assert.strictEqual(harness.gsap.fromToCalls.length, 0);
   assert.strictEqual(harness.gsap.toCalls.length, 0);
   assert.strictEqual(doors[1].style.transform, '');
+}());
+
+(function reportsStorybookHomeReadyImmediatelyWhenNoDoorsArePresent() {
+  var harness = loadAnimationsHarness(false, []);
+  var readyCalls = 0;
+
+  harness.animations.animateStorybookHome(false, function () {
+    readyCalls += 1;
+  });
+
+  assert.strictEqual(harness.gsap.setCalls.length, 0);
+  assert.strictEqual(harness.gsap.fromToCalls.length, 0);
+  assert.strictEqual(harness.gsap.toCalls.length, 0);
+  assert.strictEqual(readyCalls, 1);
 }());
 
 (function stopsStorybookDoorTweensWhenLeavingStorybookHome() {

@@ -468,6 +468,7 @@ function buildDom(document) {
 }
 
 function loadAppHarness(options) {
+  options = options || {};
   var modelWindow = load('js/storybook-model.js', { window: {} });
   var catalogueWindow = load('js/storybook-catalogue.js', {
     window: {
@@ -495,7 +496,10 @@ function loadAppHarness(options) {
   var playCalls = [];
   var stopCalls = [];
   var isPlayingState = false;
+  var activeStorybookHomeReady = null;
+  var pendingStorybookHomeReady = [];
   var storybookDoorFocusCalls = [];
+  var storybookHomeAnimationCalls = 0;
   var storybookMotionCalls = [];
   var storybookStopCalls = 0;
   var currentPreferences = JSON.parse(JSON.stringify(options.preferences || {
@@ -509,6 +513,35 @@ function loadAppHarness(options) {
   }));
   var librariesDeferred = options.librariesDeferred || null;
   var restoreValue = options.restoreSession !== false;
+
+  function shouldDeferStorybookHomeReady(callIndex, reducedMotion) {
+    if (reducedMotion) { return false; }
+    return Array.isArray(options.deferStorybookHomeReadyCalls) &&
+      options.deferStorybookHomeReadyCalls.indexOf(callIndex) !== -1;
+  }
+
+  function cancelActiveStorybookHomeReady() {
+    if (!activeStorybookHomeReady) { return; }
+    activeStorybookHomeReady.cancelled = true;
+    activeStorybookHomeReady = null;
+  }
+
+  function releaseStorybookHomeReady() {
+    var entry;
+
+    while (pendingStorybookHomeReady.length) {
+      entry = pendingStorybookHomeReady.shift();
+      if (entry.cancelled) { continue; }
+      if (activeStorybookHomeReady === entry) {
+        activeStorybookHomeReady = null;
+      }
+      entry.callback();
+      return true;
+    }
+
+    return false;
+  }
+
   function normalizePreferences(nextState) {
     return {
       version: 2,
@@ -624,8 +657,23 @@ function loadAppHarness(options) {
   };
   var window = {
     MovieDeckAnimations: {
-      animateStorybookHome: function (reducedMotion) {
+      animateStorybookHome: function (reducedMotion, onReady) {
+        var entry;
+
+        storybookHomeAnimationCalls += 1;
         storybookMotionCalls.push(reducedMotion);
+        cancelActiveStorybookHomeReady();
+        if (typeof onReady !== 'function') { return; }
+        if (!shouldDeferStorybookHomeReady(storybookHomeAnimationCalls, reducedMotion)) {
+          onReady();
+          return;
+        }
+        entry = {
+          callback: onReady,
+          cancelled: false
+        };
+        activeStorybookHomeReady = entry;
+        pendingStorybookHomeReady.push(entry);
       },
       animateSelection: function () {},
       animateShelves: function () {},
@@ -641,6 +689,7 @@ function loadAppHarness(options) {
       },
       stopStorybookHome: function () {
         storybookStopCalls += 1;
+        cancelActiveStorybookHomeReady();
       }
     },
     matchMedia: function (query) {
@@ -767,11 +816,19 @@ function loadAppHarness(options) {
         return node.getAttribute('data-library-id');
       });
     },
+    pendingStorybookHomeReadyCount: function () {
+      return pendingStorybookHomeReady.filter(function (entry) {
+        return !entry.cancelled;
+      }).length;
+    },
     playCalls: function () {
       return JSON.parse(JSON.stringify(playCalls));
     },
     playerCallbacks: function () {
       return playerCallbacks;
+    },
+    releaseStorybookHomeReady: function () {
+      return releaseStorybookHomeReady();
     },
     savedState: function () { return savedState; },
     screenActive: function (id) {
@@ -1942,6 +1999,47 @@ asyncTest('storybookCompletionShowsEndingScreenWithoutToastOrAutoplay', function
   });
 });
 
+asyncTest('storybookEndingPickAnotherWaitsForHomeReadyBeforeFocusingResumeCard', function () {
+  var harness = loadAppHarness({
+    deferStorybookHomeReadyCalls: [2],
+    libraries: [{ Id: 'kids', Name: 'Kids' }],
+    preferences: {
+      version: 2,
+      enabled: true,
+      lastMode: 'storybook',
+      childName: 'Nova',
+      libraryIds: ['kids'],
+      favoriteItemIds: [],
+      reducedMotion: false
+    },
+    restoreSession: true,
+    resume: [
+      { Id: 'story-1', Name: 'First Story', UserData: { PlaybackPositionTicks: 600000000, PlayedPercentage: 14 } }
+    ],
+    videosByLibrary: {
+      kids: [{ Id: 'story-1', Name: 'First Story', RunTimeTicks: 7200000000, Overview: 'A calm bedtime story.', UserData: { PlaybackPositionTicks: 600000000, PlayedPercentage: 14 } }]
+    }
+  });
+
+  return flush(12).then(function () {
+    harness.document.getElementById('storybook-resume-card').click();
+    harness.document.getElementById('storybook-details-play').click();
+    harness.playerCallbacks().onStop(true);
+    harness.document.getElementById('storybook-ending-pick-another').click();
+
+    assert.strictEqual(harness.screenActive('storybook-screen'), true);
+    assert.strictEqual(harness.pendingStorybookHomeReadyCount(), 1);
+    assert.notStrictEqual(
+      harness.document.activeElement && harness.document.activeElement.id,
+      'storybook-resume-card'
+    );
+
+    harness.releaseStorybookHomeReady();
+
+    assert.strictEqual(harness.document.activeElement.id, 'storybook-resume-card');
+  });
+});
+
 asyncTest('storybookEndingBackKeyActsLikePickAnother', function () {
   var harness = loadAppHarness({
     libraries: [{ Id: 'kids', Name: 'Kids' }],
@@ -2512,6 +2610,83 @@ asyncTest('opensStoryDoorOnStorybookLibraryScreenAndBackRestoresStorybookHome', 
       JSON.parse(JSON.stringify(harness.doorLibraryIds())),
       ['kids', 'disney']
     );
+    assert.strictEqual(harness.document.activeElement.id, 'storybook-door-kids');
+  });
+});
+
+asyncTest('storybookLibraryBackWaitsForHomeReadyBeforeRestoringOriginDoorFocus', function () {
+  var harness = loadAppHarness({
+    deferStorybookHomeReadyCalls: [2],
+    libraries: [
+      { Id: 'kids', Name: 'Kids' },
+      { Id: 'disney', Name: 'Disney' }
+    ],
+    preferences: {
+      version: 2,
+      enabled: true,
+      lastMode: 'storybook',
+      childName: 'Nova',
+      libraryIds: ['kids', 'disney'],
+      favoriteItemIds: [],
+      reducedMotion: false
+    },
+    restoreSession: true,
+    videosByLibrary: {
+      disney: [{ Id: 'video-2', Name: 'Second video' }],
+      kids: [{ Id: 'video-1', Name: 'First video' }]
+    }
+  });
+
+  return flush(12).then(function () {
+    harness.document.getElementById('storybook-door-kids').click();
+    harness.document.dispatchEvent('keydown', {
+      keyCode: 8,
+      preventDefault: function () {}
+    });
+
+    assert.strictEqual(harness.screenActive('storybook-screen'), true);
+    assert.strictEqual(harness.pendingStorybookHomeReadyCount(), 1);
+    assert.notStrictEqual(
+      harness.document.activeElement && harness.document.activeElement.id,
+      'storybook-door-kids'
+    );
+
+    harness.releaseStorybookHomeReady();
+
+    assert.strictEqual(harness.document.activeElement.id, 'storybook-door-kids');
+  });
+});
+
+asyncTest('storybookLibraryBackRestoresOriginDoorFocusImmediatelyWhenReducedMotionIsEnabled', function () {
+  var harness = loadAppHarness({
+    deferStorybookHomeReadyCalls: [2],
+    libraries: [
+      { Id: 'kids', Name: 'Kids' }
+    ],
+    preferences: {
+      version: 2,
+      enabled: true,
+      lastMode: 'storybook',
+      childName: 'Nova',
+      libraryIds: ['kids'],
+      favoriteItemIds: [],
+      reducedMotion: true
+    },
+    restoreSession: true,
+    videosByLibrary: {
+      kids: [{ Id: 'video-1', Name: 'First video' }]
+    }
+  });
+
+  return flush(12).then(function () {
+    harness.document.getElementById('storybook-door-kids').click();
+    harness.document.dispatchEvent('keydown', {
+      keyCode: 8,
+      preventDefault: function () {}
+    });
+
+    assert.strictEqual(harness.screenActive('storybook-screen'), true);
+    assert.strictEqual(harness.pendingStorybookHomeReadyCount(), 0);
     assert.strictEqual(harness.document.activeElement.id, 'storybook-door-kids');
   });
 });
