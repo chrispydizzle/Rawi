@@ -1457,9 +1457,9 @@
     var settingsNextIndex;
     if (!current || nodes.indexOf(current) === -1) { if (nodes[0]) { nodes[0].focus(); } return; }
 
-    if (activeScreen === 'storybook-settings-screen') {
+    if (activeScreen === 'storybook-settings-screen' && (direction === 'down' || direction === 'up')) {
       settingsIndex = nodes.indexOf(current);
-      settingsNextIndex = (direction === 'down' || direction === 'right') ? settingsIndex + 1 : settingsIndex - 1;
+      settingsNextIndex = direction === 'down' ? settingsIndex + 1 : settingsIndex - 1;
       if (settingsNextIndex < 0 || settingsNextIndex >= nodes.length) { return; }
       nodes[settingsNextIndex].focus();
       ensureStorybookControlVisible(nodes[settingsNextIndex]);

@@ -144,8 +144,8 @@ var copy = load('js/copy.js', { window: {} }).RawiCopy;
   assert.strictEqual(copy.get('storybookDurationQuickMaxLabel'), 'Quick story up to this many minutes');
   assert.strictEqual(copy.get('storybookDurationCozyMaxLabel'), 'Cozy episode up to this many minutes');
   assert.strictEqual(copy.get('storybookRecentHistoryDaysLabel'), 'Hide completed stories for this many days');
-  assert.strictEqual(copy.get('storybookDurationThresholdError'), 'Quick story minutes must be at least 1, and Cozy episode minutes must be greater than or equal to Quick story minutes.');
-  assert.strictEqual(copy.get('storybookRecentHistoryDaysError'), 'Recent history days must be 0 or more.');
+  assert.strictEqual(copy.get('storybookDurationThresholdError'), 'Quick story minutes must be 1 to 240, and Cozy episode minutes must be between Quick story minutes and 240.');
+  assert.strictEqual(copy.get('storybookRecentHistoryDaysError'), 'Recent history days must be between 0 and 365.');
 }());
 
 (function exposesStorybookLittleMenuCopyDefault() {

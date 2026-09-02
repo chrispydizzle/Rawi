@@ -447,8 +447,8 @@ function loadViewHarness(options) {
           if (key === 'storybookDurationQuickMaxLabel') { return 'Quick story up to this many minutes'; }
           if (key === 'storybookDurationCozyMaxLabel') { return 'Cozy episode up to this many minutes'; }
           if (key === 'storybookRecentHistoryDaysLabel') { return 'Hide completed stories for this many days'; }
-          if (key === 'storybookDurationThresholdError') { return 'Quick story minutes must be at least 1, and Cozy episode minutes must be greater than or equal to Quick story minutes.'; }
-          if (key === 'storybookRecentHistoryDaysError') { return 'Recent history days must be 0 or more.'; }
+          if (key === 'storybookDurationThresholdError') { return 'Quick story minutes must be 1 to 240, and Cozy episode minutes must be between Quick story minutes and 240.'; }
+          if (key === 'storybookRecentHistoryDaysError') { return 'Recent history days must be between 0 and 365.'; }
           return key;
         }
       }
@@ -965,6 +965,19 @@ function loadViewHarness(options) {
   assert.strictEqual(harness.buttons.reset.disabled, false);
   assert.strictEqual(harness.buttons.reset.style.display, 'inline-block');
   assert.strictEqual(harness.buttons.reset.textContent, 'Reset Storybook settings');
+  [
+    'categorySingDanceTag',
+    'categoryBedtimeTag',
+    'categoryAnimalsTag',
+    'categoryLearningTag',
+    'categoryMovementTag',
+    'durationEnabled',
+    'durationQuickMax',
+    'durationCozyMax',
+    'recentHistoryDays'
+  ].forEach(function (key) {
+    assert.strictEqual(harness.buttons[key].disabled, true, key + ' should be disabled while recovery is active');
+  });
   harness.buttons.reset.click();
   assert.strictEqual(harness.resetCount(), 1);
 
@@ -997,6 +1010,19 @@ function loadViewHarness(options) {
   assert.strictEqual(harness.buttons.save.disabled, false);
   assert.strictEqual(harness.buttons.reset.disabled, true);
   assert.strictEqual(harness.buttons.reset.style.display, 'none');
+  [
+    'categorySingDanceTag',
+    'categoryBedtimeTag',
+    'categoryAnimalsTag',
+    'categoryLearningTag',
+    'categoryMovementTag',
+    'durationEnabled',
+    'durationQuickMax',
+    'durationCozyMax',
+    'recentHistoryDays'
+  ].forEach(function (key) {
+    assert.strictEqual(harness.buttons[key].disabled, false, key + ' should be re-enabled once recovery clears');
+  });
 
   harness.view.renderSettings(
     [],
@@ -1119,7 +1145,51 @@ function loadViewHarness(options) {
 
   assert.strictEqual(
     harness.buttons.settingsError.textContent,
-    'Quick story minutes must be at least 1, and Cozy episode minutes must be greater than or equal to Quick story minutes.'
+    'Quick story minutes must be 1 to 240, and Cozy episode minutes must be between Quick story minutes and 240.'
+  );
+  assert.strictEqual(harness.document.activeElement.id, 'storybook-duration-cozy-max');
+  assert.strictEqual(harness.preferenceChanges().length, 0);
+}());
+
+(function settingsRejectsQuickMaxAboveHtmlLimitAndKeepsFocusOnQuickField() {
+  var harness = loadViewHarness();
+
+  harness.view.renderSettings(
+    [{ Id: 'kids', Name: 'Kids' }],
+    settingsPreferences(),
+    [],
+    null
+  );
+
+  harness.buttons.durationQuickMax.value = '241';
+  harness.buttons.durationCozyMax.value = '241';
+  harness.buttons.save.click();
+
+  assert.strictEqual(
+    harness.buttons.settingsError.textContent,
+    'Quick story minutes must be 1 to 240, and Cozy episode minutes must be between Quick story minutes and 240.'
+  );
+  assert.strictEqual(harness.document.activeElement.id, 'storybook-duration-quick-max');
+  assert.strictEqual(harness.preferenceChanges().length, 0);
+}());
+
+(function settingsRejectsCozyMaxAboveHtmlLimitAndKeepsFocusOnCozyField() {
+  var harness = loadViewHarness();
+
+  harness.view.renderSettings(
+    [{ Id: 'kids', Name: 'Kids' }],
+    settingsPreferences(),
+    [],
+    null
+  );
+
+  harness.buttons.durationQuickMax.value = '100';
+  harness.buttons.durationCozyMax.value = '241';
+  harness.buttons.save.click();
+
+  assert.strictEqual(
+    harness.buttons.settingsError.textContent,
+    'Quick story minutes must be 1 to 240, and Cozy episode minutes must be between Quick story minutes and 240.'
   );
   assert.strictEqual(harness.document.activeElement.id, 'storybook-duration-cozy-max');
   assert.strictEqual(harness.preferenceChanges().length, 0);
@@ -1140,7 +1210,28 @@ function loadViewHarness(options) {
 
   assert.strictEqual(
     harness.buttons.settingsError.textContent,
-    'Recent history days must be 0 or more.'
+    'Recent history days must be between 0 and 365.'
+  );
+  assert.strictEqual(harness.document.activeElement.id, 'storybook-recent-history-days');
+  assert.strictEqual(harness.preferenceChanges().length, 0);
+}());
+
+(function settingsRejectsRecentHistoryDaysAboveHtmlLimitAndKeepsFocusOnHistoryField() {
+  var harness = loadViewHarness();
+
+  harness.view.renderSettings(
+    [{ Id: 'kids', Name: 'Kids' }],
+    settingsPreferences(),
+    [],
+    null
+  );
+
+  harness.buttons.recentHistoryDays.value = '366';
+  harness.buttons.save.click();
+
+  assert.strictEqual(
+    harness.buttons.settingsError.textContent,
+    'Recent history days must be between 0 and 365.'
   );
   assert.strictEqual(harness.document.activeElement.id, 'storybook-recent-history-days');
   assert.strictEqual(harness.preferenceChanges().length, 0);

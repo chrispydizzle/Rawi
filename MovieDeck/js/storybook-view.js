@@ -532,22 +532,25 @@
     var quickMaxMinutes;
     var cozyMaxMinutes;
     var recentHistoryDays;
+    var quickInvalid;
+    var cozyInvalid;
 
     if (byId('storybook-save').disabled) { return; }
     quickMaxMinutes = parsedIntegerValue('storybook-duration-quick-max');
     cozyMaxMinutes = parsedIntegerValue('storybook-duration-cozy-max');
     recentHistoryDays = parsedIntegerValue('storybook-recent-history-days');
     byId('storybook-settings-error').textContent = '';
-    if (quickMaxMinutes === null || quickMaxMinutes < 1 || cozyMaxMinutes === null || cozyMaxMinutes < quickMaxMinutes) {
+    quickInvalid = quickMaxMinutes === null || quickMaxMinutes < 1 || quickMaxMinutes > 240;
+    cozyInvalid = cozyMaxMinutes === null || cozyMaxMinutes > 240 ||
+      (quickMaxMinutes !== null && cozyMaxMinutes !== null && cozyMaxMinutes < quickMaxMinutes);
+    if (quickInvalid || cozyInvalid) {
       showSettingsValidationError(
         'storybookDurationThresholdError',
-        cozyMaxMinutes !== null && cozyMaxMinutes < quickMaxMinutes ?
-          'storybook-duration-cozy-max' :
-          'storybook-duration-quick-max'
+        quickInvalid ? 'storybook-duration-quick-max' : 'storybook-duration-cozy-max'
       );
       return;
     }
-    if (recentHistoryDays === null || recentHistoryDays < 0) {
+    if (recentHistoryDays === null || recentHistoryDays < 0 || recentHistoryDays > 365) {
       showSettingsValidationError('storybookRecentHistoryDaysError', 'storybook-recent-history-days');
       return;
     }

@@ -686,8 +686,8 @@ function loadAppHarness(options) {
     storybookDurationQuickMaxLabel: 'Quick story up to this many minutes',
     storybookDurationCozyMaxLabel: 'Cozy episode up to this many minutes',
     storybookRecentHistoryDaysLabel: 'Hide completed stories for this many days',
-    storybookDurationThresholdError: 'Quick story minutes must be at least 1, and Cozy episode minutes must be greater than or equal to Quick story minutes.',
-    storybookRecentHistoryDaysError: 'Recent history days must be 0 or more.',
+    storybookDurationThresholdError: 'Quick story minutes must be 1 to 240, and Cozy episode minutes must be between Quick story minutes and 240.',
+    storybookRecentHistoryDaysError: 'Recent history days must be between 0 and 365.',
     storybookLittleMenuTitle: "Tonight's Little Menu",
     storybookMagicPickButton: 'Magic Pick',
     storybookMagicPickBackButton: '← Storybook',
@@ -1769,6 +1769,12 @@ asyncTest('remoteNavigationMovesThroughEveryPhase3SettingsControlAndScrollsThePa
       preventDefault: function () {}
     });
     assert.strictEqual(harness.document.activeElement.id, 'storybook-cancel');
+
+    harness.document.dispatchEvent('keydown', {
+      keyCode: 37,
+      preventDefault: function () {}
+    });
+    assert.strictEqual(harness.document.activeElement.id, 'storybook-save');
 
     assert(panel.scrollTop > 0);
   });
