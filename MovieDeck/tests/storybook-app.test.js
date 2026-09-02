@@ -31,6 +31,48 @@ function asyncTest(name, run) {
   registerAsync(name, run);
 }
 
+function basePreferences(overrides) {
+  var result = {
+    version: 3,
+    enabled: false,
+    lastMode: 'adult',
+    childName: '',
+    libraryIds: [],
+    favoriteItemIds: [],
+    categoryTags: {
+      singDance: 'sing-along',
+      bedtime: 'bedtime',
+      animals: 'animals',
+      learning: 'learning',
+      movement: 'movement'
+    },
+    durationLabels: {
+      enabled: true,
+      quickMaxMinutes: 12,
+      cozyMaxMinutes: 30
+    },
+    recentHistoryDays: 14,
+    reducedMotion: false
+  };
+  var source = overrides || {};
+
+  Object.keys(source).forEach(function (key) {
+    if (key === 'categoryTags' || key === 'durationLabels') { return; }
+    result[key] = source[key];
+  });
+  if (source.categoryTags) {
+    Object.keys(source.categoryTags).forEach(function (key) {
+      result.categoryTags[key] = source.categoryTags[key];
+    });
+  }
+  if (source.durationLabels) {
+    Object.keys(source.durationLabels).forEach(function (key) {
+      result.durationLabels[key] = source.durationLabels[key];
+    });
+  }
+  return result;
+}
+
 function FakeClassList() {
   this.names = [];
 }
@@ -467,6 +509,22 @@ function buildDom(document) {
   append(playerScreen, 'div', 'player-message', '');
 }
 
+function defaultStorybookBootstrap(overrides) {
+  var result = {
+    nowMs: Date.parse('2026-09-02T02:00:00.000Z'),
+    storybookSessionSeed: 'app-test-launch-seed'
+  };
+  var source = overrides || {};
+
+  if (source.nowMs !== undefined) {
+    result.nowMs = source.nowMs;
+  }
+  if (source.storybookSessionSeed !== undefined) {
+    result.storybookSessionSeed = source.storybookSessionSeed;
+  }
+  return result;
+}
+
 function loadAppHarness(options) {
   options = options || {};
   var modelWindow = load('js/storybook-model.js', { window: {} });
@@ -502,15 +560,8 @@ function loadAppHarness(options) {
   var storybookHomeAnimationCalls = 0;
   var storybookMotionCalls = [];
   var storybookStopCalls = 0;
-  var currentPreferences = JSON.parse(JSON.stringify(options.preferences || {
-    version: 2,
-    enabled: false,
-    lastMode: 'adult',
-    childName: '',
-    libraryIds: [],
-    favoriteItemIds: [],
-    reducedMotion: false
-  }));
+  var storybookBootstrap = defaultStorybookBootstrap(options.storybookBootstrap);
+  var currentPreferences = JSON.parse(JSON.stringify(basePreferences(options.preferences || {})));
   var rawStorybookStorage = Object.prototype.hasOwnProperty.call(options, 'rawStorybookStorage') ?
     options.rawStorybookStorage :
     JSON.stringify(currentPreferences);
@@ -546,15 +597,18 @@ function loadAppHarness(options) {
   }
 
   function normalizePreferences(nextState) {
-    return {
-      version: 2,
-      enabled: nextState && nextState.enabled === true,
-      lastMode: nextState && nextState.lastMode === 'storybook' ? 'storybook' : 'adult',
-      childName: nextState && typeof nextState.childName === 'string' ? nextState.childName : '',
-      libraryIds: nextState && Array.isArray(nextState.libraryIds) ? nextState.libraryIds.slice() : [],
-      favoriteItemIds: nextState && Array.isArray(nextState.favoriteItemIds) ? nextState.favoriteItemIds.slice() : [],
-      reducedMotion: nextState && nextState.reducedMotion === true
-    };
+    var source = nextState || {};
+    return basePreferences({
+      enabled: source.enabled === true,
+      lastMode: source.lastMode === 'storybook' ? 'storybook' : 'adult',
+      childName: typeof source.childName === 'string' ? source.childName : '',
+      libraryIds: Array.isArray(source.libraryIds) ? source.libraryIds.slice() : [],
+      favoriteItemIds: Array.isArray(source.favoriteItemIds) ? source.favoriteItemIds.slice() : [],
+      categoryTags: source.categoryTags || null,
+      durationLabels: source.durationLabels || null,
+      recentHistoryDays: source.recentHistoryDays,
+      reducedMotion: source.reducedMotion === true
+    });
   }
   var copyMap = {
     allVideos: 'All videos',
@@ -732,15 +786,7 @@ function loadAppHarness(options) {
     RawiStorybookCatalogue: catalogueWindow.RawiStorybookCatalogue,
     RawiStorybookPreferences: {
       defaults: function () {
-        return {
-          version: 2,
-          enabled: false,
-          lastMode: 'adult',
-          childName: '',
-          libraryIds: [],
-          favoriteItemIds: [],
-          reducedMotion: false
-        };
+        return basePreferences();
       },
       getRestoreStatus: function () {
         return JSON.parse(JSON.stringify(currentRestoreStatus));
@@ -768,6 +814,10 @@ function loadAppHarness(options) {
         };
         return JSON.parse(JSON.stringify(currentPreferences));
       }
+    },
+    __RAWI_STORYBOOK_BOOTSTRAP__: {
+      nowMs: storybookBootstrap.nowMs,
+      storybookSessionSeed: storybookBootstrap.storybookSessionSeed
     },
     RawiPreviewFixtures: options.previewFixtures || null
   };
@@ -960,15 +1010,14 @@ asyncTest('previewRoutesCanOpenHomeLibraryDetailsAndEndingWithoutJellyfin', func
   var fixture = {
     storybook: {
       user: { Id: 'preview-user', Name: 'Parent' },
-      preferences: {
-        version: 2,
+      preferences: basePreferences({
         enabled: true,
         lastMode: 'storybook',
         childName: 'Nova',
         libraryIds: ['pixar', 'songs', 'lessons'],
         favoriteItemIds: ['dance', 'colors'],
         reducedMotion: false
-      },
+      }),
       libraries: [
         { Id: 'pixar', Name: 'Disney Pixar' },
         { Id: 'songs', Name: 'Sing & Dance' },
@@ -1190,15 +1239,14 @@ asyncTest('previewKeepsRecoverableStorybookPreferenceCorruptionBlockedUntilConfi
 
     assert.deepStrictEqual(
       JSON.parse(JSON.stringify(harness.savedState())),
-      {
-        version: 2,
+      basePreferences({
         enabled: false,
         lastMode: 'adult',
         childName: '',
         libraryIds: [],
         favoriteItemIds: [],
         reducedMotion: false
-      }
+      })
     );
     assert.strictEqual(harness.document.getElementById('storybook-save').disabled, false);
   });
@@ -1210,15 +1258,14 @@ asyncTest('savingStorybookSettingsRetainsFavoriteItemIdsFromMigratedPreferences'
       { Id: 'kids', Name: 'Kids' },
       { Id: 'disney', Name: 'Disney' }
     ],
-    preferences: {
-      version: 2,
+    preferences: basePreferences({
       enabled: true,
       lastMode: 'storybook',
       childName: 'Nova',
       libraryIds: ['kids'],
       favoriteItemIds: ['video-1', 'video-2'],
       reducedMotion: false
-    },
+    }),
     restoreSession: true,
     videosByLibrary: {
       disney: [{ Id: 'video-2', Name: 'Second video' }],
@@ -1244,15 +1291,14 @@ asyncTest('savingStorybookSettingsRetainsFavoriteItemIdsFromMigratedPreferences'
   }).then(function () {
     assert.deepStrictEqual(
       JSON.parse(JSON.stringify(harness.savedState())),
-      {
-        version: 2,
+      basePreferences({
         enabled: true,
         lastMode: 'storybook',
         childName: 'Ava',
         libraryIds: ['disney'],
         favoriteItemIds: ['video-1', 'video-2'],
         reducedMotion: true
-      }
+      })
     );
   });
 });
@@ -1445,15 +1491,14 @@ asyncTest('restoresInitiatingFocusAndScrollsSettingsControls', function () {
 asyncTest('storybookModeAttemptDuringRecoveryOpensRecoverySettingsWithoutSaving', function () {
   var harness = loadAppHarness({
     libraries: [{ Id: 'kids', Name: 'Kids' }],
-    preferences: {
-      version: 2,
+    preferences: basePreferences({
       enabled: false,
       lastMode: 'adult',
       childName: '',
       libraryIds: [],
       favoriteItemIds: [],
       reducedMotion: false
-    },
+    }),
     restoreSession: true,
     restoreStatus: {
       needsRecovery: true,
@@ -1481,14 +1526,14 @@ asyncTest('storybookModeAttemptDuringRecoveryOpensRecoverySettingsWithoutSaving'
 asyncTest('keepsTheJellyfinSessionWhileRecoveringMalformedStorybookPreferences', function () {
   var harness = loadAppHarness({
     libraries: [{ Id: 'kids', Name: 'Kids' }],
-    preferences: {
+    preferences: basePreferences({
       version: 1,
       enabled: false,
       lastMode: 'adult',
       childName: '',
       libraryIds: [],
       reducedMotion: false
-    },
+    }),
     restoreSession: true,
     restoreStatus: {
       needsRecovery: true,
@@ -1531,15 +1576,14 @@ asyncTest('keepsTheJellyfinSessionWhileRecoveringMalformedStorybookPreferences',
 
     assert.deepStrictEqual(
       JSON.parse(JSON.stringify(harness.savedState())),
-      {
-        version: 2,
+      basePreferences({
         enabled: false,
         lastMode: 'adult',
         childName: '',
         libraryIds: [],
         favoriteItemIds: [],
         reducedMotion: false
-      }
+      })
     );
     assert.strictEqual(harness.document.getElementById('storybook-settings-warning').textContent, '');
     assert.strictEqual(harness.document.getElementById('storybook-reset').disabled, true);
@@ -1551,15 +1595,14 @@ asyncTest('keepsTheJellyfinSessionWhileRecoveringMalformedStorybookPreferences',
 asyncTest('adultModeNoOpDoesNotOverwriteRecoverableStorybookPreferences', function () {
   var harness = loadAppHarness({
     libraries: [{ Id: 'kids', Name: 'Kids' }],
-    preferences: {
-      version: 2,
+    preferences: basePreferences({
       enabled: false,
       lastMode: 'adult',
       childName: '',
       libraryIds: [],
       favoriteItemIds: [],
       reducedMotion: false
-    },
+    }),
     restoreSession: true,
     restoreStatus: {
       needsRecovery: true,
@@ -1578,15 +1621,14 @@ asyncTest('adultModeNoOpDoesNotOverwriteRecoverableStorybookPreferences', functi
     assert.strictEqual(harness.savedState(), null);
     assert.deepStrictEqual(
       JSON.parse(JSON.stringify(harness.currentPreferences())),
-      {
-        version: 2,
+      basePreferences({
         enabled: false,
         lastMode: 'adult',
         childName: '',
         libraryIds: [],
         favoriteItemIds: [],
         reducedMotion: false
-      }
+      })
     );
   });
 });
@@ -1594,14 +1636,14 @@ asyncTest('adultModeNoOpDoesNotOverwriteRecoverableStorybookPreferences', functi
 asyncTest('cancelAndBackDoNotResetRecoverableStorybookPreferences', function () {
   var harness = loadAppHarness({
     libraries: [{ Id: 'kids', Name: 'Kids' }],
-    preferences: {
+    preferences: basePreferences({
       version: 1,
       enabled: false,
       lastMode: 'adult',
       childName: '',
       libraryIds: [],
       reducedMotion: false
-    },
+    }),
     restoreSession: true,
     restoreStatus: {
       needsRecovery: true,
@@ -1685,15 +1727,14 @@ asyncTest('modeToggleRecoverySettingsStayReachableAcrossLibraryFailuresUntilConf
 
     assert.deepStrictEqual(
       JSON.parse(JSON.stringify(harness.savedState())),
-      {
-        version: 2,
+      basePreferences({
         enabled: false,
         lastMode: 'adult',
         childName: '',
         libraryIds: [],
         favoriteItemIds: [],
         reducedMotion: false
-      }
+      })
     );
     assert.strictEqual(
       harness.rawStorybookStorage(),
@@ -1735,15 +1776,14 @@ asyncTest('favoriteRecoverySettingsStayReachableAcrossLibraryFailuresAndBackRest
       RunTimeTicks: 7200000000
     }],
     getLibrariesError: new Error('enumeration failed'),
-    preferences: {
-      version: 2,
+    preferences: basePreferences({
       enabled: true,
       lastMode: 'adult',
       childName: 'Nova',
       libraryIds: [],
       favoriteItemIds: [],
       reducedMotion: false
-    },
+    }),
     rawStorybookStorage: rawStored,
     restoreSession: true,
     restoreStatus: {
@@ -1787,14 +1827,14 @@ asyncTest('showsRecoverableBrowseErrorWhenStorybookRestoreCannotEnumerateLibrari
   var harness = loadAppHarness({
     fallbackVideos: [{ Id: 'video-1', Name: 'Fallback video' }],
     getLibrariesError: new Error('enumeration failed'),
-    preferences: {
+    preferences: basePreferences({
       version: 1,
       enabled: true,
       lastMode: 'storybook',
       childName: 'Nova',
       libraryIds: ['kids'],
       reducedMotion: false
-    },
+    }),
     restoreSession: true
   });
 
@@ -1827,14 +1867,14 @@ asyncTest('rendersSavedStorybookLibrariesOnDedicatedHome', function () {
       { Id: 'disney', Name: 'Disney' },
       { Id: 'grownups', Name: 'Grownups' }
     ],
-    preferences: {
+    preferences: basePreferences({
       version: 1,
       enabled: true,
       lastMode: 'storybook',
       childName: 'Nova',
       libraryIds: ['kids', 'disney'],
       reducedMotion: true
-    },
+    }),
     restoreSession: true,
     videosByLibrary: {
       disney: [{ Id: 'video-2', Name: 'Second video' }],
@@ -1871,15 +1911,14 @@ asyncTest('rendersStorybookHomeResumeAndFavoritesFromSelectedLibrariesOnly', fun
       { Id: 'kids', Name: 'Kids' },
       { Id: 'grownups', Name: 'Grownups' }
     ],
-    preferences: {
-      version: 2,
+    preferences: basePreferences({
       enabled: true,
       lastMode: 'storybook',
       childName: 'Nova',
       libraryIds: ['kids'],
       favoriteItemIds: ['story-1', 'movie-9'],
       reducedMotion: false
-    },
+    }),
     restoreSession: true,
     resume: [
       { Id: 'movie-9', Name: 'Late Movie', UserData: { PlaybackPositionTicks: 300000000 } },
@@ -1911,15 +1950,14 @@ asyncTest('adultDetailsAddsStorybookFavoriteWithoutLeavingAdultMode', function (
     libraries: [
       { Id: 'kids', Name: 'Kids' }
     ],
-    preferences: {
-      version: 2,
+    preferences: basePreferences({
       enabled: true,
       lastMode: 'adult',
       childName: 'Nova',
       libraryIds: ['kids'],
       favoriteItemIds: [],
       reducedMotion: false
-    },
+    }),
     restoreSession: true,
     videosByLibrary: {
       kids: [{ Id: 'story-1', Name: 'First Story', RunTimeTicks: 7200000000 }]
@@ -1971,15 +2009,14 @@ asyncTest('adultFavoriteToggleDuringRecoveryOpensRecoverySettingsWithoutMutating
     libraries: [
       { Id: 'kids', Name: 'Kids' }
     ],
-    preferences: {
-      version: 2,
+    preferences: basePreferences({
       enabled: true,
       lastMode: 'adult',
       childName: 'Nova',
       libraryIds: ['kids'],
       favoriteItemIds: [],
       reducedMotion: false
-    },
+    }),
     restoreSession: true,
     restoreStatus: {
       needsRecovery: true,
@@ -2017,15 +2054,14 @@ asyncTest('adultDetailsRemovesStorybookFavoriteWithoutLeavingAdultMode', functio
     libraries: [
       { Id: 'kids', Name: 'Kids' }
     ],
-    preferences: {
-      version: 2,
+    preferences: basePreferences({
       enabled: true,
       lastMode: 'adult',
       childName: 'Nova',
       libraryIds: ['kids'],
       favoriteItemIds: ['story-1'],
       reducedMotion: false
-    },
+    }),
     restoreSession: true,
     videosByLibrary: {
       kids: [{ Id: 'story-1', Name: 'First Story', RunTimeTicks: 7200000000 }]
@@ -2077,15 +2113,14 @@ asyncTest('storybookHomeItemsOpenStorybookDetailsInsteadOfAdultDetails', functio
     libraries: [
       { Id: 'kids', Name: 'Kids' }
     ],
-    preferences: {
-      version: 2,
+    preferences: basePreferences({
       enabled: true,
       lastMode: 'storybook',
       childName: 'Nova',
       libraryIds: ['kids'],
       favoriteItemIds: [],
       reducedMotion: false
-    },
+    }),
     restoreSession: true,
     resume: [
       { Id: 'story-1', Name: 'First Story', RunTimeTicks: 7200000000, UserData: { PlaybackPositionTicks: 600000000 } }
@@ -2110,15 +2145,14 @@ asyncTest('storybookHomeItemsOpenStorybookDetailsInsteadOfAdultDetails', functio
 asyncTest('storybookDetailsBackKeyRestoresHomeFavoriteFocus', function () {
   var harness = loadAppHarness({
     libraries: [{ Id: 'kids', Name: 'Kids' }],
-    preferences: {
-      version: 2,
+    preferences: basePreferences({
       enabled: true,
       lastMode: 'storybook',
       childName: 'Nova',
       libraryIds: ['kids'],
       favoriteItemIds: ['story-1'],
       reducedMotion: false
-    },
+    }),
     restoreSession: true,
     videosByLibrary: {
       kids: [{ Id: 'story-1', Name: 'First Story', RunTimeTicks: 7200000000 }]
@@ -2141,15 +2175,14 @@ asyncTest('storybookDetailsBackKeyRestoresHomeFavoriteFocus', function () {
 asyncTest('storybookLibraryDetailsBackKeyRestoresPriorLibraryCardFocus', function () {
   var harness = loadAppHarness({
     libraries: [{ Id: 'kids', Name: 'Kids' }],
-    preferences: {
-      version: 2,
+    preferences: basePreferences({
       enabled: true,
       lastMode: 'storybook',
       childName: 'Nova',
       libraryIds: ['kids'],
       favoriteItemIds: [],
       reducedMotion: false
-    },
+    }),
     restoreSession: true,
     videosByLibrary: {
       kids: [
@@ -2176,15 +2209,14 @@ asyncTest('storybookLibraryDetailsBackKeyRestoresPriorLibraryCardFocus', functio
 asyncTest('storybookPlaybackErrorWhilePlayerActiveReturnsToStorybookDetails', function () {
   var harness = loadAppHarness({
     libraries: [{ Id: 'kids', Name: 'Kids' }],
-    preferences: {
-      version: 2,
+    preferences: basePreferences({
       enabled: true,
       lastMode: 'storybook',
       childName: 'Nova',
       libraryIds: ['kids'],
       favoriteItemIds: ['story-1'],
       reducedMotion: false
-    },
+    }),
     restoreSession: true,
     resume: [
       { Id: 'story-1', Name: 'First Story', UserData: { PlaybackPositionTicks: 600000000, PlayedPercentage: 14 } }
@@ -2212,15 +2244,14 @@ asyncTest('storybookPlaybackErrorWhilePlayerActiveReturnsToStorybookDetails', fu
 asyncTest('storybookPlaybackErrorCallbackStillReturnsToStorybookDetailsWhenPlayerAlreadyStopped', function () {
   var harness = loadAppHarness({
     libraries: [{ Id: 'kids', Name: 'Kids' }],
-    preferences: {
-      version: 2,
+    preferences: basePreferences({
       enabled: true,
       lastMode: 'storybook',
       childName: 'Nova',
       libraryIds: ['kids'],
       favoriteItemIds: ['story-1'],
       reducedMotion: false
-    },
+    }),
     restoreSession: true,
     resume: [
       { Id: 'story-1', Name: 'First Story', UserData: { PlaybackPositionTicks: 600000000, PlayedPercentage: 14 } }
@@ -2246,15 +2277,14 @@ asyncTest('storybookPlaybackErrorCallbackStillReturnsToStorybookDetailsWhenPlaye
 asyncTest('adultPlaybackErrorsStillReturnToAdultDetails', function () {
   var harness = loadAppHarness({
     libraries: [{ Id: 'kids', Name: 'Kids' }],
-    preferences: {
-      version: 2,
+    preferences: basePreferences({
       enabled: true,
       lastMode: 'adult',
       childName: 'Nova',
       libraryIds: ['kids'],
       favoriteItemIds: [],
       reducedMotion: false
-    },
+    }),
     restoreSession: true,
     videosByLibrary: {
       kids: [{ Id: 'story-1', Name: 'First Story', RunTimeTicks: 7200000000 }]
@@ -2277,15 +2307,14 @@ asyncTest('adultPlaybackErrorsStillReturnToAdultDetails', function () {
 asyncTest('storybookCompletionShowsEndingScreenWithoutToastOrAutoplay', function () {
   var harness = loadAppHarness({
     libraries: [{ Id: 'kids', Name: 'Kids' }],
-    preferences: {
-      version: 2,
+    preferences: basePreferences({
       enabled: true,
       lastMode: 'storybook',
       childName: 'Nova',
       libraryIds: ['kids'],
       favoriteItemIds: [],
       reducedMotion: false
-    },
+    }),
     restoreSession: true,
     resume: [
       { Id: 'story-1', Name: 'First Story', UserData: { PlaybackPositionTicks: 600000000, PlayedPercentage: 14 } }
@@ -2317,15 +2346,14 @@ asyncTest('storybookEndingPickAnotherWaitsForHomeReadyBeforeFocusingResumeCard',
   var harness = loadAppHarness({
     deferStorybookHomeReadyCalls: [2],
     libraries: [{ Id: 'kids', Name: 'Kids' }],
-    preferences: {
-      version: 2,
+    preferences: basePreferences({
       enabled: true,
       lastMode: 'storybook',
       childName: 'Nova',
       libraryIds: ['kids'],
       favoriteItemIds: [],
       reducedMotion: false
-    },
+    }),
     restoreSession: true,
     resume: [
       { Id: 'story-1', Name: 'First Story', UserData: { PlaybackPositionTicks: 600000000, PlayedPercentage: 14 } }
@@ -2357,15 +2385,14 @@ asyncTest('storybookEndingPickAnotherWaitsForHomeReadyBeforeFocusingResumeCard',
 asyncTest('storybookEndingBackKeyActsLikePickAnother', function () {
   var harness = loadAppHarness({
     libraries: [{ Id: 'kids', Name: 'Kids' }],
-    preferences: {
-      version: 2,
+    preferences: basePreferences({
       enabled: true,
       lastMode: 'storybook',
       childName: 'Nova',
       libraryIds: ['kids'],
       favoriteItemIds: [],
       reducedMotion: false
-    },
+    }),
     restoreSession: true,
     resume: [
       { Id: 'story-1', Name: 'First Story', UserData: { PlaybackPositionTicks: 600000000, PlayedPercentage: 14 } }
@@ -2393,15 +2420,14 @@ asyncTest('storybookEndingBackKeyActsLikePickAnother', function () {
 asyncTest('storybookEndingAllDoneReturnsHomeWhenTizenExitIsUnavailable', function () {
   var harness = loadAppHarness({
     libraries: [{ Id: 'kids', Name: 'Kids' }],
-    preferences: {
-      version: 2,
+    preferences: basePreferences({
       enabled: true,
       lastMode: 'storybook',
       childName: 'Nova',
       libraryIds: ['kids'],
       favoriteItemIds: [],
       reducedMotion: false
-    },
+    }),
     restoreSession: true,
     resume: [
       { Id: 'story-1', Name: 'First Story', UserData: { PlaybackPositionTicks: 600000000, PlayedPercentage: 14 } }
@@ -2427,15 +2453,14 @@ asyncTest('reducedMotionSkipsGeneralScreenEntryAnimationOnAllStorybookPresentati
   var harness = loadAppHarness({
     libraries: [{ Id: 'kids', Name: 'Kids' }],
     prefersReducedMotion: true,
-    preferences: {
-      version: 2,
+    preferences: basePreferences({
       enabled: true,
       lastMode: 'storybook',
       childName: 'Nova',
       libraryIds: ['kids'],
       favoriteItemIds: ['story-1'],
       reducedMotion: false
-    },
+    }),
     restoreSession: true,
     resume: [
       { Id: 'story-1', Name: 'First Story', UserData: { PlaybackPositionTicks: 600000000, PlayedPercentage: 14 } }
@@ -2480,15 +2505,14 @@ asyncTest('reducedMotionSkipsGeneralScreenEntryAnimationOnAllStorybookPresentati
 asyncTest('adultCompletionStillReturnsToAdultDetailsAndShowsToast', function () {
   var harness = loadAppHarness({
     libraries: [{ Id: 'kids', Name: 'Kids' }],
-    preferences: {
-      version: 2,
+    preferences: basePreferences({
       enabled: true,
       lastMode: 'adult',
       childName: 'Nova',
       libraryIds: ['kids'],
       favoriteItemIds: [],
       reducedMotion: false
-    },
+    }),
     restoreSession: true,
     videosByLibrary: {
       kids: [{ Id: 'story-1', Name: 'First Story', RunTimeTicks: 7200000000 }]
@@ -2514,15 +2538,14 @@ asyncTest('doesNotPruneFavoritesAfterToleratedLibraryFailures', function () {
       { Id: 'kids', Name: 'Kids' },
       { Id: 'songs', Name: 'Songs' }
     ],
-    preferences: {
-      version: 2,
+    preferences: basePreferences({
       enabled: true,
       lastMode: 'storybook',
       childName: 'Nova',
       libraryIds: ['kids'],
       favoriteItemIds: ['missing-favorite'],
       reducedMotion: false
-    },
+    }),
     restoreSession: true,
     videosByLibrary: {
       kids: [{ Id: 'story-1', Name: 'First Story' }]
@@ -2540,15 +2563,14 @@ asyncTest('prunesMissingFavoritesAfterFullySuccessfulCatalogueRefresh', function
     libraries: [
       { Id: 'kids', Name: 'Kids' }
     ],
-    preferences: {
-      version: 2,
+    preferences: basePreferences({
       enabled: true,
       lastMode: 'storybook',
       childName: 'Nova',
       libraryIds: ['kids'],
       favoriteItemIds: ['story-1', 'missing-favorite'],
       reducedMotion: false
-    },
+    }),
     restoreSession: true,
     videosByLibrary: {
       kids: [{ Id: 'story-1', Name: 'First Story' }]
@@ -2572,14 +2594,14 @@ asyncTest('keepsSelectedAccessibleLibrariesAsStoryDoorsWhenOneLibraryReturnsNoVi
       { Id: 'kids', Name: 'Kids' },
       { Id: 'disney', Name: 'Disney' }
     ],
-    preferences: {
+    preferences: basePreferences({
       version: 1,
       enabled: true,
       lastMode: 'storybook',
       childName: 'Nova',
       libraryIds: ['kids', 'disney'],
       reducedMotion: false
-    },
+    }),
     restoreSession: true,
     videosByLibrary: {
       disney: [{ Id: 'video-2', Name: 'Second video' }]
@@ -2606,15 +2628,14 @@ asyncTest('opensEmptyStoryDoorWithExistingNoVideosRecoveryState', function () {
       { Id: 'disney', Name: 'Disney' }
     ],
     latest: [{ Id: 'latest-1', Name: 'Latest film' }],
-    preferences: {
-      version: 2,
+    preferences: basePreferences({
       enabled: true,
       lastMode: 'storybook',
       childName: 'Nova',
       libraryIds: ['kids', 'disney'],
       favoriteItemIds: [],
       reducedMotion: false
-    },
+    }),
     restoreSession: true,
     resume: [{ Id: 'resume-1', Name: 'Resume film' }],
     videosByLibrary: {
@@ -2652,15 +2673,14 @@ asyncTest('clearsStaleHeroStateWhenOpeningAnEmptyStoryDoorAfterSelectingAnAdultI
       { Id: 'kids', Name: 'Kids' },
       { Id: 'disney', Name: 'Disney' }
     ],
-    preferences: {
-      version: 2,
+    preferences: basePreferences({
       enabled: true,
       lastMode: 'adult',
       childName: 'Nova',
       libraryIds: ['kids', 'disney'],
       favoriteItemIds: [],
       reducedMotion: false
-    },
+    }),
     restoreSession: true,
     videosByLibrary: {
       disney: [{ Id: 'video-2', Name: 'Second video', Overview: 'A brave sequel.' }],
@@ -2706,14 +2726,14 @@ asyncTest('keepsAdultHomeOmittingEmptyLibraryShelves', function () {
       { Id: 'kids', Name: 'Kids' },
       { Id: 'disney', Name: 'Disney' }
     ],
-    preferences: {
+    preferences: basePreferences({
       version: 1,
       enabled: true,
       lastMode: 'adult',
       childName: 'Nova',
       libraryIds: ['kids', 'disney'],
       reducedMotion: false
-    },
+    }),
     restoreSession: true,
     videosByLibrary: {
       disney: [{ Id: 'video-2', Name: 'Second video' }],
@@ -2736,14 +2756,14 @@ asyncTest('keepsReducedMotionStorybookHomeStatic', function () {
     libraries: [
       { Id: 'kids', Name: 'Kids' }
     ],
-    preferences: {
+    preferences: basePreferences({
       version: 1,
       enabled: true,
       lastMode: 'storybook',
       childName: 'Nova',
       libraryIds: ['kids'],
       reducedMotion: true
-    },
+    }),
     restoreSession: true,
     videosByLibrary: {
       kids: [{ Id: 'video-1', Name: 'First video' }]
@@ -2760,15 +2780,14 @@ asyncTest('animatesStorybookHomeWhenReducedMotionIsDisabled', function () {
     libraries: [
       { Id: 'kids', Name: 'Kids' }
     ],
-    preferences: {
-      version: 2,
+    preferences: basePreferences({
       enabled: true,
       lastMode: 'storybook',
       childName: 'Nova',
       libraryIds: ['kids'],
       favoriteItemIds: [],
       reducedMotion: false
-    },
+    }),
     restoreSession: true,
     videosByLibrary: {
       kids: [{ Id: 'video-1', Name: 'First video' }]
@@ -2786,14 +2805,14 @@ asyncTest('switchesIntoStorybookModeAndFocusesFirstDoorWhenLibrariesAreConfigure
       { Id: 'kids', Name: 'Kids' },
       { Id: 'disney', Name: 'Disney' }
     ],
-    preferences: {
+    preferences: basePreferences({
       version: 1,
       enabled: true,
       lastMode: 'adult',
       childName: 'Nova',
       libraryIds: ['kids', 'disney'],
       reducedMotion: false
-    },
+    }),
     restoreSession: true,
     videosByLibrary: {
       disney: [{ Id: 'video-2', Name: 'Second video' }],
@@ -2824,14 +2843,14 @@ asyncTest('movesRemoteFocusAcrossSixStoryDoorsWithoutDroppingLaterSelections', f
       { Id: 'five', Name: 'Five' },
       { Id: 'six', Name: 'Six' }
     ],
-    preferences: {
+    preferences: basePreferences({
       version: 1,
       enabled: true,
       lastMode: 'storybook',
       childName: 'Nova',
       libraryIds: ['one', 'two', 'three', 'four', 'five', 'six'],
       reducedMotion: false
-    },
+    }),
     restoreSession: true,
     videosByLibrary: {
       five: [{ Id: 'video-5', Name: 'Fifth video' }],
@@ -2887,15 +2906,14 @@ asyncTest('opensStoryDoorOnStorybookLibraryScreenAndBackRestoresStorybookHome', 
       { Id: 'disney', Name: 'Disney' },
       { Id: 'grownups', Name: 'Grownups' }
     ],
-    preferences: {
-      version: 2,
+    preferences: basePreferences({
       enabled: true,
       lastMode: 'storybook',
       childName: 'Nova',
       libraryIds: ['kids', 'disney'],
       favoriteItemIds: [],
       reducedMotion: false
-    },
+    }),
     latest: [{ Id: 'latest-1', Name: 'Latest film' }],
     resume: [{ Id: 'resume-1', Name: 'Resume film' }],
     restoreSession: true,
@@ -2936,15 +2954,14 @@ asyncTest('storybookLibraryBackWaitsForHomeReadyBeforeRestoringOriginDoorFocus',
       { Id: 'kids', Name: 'Kids' },
       { Id: 'disney', Name: 'Disney' }
     ],
-    preferences: {
-      version: 2,
+    preferences: basePreferences({
       enabled: true,
       lastMode: 'storybook',
       childName: 'Nova',
       libraryIds: ['kids', 'disney'],
       favoriteItemIds: [],
       reducedMotion: false
-    },
+    }),
     restoreSession: true,
     videosByLibrary: {
       disney: [{ Id: 'video-2', Name: 'Second video' }],
@@ -2978,15 +2995,14 @@ asyncTest('storybookLibraryBackRestoresOriginDoorFocusImmediatelyWhenReducedMoti
     libraries: [
       { Id: 'kids', Name: 'Kids' }
     ],
-    preferences: {
-      version: 2,
+    preferences: basePreferences({
       enabled: true,
       lastMode: 'storybook',
       childName: 'Nova',
       libraryIds: ['kids'],
       favoriteItemIds: [],
       reducedMotion: true
-    },
+    }),
     restoreSession: true,
     videosByLibrary: {
       kids: [{ Id: 'video-1', Name: 'First video' }]
@@ -3011,15 +3027,14 @@ asyncTest('keepsStorybookDetailsEntryAnimationOffWhenReducedMotionIsEnabled', fu
     libraries: [
       { Id: 'kids', Name: 'Kids' }
     ],
-    preferences: {
-      version: 2,
+    preferences: basePreferences({
       enabled: true,
       lastMode: 'storybook',
       childName: 'Nova',
       libraryIds: ['kids'],
       favoriteItemIds: [],
       reducedMotion: true
-    },
+    }),
     restoreSession: true,
     videosByLibrary: {
       kids: [{ Id: 'story-1', Name: 'First Story' }]
@@ -3040,15 +3055,14 @@ asyncTest('keepsStorybookLibraryEntryAnimationOffWhenReducedMotionIsEnabledAndOn
     libraries: [
       { Id: 'kids', Name: 'Kids' }
     ],
-    preferences: {
-      version: 2,
+    preferences: basePreferences({
       enabled: true,
       lastMode: 'storybook',
       childName: 'Nova',
       libraryIds: ['kids'],
       favoriteItemIds: [],
       reducedMotion: true
-    },
+    }),
     restoreSession: true,
     videosByLibrary: {
       kids: [{ Id: 'story-1', Name: 'First Story' }]
@@ -3058,15 +3072,14 @@ asyncTest('keepsStorybookLibraryEntryAnimationOffWhenReducedMotionIsEnabledAndOn
     libraries: [
       { Id: 'kids', Name: 'Kids' }
     ],
-    preferences: {
-      version: 2,
+    preferences: basePreferences({
       enabled: true,
       lastMode: 'storybook',
       childName: 'Nova',
       libraryIds: ['kids'],
       favoriteItemIds: [],
       reducedMotion: false
-    },
+    }),
     restoreSession: true,
     videosByLibrary: {
       kids: [{ Id: 'story-1', Name: 'First Story' }]
@@ -3095,15 +3108,14 @@ asyncTest('adultBrowseBackDoesNotReopenStorybookAfterLibraryRoundTrip', function
     libraries: [
       { Id: 'kids', Name: 'Kids' }
     ],
-    preferences: {
-      version: 2,
+    preferences: basePreferences({
       enabled: true,
       lastMode: 'storybook',
       childName: 'Nova',
       libraryIds: ['kids'],
       favoriteItemIds: [],
       reducedMotion: false
-    },
+    }),
     restoreSession: true,
     videosByLibrary: {
       kids: [{ Id: 'story-1', Name: 'First Story' }]
@@ -3138,14 +3150,14 @@ asyncTest('showsStorybookRecoveryStateWhenSelectedLibrariesDisappear', function 
     libraries: [
       { Id: 'grownups', Name: 'Grownups' }
     ],
-    preferences: {
+    preferences: basePreferences({
       version: 1,
       enabled: true,
       lastMode: 'storybook',
       childName: 'Nova',
       libraryIds: ['kids'],
       reducedMotion: false
-    },
+    }),
     restoreSession: true,
     videosByLibrary: {
       grownups: [{ Id: 'video-3', Name: 'Third video' }]

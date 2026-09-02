@@ -128,7 +128,7 @@
   };
 
   ApiClient.prototype.itemFields = function () {
-    return 'Overview,Genres,PrimaryImageAspectRatio,MediaSources,MediaStreams,ProductionYear,RunTimeTicks';
+    return 'Overview,Genres,PrimaryImageAspectRatio,MediaSources,MediaStreams,ProductionYear,RunTimeTicks,Tags';
   };
 
   ApiClient.prototype.getResume = function () {

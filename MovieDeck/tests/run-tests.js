@@ -6,12 +6,14 @@ var vm = require('vm');
 var pendingTests = [];
 var failureReported = false;
 var DEFAULT_TEST_FILES = [
+  'api.test.js',
   'animations.test.js',
   'storage.test.js',
   'run-tests-runner.test.js',
   'storybook-app.test.js',
   'storybook-preferences.test.js',
   'storybook-model.test.js',
+  'storybook-discovery.test.js',
   'storybook-catalogue.test.js',
   'storybook-view.test.js',
   'start-rawi-preview.test.js',

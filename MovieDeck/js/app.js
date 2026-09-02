@@ -351,6 +351,76 @@
     return Array.isArray(values) ? values.slice() : [];
   }
 
+  function numericNowMs(value, fallback) {
+    var parsed = Number(value);
+    if (isNaN(parsed)) {
+      return fallback;
+    }
+    return parsed;
+  }
+
+  function createStorybookLaunchBootstrap() {
+    var injected = global.__RAWI_STORYBOOK_BOOTSTRAP__ || {};
+    var fallbackNowMs = Date.now();
+    var launchNowMs = injected.nowMs !== undefined ?
+      numericNowMs(injected.nowMs, fallbackNowMs) :
+      fallbackNowMs;
+
+    return {
+      nowMs: launchNowMs,
+      storybookSessionSeed: injected.storybookSessionSeed !== undefined ?
+        String(injected.storybookSessionSeed) :
+        'live-' + launchNowMs.toString(36) + '-' + Math.random().toString(36).slice(2, 10)
+    };
+  }
+
+  var storybookLaunchBootstrap = createStorybookLaunchBootstrap();
+
+  function currentStorybookNowMs() {
+    if (previewStorybookFixture && previewStorybookFixture.nowMs !== undefined) {
+      return numericNowMs(previewStorybookFixture.nowMs, storybookLaunchBootstrap.nowMs);
+    }
+    return storybookLaunchBootstrap.nowMs;
+  }
+
+  function currentStorybookSessionSeed() {
+    if (previewStorybookFixture && previewStorybookFixture.sessionSeed) {
+      return String(previewStorybookFixture.sessionSeed);
+    }
+    return storybookLaunchBootstrap.storybookSessionSeed;
+  }
+
+  function copyCategoryTags(values) {
+    var defaults = storybookPreferences.defaults().categoryTags;
+    var source = values || {};
+    return {
+      singDance: source.singDance !== undefined ? String(source.singDance) : defaults.singDance,
+      bedtime: source.bedtime !== undefined ? String(source.bedtime) : defaults.bedtime,
+      animals: source.animals !== undefined ? String(source.animals) : defaults.animals,
+      learning: source.learning !== undefined ? String(source.learning) : defaults.learning,
+      movement: source.movement !== undefined ? String(source.movement) : defaults.movement
+    };
+  }
+
+  function copyDurationLabels(values) {
+    var defaults = storybookPreferences.defaults().durationLabels;
+    var source = values || {};
+    return {
+      enabled: source.enabled !== undefined ? source.enabled === true : defaults.enabled,
+      quickMaxMinutes: source.quickMaxMinutes !== undefined ? Number(source.quickMaxMinutes) : defaults.quickMaxMinutes,
+      cozyMaxMinutes: source.cozyMaxMinutes !== undefined ? Number(source.cozyMaxMinutes) : defaults.cozyMaxMinutes
+    };
+  }
+
+  function copyRecentHistoryDays(value) {
+    var defaults = storybookPreferences.defaults();
+    var parsed = parseInt(value, 10);
+    if (isNaN(parsed) || parsed < 0) {
+      return defaults.recentHistoryDays;
+    }
+    return parsed;
+  }
+
   function copyStorybookState(state) {
     return {
       enabled: state && state.enabled === true,
@@ -358,6 +428,9 @@
       childName: state && typeof state.childName === 'string' ? state.childName : '',
       libraryIds: copyIds(state && state.libraryIds),
       favoriteItemIds: copyIds(state && state.favoriteItemIds),
+      categoryTags: copyCategoryTags(state && state.categoryTags),
+      durationLabels: copyDurationLabels(state && state.durationLabels),
+      recentHistoryDays: copyRecentHistoryDays(state && state.recentHistoryDays),
       reducedMotion: !!(state && state.reducedMotion)
     };
   }
@@ -542,14 +615,18 @@
   }
 
   function previewStorybookState(fixture) {
+    var defaults = storybookPreferences.defaults();
     var preferences = fixture && fixture.preferences ? fixture.preferences : {};
     return {
-      version: 2,
+      version: 3,
       enabled: true,
       lastMode: 'storybook',
       childName: typeof preferences.childName === 'string' ? preferences.childName : 'Nova',
       libraryIds: Array.isArray(preferences.libraryIds) ? preferences.libraryIds.slice() : previewLibraryIds(),
       favoriteItemIds: Array.isArray(preferences.favoriteItemIds) ? preferences.favoriteItemIds.slice() : [],
+      categoryTags: copyCategoryTags(preferences.categoryTags || defaults.categoryTags),
+      durationLabels: copyDurationLabels(preferences.durationLabels || defaults.durationLabels),
+      recentHistoryDays: copyRecentHistoryDays(preferences.recentHistoryDays),
       reducedMotion: preferences.reducedMotion === true
     };
   }

@@ -9,15 +9,30 @@ var previewFixtures = load('js/preview-fixtures.js', { window: {} }).RawiPreview
   assert.deepStrictEqual(
     JSON.parse(JSON.stringify(previewFixtures.storybook.preferences)),
     {
-      version: 2,
+      version: 3,
       enabled: true,
       lastMode: 'storybook',
       childName: 'Nova',
       libraryIds: ['pixar', 'songs', 'lessons'],
       favoriteItemIds: ['dance', 'colors'],
+      categoryTags: {
+        singDance: 'sing-along',
+        bedtime: 'bedtime',
+        animals: 'animals',
+        learning: 'learning',
+        movement: 'movement'
+      },
+      durationLabels: {
+        enabled: true,
+        quickMaxMinutes: 12,
+        cozyMaxMinutes: 30
+      },
+      recentHistoryDays: 14,
       reducedMotion: false
     }
   );
+  assert.strictEqual(previewFixtures.storybook.sessionSeed, 'storybook-phase-3-preview');
+  assert.strictEqual(previewFixtures.storybook.nowMs, Date.parse('2026-09-02T02:00:00.000Z'));
   assert.strictEqual(previewFixtures.storybook.resume[0].Id, 'bluey');
   assert.strictEqual(previewFixtures.storybook.groups.length, 4);
 }());

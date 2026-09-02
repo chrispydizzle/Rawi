@@ -9,12 +9,25 @@ function clone(value) {
 
 function defaultPreferences() {
   return {
-    version: 2,
+    version: 3,
     enabled: false,
     lastMode: 'adult',
     childName: '',
     libraryIds: [],
     favoriteItemIds: [],
+    categoryTags: {
+      singDance: 'sing-along',
+      bedtime: 'bedtime',
+      animals: 'animals',
+      learning: 'learning',
+      movement: 'movement'
+    },
+    durationLabels: {
+      enabled: true,
+      quickMaxMinutes: 12,
+      cozyMaxMinutes: 30
+    },
+    recentHistoryDays: 14,
     reducedMotion: false
   };
 }
@@ -63,6 +76,19 @@ function assertRecoveryWriteBarrier(stored) {
     childName: 'Nova',
     libraryIds: ['kids'],
     favoriteItemIds: ['story-1'],
+    categoryTags: {
+      singDance: 'sing-along',
+      bedtime: 'bedtime',
+      animals: 'animals',
+      learning: 'learning',
+      movement: ''
+    },
+    durationLabels: {
+      enabled: false,
+      quickMaxMinutes: 9,
+      cozyMaxMinutes: 20
+    },
+    recentHistoryDays: 5,
     reducedMotion: true
   });
 
@@ -98,12 +124,66 @@ function assertRecoveryWriteBarrier(stored) {
   var result = harness.api.restore();
 
   assert.deepStrictEqual(clone(result), {
-    version: 2,
+    version: 3,
     enabled: true,
     lastMode: 'storybook',
     childName: 'Nova',
     libraryIds: ['pixar'],
     favoriteItemIds: ['bluey'],
+    categoryTags: {
+      singDance: 'sing-along',
+      bedtime: 'bedtime',
+      animals: 'animals',
+      learning: 'learning',
+      movement: 'movement'
+    },
+    durationLabels: {
+      enabled: true,
+      quickMaxMinutes: 12,
+      cozyMaxMinutes: 30
+    },
+    recentHistoryDays: 14,
+    reducedMotion: true
+  });
+  assert.deepStrictEqual(clone(harness.api.getRestoreStatus()), {
+    needsRecovery: false,
+    type: 'ok'
+  });
+  assert.strictEqual(harness.saved(), null);
+}());
+
+(function migratesVersion2PreferencesWithoutRecoveryOrImmediateRewrite() {
+  var harness = loadPreferences(JSON.stringify({
+    version: 2,
+    enabled: true,
+    lastMode: 'storybook',
+    childName: ' Nova ',
+    libraryIds: ['kids', 'kids', 3],
+    favoriteItemIds: ['story-1', 'story-1', 4],
+    reducedMotion: true
+  }));
+  var result = harness.api.restore();
+
+  assert.deepStrictEqual(clone(result), {
+    version: 3,
+    enabled: true,
+    lastMode: 'storybook',
+    childName: 'Nova',
+    libraryIds: ['kids'],
+    favoriteItemIds: ['story-1'],
+    categoryTags: {
+      singDance: 'sing-along',
+      bedtime: 'bedtime',
+      animals: 'animals',
+      learning: 'learning',
+      movement: 'movement'
+    },
+    durationLabels: {
+      enabled: true,
+      quickMaxMinutes: 12,
+      cozyMaxMinutes: 30
+    },
+    recentHistoryDays: 14,
     reducedMotion: true
   });
   assert.deepStrictEqual(clone(harness.api.getRestoreStatus()), {
@@ -129,18 +209,31 @@ function assertRecoveryWriteBarrier(stored) {
 
 (function supportedVersionNormalizesMissingOptionalFieldsWithoutRecovery() {
   var harness = loadPreferences(JSON.stringify({
-    version: 2,
+    version: 3,
     enabled: true
   }));
   var result = harness.api.restore();
 
   assert.deepStrictEqual(clone(result), {
-    version: 2,
+    version: 3,
     enabled: true,
     lastMode: 'adult',
     childName: '',
     libraryIds: [],
     favoriteItemIds: [],
+    categoryTags: {
+      singDance: 'sing-along',
+      bedtime: 'bedtime',
+      animals: 'animals',
+      learning: 'learning',
+      movement: 'movement'
+    },
+    durationLabels: {
+      enabled: true,
+      quickMaxMinutes: 12,
+      cozyMaxMinutes: 30
+    },
+    recentHistoryDays: 14,
     reducedMotion: false
   });
   assert.deepStrictEqual(clone(harness.api.getRestoreStatus()), {
@@ -152,24 +245,50 @@ function assertRecoveryWriteBarrier(stored) {
 
 (function validPreferencesAreNormalized() {
   var harness = loadPreferences(JSON.stringify({
-    version: 2,
+    version: 3,
     enabled: true,
     lastMode: 'storybook',
     childName: ' Nova ',
     libraryIds: ['pixar', 'pixar', 42],
     favoriteItemIds: ['bluey', 'bluey', 9],
+    categoryTags: {
+      singDance: ' songs ',
+      bedtime: '',
+      animals: ' animals ',
+      learning: 'learning',
+      movement: 'move-it'
+    },
+    durationLabels: {
+      enabled: false,
+      quickMaxMinutes: '10',
+      cozyMaxMinutes: '25'
+    },
+    recentHistoryDays: '3',
     reducedMotion: true,
     ignored: 'value'
   }));
   var result = harness.api.restore();
 
   assert.deepStrictEqual(clone(result), {
-    version: 2,
+    version: 3,
     enabled: true,
     lastMode: 'storybook',
     childName: 'Nova',
     libraryIds: ['pixar'],
     favoriteItemIds: ['bluey'],
+    categoryTags: {
+      singDance: 'songs',
+      bedtime: '',
+      animals: 'animals',
+      learning: 'learning',
+      movement: 'move-it'
+    },
+    durationLabels: {
+      enabled: false,
+      quickMaxMinutes: 10,
+      cozyMaxMinutes: 25
+    },
+    recentHistoryDays: 3,
     reducedMotion: true
   });
   assert.deepStrictEqual(clone(harness.api.getRestoreStatus()), {
@@ -220,6 +339,19 @@ function assertRecoveryWriteBarrier(stored) {
     childName: 'Nova',
     libraryIds: ['kids'],
     favoriteItemIds: ['story-1'],
+    categoryTags: {
+      singDance: 'sing-along',
+      bedtime: 'bedtime',
+      animals: 'animals',
+      learning: 'learning',
+      movement: ''
+    },
+    durationLabels: {
+      enabled: false,
+      quickMaxMinutes: 9,
+      cozyMaxMinutes: 20
+    },
+    recentHistoryDays: 5,
     reducedMotion: true
   });
 
@@ -269,19 +401,45 @@ function assertRecoveryWriteBarrier(stored) {
   result = harness.api.save({
     enabled: true,
     lastMode: 'storybook',
-    childName: 'Nova',
+    childName: ' Nova ',
     libraryIds: ['one', 'one', 5],
     favoriteItemIds: ['story-1', 'story-1', 8],
+    categoryTags: {
+      singDance: 'sing-along',
+      bedtime: 'bedtime',
+      animals: 'zoo',
+      learning: 'learning',
+      movement: ''
+    },
+    durationLabels: {
+      enabled: false,
+      quickMaxMinutes: 9,
+      cozyMaxMinutes: 20
+    },
+    recentHistoryDays: 5,
     reducedMotion: false
   });
 
   assert.deepStrictEqual(clone(result), {
-    version: 2,
+    version: 3,
     enabled: true,
     lastMode: 'storybook',
     childName: 'Nova',
     libraryIds: ['one'],
     favoriteItemIds: ['story-1'],
+    categoryTags: {
+      singDance: 'sing-along',
+      bedtime: 'bedtime',
+      animals: 'zoo',
+      learning: 'learning',
+      movement: ''
+    },
+    durationLabels: {
+      enabled: false,
+      quickMaxMinutes: 9,
+      cozyMaxMinutes: 20
+    },
+    recentHistoryDays: 5,
     reducedMotion: false
   });
   assert.deepStrictEqual(
@@ -302,23 +460,46 @@ function assertRecoveryWriteBarrier(stored) {
     childName: ' Nova ',
     libraryIds: ['one', 'one', 5],
     favoriteItemIds: ['story-1', 'story-1', 8],
+    categoryTags: {
+      singDance: 'sing-along',
+      bedtime: 'bedtime',
+      animals: 'zoo',
+      learning: 'learning',
+      movement: ''
+    },
+    durationLabels: {
+      enabled: false,
+      quickMaxMinutes: 9,
+      cozyMaxMinutes: 20
+    },
+    recentHistoryDays: 5,
     reducedMotion: false
   });
 
   assert.deepStrictEqual(clone(result), {
-    version: 2,
+    version: 3,
     enabled: true,
     lastMode: 'storybook',
     childName: 'Nova',
     libraryIds: ['one'],
     favoriteItemIds: ['story-1'],
+    categoryTags: {
+      singDance: 'sing-along',
+      bedtime: 'bedtime',
+      animals: 'zoo',
+      learning: 'learning',
+      movement: ''
+    },
+    durationLabels: {
+      enabled: false,
+      quickMaxMinutes: 9,
+      cozyMaxMinutes: 20
+    },
+    recentHistoryDays: 5,
     reducedMotion: false
   });
   assert.strictEqual(harness.saved().key, 'rawi.storybook.preferences');
-  assert.deepStrictEqual(
-    JSON.parse(harness.saved().value),
-    clone(result)
-  );
+  assert.deepStrictEqual(JSON.parse(harness.saved().value), clone(result));
   assert.deepStrictEqual(
     clone(harness.api.getRestoreStatus()),
     {

@@ -2,8 +2,20 @@
   'use strict';
 
   var KEY = 'rawi.storybook.preferences';
-  var VERSION = 2;
+  var VERSION = 3;
   var storage = global.RawiStorage;
+  var DEFAULT_CATEGORY_TAGS = {
+    singDance: 'sing-along',
+    bedtime: 'bedtime',
+    animals: 'animals',
+    learning: 'learning',
+    movement: 'movement'
+  };
+  var DEFAULT_DURATION_LABELS = {
+    enabled: true,
+    quickMaxMinutes: 12,
+    cozyMaxMinutes: 30
+  };
   var lastRestoreStatus = {
     needsRecovery: false,
     type: 'ok'
@@ -26,6 +38,58 @@
     return result;
   }
 
+  function normalizeText(value, fallback) {
+    if (typeof value === 'string') {
+      return value.trim();
+    }
+    return fallback;
+  }
+
+  function normalizePositiveInt(value, fallback) {
+    var parsed = parseInt(value, 10);
+    if (isNaN(parsed) || parsed < 1) {
+      return fallback;
+    }
+    return parsed;
+  }
+
+  function normalizeNonNegativeInt(value, fallback) {
+    var parsed = parseInt(value, 10);
+    if (isNaN(parsed) || parsed < 0) {
+      return fallback;
+    }
+    return parsed;
+  }
+
+  function normalizeCategoryTags(source) {
+    source = source || {};
+    return {
+      singDance: normalizeText(source.singDance, DEFAULT_CATEGORY_TAGS.singDance),
+      bedtime: normalizeText(source.bedtime, DEFAULT_CATEGORY_TAGS.bedtime),
+      animals: normalizeText(source.animals, DEFAULT_CATEGORY_TAGS.animals),
+      learning: normalizeText(source.learning, DEFAULT_CATEGORY_TAGS.learning),
+      movement: normalizeText(source.movement, DEFAULT_CATEGORY_TAGS.movement)
+    };
+  }
+
+  function normalizeDurationLabels(source) {
+    var quick;
+    var cozy;
+
+    source = source || {};
+    quick = normalizePositiveInt(source.quickMaxMinutes, DEFAULT_DURATION_LABELS.quickMaxMinutes);
+    cozy = normalizePositiveInt(source.cozyMaxMinutes, DEFAULT_DURATION_LABELS.cozyMaxMinutes);
+    if (cozy < quick) {
+      cozy = quick;
+    }
+
+    return {
+      enabled: source.enabled !== undefined ? source.enabled === true : DEFAULT_DURATION_LABELS.enabled,
+      quickMaxMinutes: quick,
+      cozyMaxMinutes: cozy
+    };
+  }
+
   function defaults() {
     return {
       version: VERSION,
@@ -34,6 +98,9 @@
       childName: '',
       libraryIds: [],
       favoriteItemIds: [],
+      categoryTags: normalizeCategoryTags(),
+      durationLabels: normalizeDurationLabels(),
+      recentHistoryDays: 14,
       reducedMotion: false
     };
   }
@@ -67,6 +134,9 @@
       favoriteItemIds: normalizeIds(
         source.favoriteItemIds !== undefined ? source.favoriteItemIds : source.favorites
       ),
+      categoryTags: normalizeCategoryTags(source.categoryTags),
+      durationLabels: normalizeDurationLabels(source.durationLabels),
+      recentHistoryDays: normalizeNonNegativeInt(source.recentHistoryDays, 14),
       reducedMotion: source.reducedMotion === true
     };
   }
@@ -101,7 +171,7 @@
       return defaults();
     }
 
-    if (parsed.version === 1) {
+    if (parsed.version === 1 || parsed.version === 2 || parsed.version === VERSION) {
       restoreStatus({
         needsRecovery: false,
         type: 'ok'
@@ -109,20 +179,12 @@
       return normalize(parsed);
     }
 
-    if (parsed.version !== VERSION) {
-      restoreStatus({
-        needsRecovery: true,
-        type: 'unsupported-version',
-        version: parsed.version
-      });
-      return defaults();
-    }
-
     restoreStatus({
-      needsRecovery: false,
-      type: 'ok'
+      needsRecovery: true,
+      type: 'unsupported-version',
+      version: parsed.version
     });
-    return normalize(parsed);
+    return defaults();
   }
 
   function save(preferences, options) {
