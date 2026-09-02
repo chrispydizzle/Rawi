@@ -125,6 +125,28 @@ FakeElement.prototype.getAttribute = function (name) {
   return Object.prototype.hasOwnProperty.call(this.attributes, name) ? this.attributes[name] : null;
 };
 
+FakeElement.prototype.getElementsByClassName = function (className) {
+  var matches = [];
+
+  function walk(node) {
+    var children = node && node.children ? node.children : [];
+    var i;
+
+    if (node && typeof node.className === 'string') {
+      var tokens = (' ' + node.className + ' ').replace(/\s+/g, ' ');
+      if (tokens.indexOf(' ' + className + ' ') !== -1) {
+        matches.push(node);
+      }
+    }
+    for (i = 0; i < children.length; i += 1) {
+      walk(children[i]);
+    }
+  }
+
+  walk(this);
+  return matches;
+};
+
 function FakeDocument() {
   this.activeElement = null;
   this.body = new FakeElement(this, 'body');
@@ -141,7 +163,30 @@ FakeDocument.prototype.getElementById = function (id) {
 };
 
 FakeDocument.prototype.querySelectorAll = function (selector) {
-  if (selector === '[data-mode]') { return this.modeButtons.slice(); }
+  if (selector === '#storybook-library-options input[type="checkbox"]') {
+    var libraryOptions = this.getElementById('storybook-library-options');
+    var results = [];
+
+    function walk(node) {
+      var children = node && node.children ? node.children : [];
+      var i;
+
+      if (node && node.tagName === 'INPUT' && node.type === 'checkbox') {
+        results.push(node);
+      }
+      for (i = 0; i < children.length; i += 1) {
+        walk(children[i]);
+      }
+    }
+
+    walk(libraryOptions);
+    return results;
+  }
+
+  if (selector === '[data-mode]') {
+    return this.modeButtons.slice();
+  }
+
   return [];
 };
 
@@ -836,4 +881,77 @@ function loadViewHarness(options) {
   );
   assert.strictEqual(harness.buttons.settingsWarning.textContent, '');
   assert.strictEqual(harness.buttons.save.disabled, true);
+}());
+
+(function fakeClassLookupReturnsDescendantsInDocumentOrder() {
+  var harness = loadViewHarness();
+  var parent = harness.document.createElement('div');
+  var first = harness.document.createElement('span');
+  var nested = harness.document.createElement('span');
+
+  parent.className = 'outer';
+  first.className = 'match';
+  first.id = 'first-match';
+  nested.className = 'match';
+  nested.id = 'nested-match';
+  parent.appendChild(first);
+  first.appendChild(nested);
+  harness.document.body.appendChild(parent);
+
+  assert.deepStrictEqual(
+    Array.prototype.map.call(parent.getElementsByClassName('match'), function (node) {
+      return node.id;
+    }),
+    ['first-match', 'nested-match']
+  );
+}());
+
+(function rendersFriendlyDurationLabelsAcrossStorybookCardsAndDetails() {
+  var harness = loadViewHarness();
+  var cards;
+
+  harness.view.renderHome({
+    childName: 'Nova',
+    reducedMotion: false,
+    resume: {
+      accentClass: 'storybook-accent-periwinkle',
+      ariaLabel: 'Open Bluey',
+      artworkUrl: '',
+      id: 'bluey',
+      minutesLabel: '28 min • Cozy episode',
+      progressPercent: 21,
+      resumeLabel: 'Resume from 6m',
+      title: "Bluey's Big Adventure"
+    },
+    favorites: [
+      {
+        accentClass: 'storybook-accent-sea',
+        ariaLabel: 'Open Dance With Me',
+        artworkUrl: '',
+        id: 'dance',
+        minutesLabel: '12 min • Quick story',
+        progressPercent: 0,
+        resumeLabel: '',
+        title: 'Dance With Me'
+      }
+    ],
+    libraries: []
+  });
+
+  cards = harness.buttons.favorites.children;
+  assert.strictEqual(cards[0].getElementsByClassName('storybook-card-meta')[0].textContent, '12 min • Quick story');
+
+  harness.view.renderDetails({
+    accentClass: 'storybook-accent-periwinkle',
+    artworkUrl: '',
+    minutesLabel: '41 min • Big movie',
+    overview: 'A cozy longer story.',
+    progressPercent: 0,
+    primaryActionLabel: 'Start story',
+    resumeLabel: '',
+    showRestart: false,
+    title: 'Night Sky Movie'
+  });
+
+  assert.strictEqual(harness.buttons.detailsMeta.textContent, '41 min • Big movie');
 }());

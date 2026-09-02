@@ -113,3 +113,13 @@ var copy = load('js/copy.js', { window: {} }).RawiCopy;
   assert.strictEqual(copy.get('storybookEndingPrimaryButton'), 'All done');
   assert.strictEqual(copy.get('storybookEndingSecondaryButton'), 'Pick another');
 }());
+
+(function exposesStorybookFriendlyDurationCopyDefaults() {
+  assert.strictEqual(
+    copy.get('storybookFriendlyRuntime', { minutes: '12 min', label: 'Quick story' }),
+    '12 min • Quick story'
+  );
+  assert.strictEqual(copy.get('storybookDurationQuickStory'), 'Quick story');
+  assert.strictEqual(copy.get('storybookDurationCozyEpisode'), 'Cozy episode');
+  assert.strictEqual(copy.get('storybookDurationBigMovie'), 'Big movie');
+}());

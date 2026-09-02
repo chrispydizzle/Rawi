@@ -648,6 +648,10 @@ function loadAppHarness(options) {
     storybookFavoriteRemovedToast: 'Removed {title} from Storybook favorites.',
     storybookFavoritesTitle: "{child}'s Favorites",
     storybookFavoritesTitleWithoutName: 'Favorites',
+    storybookFriendlyRuntime: '{minutes} • {label}',
+    storybookDurationQuickStory: 'Quick story',
+    storybookDurationCozyEpisode: 'Cozy episode',
+    storybookDurationBigMovie: 'Big movie',
     storybookGreeting: 'What should we watch tonight, {child}?',
     storybookGreetingWithoutName: 'What should we watch tonight?',
     storybookHomeHint: 'Pick a favorite or open a story door.',
@@ -2203,6 +2207,68 @@ asyncTest('storybookLibraryDetailsBackKeyRestoresPriorLibraryCardFocus', functio
 
     assert.strictEqual(harness.screenActive('storybook-library-screen'), true);
     assert.strictEqual(harness.document.activeElement.id, 'storybook-library-card-story-2');
+  });
+});
+
+asyncTest('storybookLibraryAndDetailsUseFriendlyDurationLabelsWhenEnabled', function () {
+  var harness = loadAppHarness({
+    libraries: [{ Id: 'kids', Name: 'Kids' }],
+    preferences: basePreferences({
+      enabled: true,
+      lastMode: 'storybook',
+      libraryIds: ['kids']
+    }),
+    restoreSession: true,
+    videosByLibrary: {
+      kids: [
+        { Id: 'short', Name: 'Quick Tale', RunTimeTicks: 7200000000 },
+        { Id: 'medium', Name: 'Cozy Tale', RunTimeTicks: 16800000000 },
+        { Id: 'long', Name: 'Big Tale', RunTimeTicks: 24600000000 }
+      ]
+    }
+  });
+
+  return flush(12).then(function () {
+    harness.document.getElementById('storybook-door-kids').click();
+    assert.strictEqual(
+      harness.document.getElementById('storybook-library-card-short').getElementsByClassName('storybook-card-meta')[0].textContent,
+      '12 min • Quick story'
+    );
+    assert.strictEqual(
+      harness.document.getElementById('storybook-library-card-medium').getElementsByClassName('storybook-card-meta')[0].textContent,
+      '28 min • Cozy episode'
+    );
+    assert.strictEqual(
+      harness.document.getElementById('storybook-library-card-long').getElementsByClassName('storybook-card-meta')[0].textContent,
+      '41 min • Big movie'
+    );
+
+    harness.document.getElementById('storybook-library-card-medium').click();
+    assert.strictEqual(
+      harness.document.getElementById('storybook-details-meta').textContent,
+      '28 min • Cozy episode'
+    );
+  });
+});
+
+asyncTest('adultDetailsKeepMinutesOnlyWhenStorybookFriendlyDurationsAreEnabled', function () {
+  var harness = loadAppHarness({
+    libraries: [{ Id: 'kids', Name: 'Kids' }],
+    preferences: basePreferences({
+      enabled: true,
+      lastMode: 'adult',
+      libraryIds: ['kids']
+    }),
+    restoreSession: true,
+    videosByLibrary: {
+      kids: [{ Id: 'medium', Name: 'Cozy Tale', RunTimeTicks: 16800000000, Overview: 'Still adult-details minutes only.' }]
+    }
+  });
+
+  return flush(12).then(function () {
+    harness.document.getElementById('hero-open').click();
+    assert.notStrictEqual(harness.document.getElementById('details-meta').textContent.indexOf('28 min'), -1);
+    assert.strictEqual(harness.document.getElementById('details-meta').textContent.indexOf('Cozy episode'), -1);
   });
 });
 

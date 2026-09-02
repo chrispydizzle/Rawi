@@ -84,6 +84,39 @@
     var ticks = value(item, 'RunTimeTicks', 'runTimeTicks') || 0;
     return ticks ? copy.get('runtimeMinutes', { minutes: Math.round(ticks / 600000000) }) : '';
   }
+  function runtimeMinutesValue(item) {
+    var ticks = value(item, 'RunTimeTicks', 'runTimeTicks') || 0;
+    return ticks ? Math.round(ticks / 600000000) : 0;
+  }
+  function storybookDurationCopyKey(minutes) {
+    var labels = storybookState.durationLabels || {};
+
+    if (!labels.enabled || !minutes) {
+      return '';
+    }
+    if (minutes <= labels.quickMaxMinutes) {
+      return 'storybookDurationQuickStory';
+    }
+    if (minutes <= labels.cozyMaxMinutes) {
+      return 'storybookDurationCozyEpisode';
+    }
+    return 'storybookDurationBigMovie';
+  }
+  function storybookRuntime(item) {
+    var minutes = runtimeMinutesValue(item);
+    var labelKey = storybookDurationCopyKey(minutes);
+    var minutesText;
+
+    if (!minutes) { return ''; }
+    minutesText = copy.get('runtimeMinutes', { minutes: minutes });
+    if (!labelKey) {
+      return minutesText;
+    }
+    return copy.get('storybookFriendlyRuntime', {
+      label: copy.get(labelKey),
+      minutes: minutesText
+    });
+  }
   function userData(item) { return value(item, 'UserData', 'userData') || {}; }
   function resumeTicks(item) { return value(userData(item), 'PlaybackPositionTicks', 'playbackPositionTicks') || 0; }
   function playbackPercent(item) { return value(userData(item), 'PlayedPercentage', 'playedPercentage') || 0; }
@@ -571,14 +604,12 @@
   }
 
   function storybookCardModel(item) {
-    var ticks = value(item, 'RunTimeTicks', 'runTimeTicks') || 0;
-
     return {
       accentClass: storybookAccentClass(itemId(item)),
       ariaLabel: copy.get('storybookItemAriaLabel', { title: name(item) }),
       artworkUrl: imageUrl(item, 'Primary', 560, 560) || imageUrl(item, 'Backdrop', 960, 540),
       id: itemId(item),
-      minutesLabel: ticks ? copy.get('runtimeMinutes', { minutes: Math.round(ticks / 600000000) }) : '',
+      minutesLabel: storybookRuntime(item),
       progressPercent: playbackPercent(item),
       resumeLabel: resumeTicks(item) > 0 ? copy.get('storybookResumeProgress', { time: runtimeFromTicks(resumeTicks(item)) }) : '',
       title: name(item)
@@ -589,7 +620,7 @@
     return {
       accentClass: storybookAccentClass(itemId(item)),
       artworkUrl: imageUrl(item, 'Primary', 760, 760) || imageUrl(item, 'Backdrop', 1280, 720),
-      minutesLabel: runtime(item),
+      minutesLabel: storybookRuntime(item),
       overview: value(item, 'Overview', 'overview') || copy.get('noSynopsis'),
       primaryActionLabel: resumeTicks(item) > 0 ?
         copy.get('storybookResumeButton', { time: runtimeFromTicks(resumeTicks(item)) }) :
