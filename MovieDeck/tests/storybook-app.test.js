@@ -518,6 +518,9 @@ function loadAppHarness(options) {
     getVideos: function (libraryId) {
       apiCalls.getVideos += 1;
       if (!libraryId) { return Promise.resolve(options.fallbackVideos || []); }
+      if (options.getVideosErrors && options.getVideosErrors[libraryId]) {
+        return Promise.reject(options.getVideosErrors[libraryId]);
+      }
       return Promise.resolve((options.videosByLibrary && options.videosByLibrary[libraryId]) || []);
     },
     imageUrl: function () { return ''; },
@@ -1228,6 +1231,118 @@ asyncTest('rendersSavedStorybookLibrariesOnDedicatedHome', function () {
       JSON.parse(JSON.stringify(harness.storybookMotionCalls())),
       [true]
     );
+  });
+});
+
+asyncTest('keepsSelectedAccessibleLibrariesAsStoryDoorsWhenOneLibraryReturnsNoVideos', function () {
+  var harness = loadAppHarness({
+    getVideosErrors: {
+      kids: new Error('empty result tolerated')
+    },
+    libraries: [
+      { Id: 'kids', Name: 'Kids' },
+      { Id: 'disney', Name: 'Disney' }
+    ],
+    preferences: {
+      version: 1,
+      enabled: true,
+      lastMode: 'storybook',
+      childName: 'Nova',
+      libraryIds: ['kids', 'disney'],
+      reducedMotion: false
+    },
+    restoreSession: true,
+    videosByLibrary: {
+      disney: [{ Id: 'video-2', Name: 'Second video' }]
+    }
+  });
+
+  return flush(12).then(function () {
+    assert.strictEqual(harness.screenActive('storybook-screen'), true);
+    assert.deepStrictEqual(
+      JSON.parse(JSON.stringify(harness.doorLibraryIds())),
+      ['kids', 'disney']
+    );
+    assert.strictEqual(
+      harness.document.activeElement.getAttribute('data-library-id'),
+      'kids'
+    );
+  });
+});
+
+asyncTest('opensEmptyStoryDoorWithExistingNoVideosRecoveryState', function () {
+  var harness = loadAppHarness({
+    libraries: [
+      { Id: 'kids', Name: 'Kids' },
+      { Id: 'disney', Name: 'Disney' }
+    ],
+    latest: [{ Id: 'latest-1', Name: 'Latest film' }],
+    preferences: {
+      version: 1,
+      enabled: true,
+      lastMode: 'storybook',
+      childName: 'Nova',
+      libraryIds: ['kids', 'disney'],
+      reducedMotion: false
+    },
+    restoreSession: true,
+    resume: [{ Id: 'resume-1', Name: 'Resume film' }],
+    videosByLibrary: {
+      disney: [{ Id: 'video-2', Name: 'Second video' }],
+      kids: []
+    }
+  });
+  var kidsDoor;
+
+  return flush(12).then(function () {
+    kidsDoor = harness.document.querySelectorAll('#storybook-doors .storybook-door').filter(function (node) {
+      return node.getAttribute('data-library-id') === 'kids';
+    })[0];
+
+    assert(kidsDoor, 'expected the empty accessible library to render as a Story Door');
+
+    kidsDoor.click();
+
+    assert.strictEqual(harness.storybookStopCalls(), 1);
+    assert.strictEqual(harness.screenActive('browse-screen'), true);
+    assert.deepStrictEqual(JSON.parse(JSON.stringify(harness.shelfHeadings())), []);
+    assert.strictEqual(
+      harness.document.getElementById('browse-error').textContent,
+      'No videos are visible to this Jellyfin user.'
+    );
+    assert.strictEqual(harness.document.getElementById('browse-error').style.display, 'block');
+    assert.strictEqual(harness.document.activeElement.id, 'refresh-button');
+  });
+});
+
+asyncTest('keepsAdultHomeOmittingEmptyLibraryShelves', function () {
+  var harness = loadAppHarness({
+    libraries: [
+      { Id: 'kids', Name: 'Kids' },
+      { Id: 'disney', Name: 'Disney' }
+    ],
+    preferences: {
+      version: 1,
+      enabled: true,
+      lastMode: 'adult',
+      childName: 'Nova',
+      libraryIds: ['kids', 'disney'],
+      reducedMotion: false
+    },
+    restoreSession: true,
+    videosByLibrary: {
+      disney: [{ Id: 'video-2', Name: 'Second video' }],
+      kids: []
+    }
+  });
+
+  return flush(12).then(function () {
+    assert.strictEqual(harness.screenActive('browse-screen'), true);
+    assert.deepStrictEqual(
+      JSON.parse(JSON.stringify(harness.shelfHeadings())),
+      ['Disney']
+    );
+    assert.strictEqual(harness.document.getElementById('browse-error').style.display, 'none');
   });
 });
 

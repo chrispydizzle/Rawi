@@ -420,8 +420,6 @@
             return { id: itemId(library), name: name(library), videos: [] };
           });
         }));
-      }).then(function (groups) {
-        return groups.filter(function (group) { return group.videos.length > 0; });
       }).catch(function () {
         availableLibraries = [];
         availableLibrariesLoading = false;
