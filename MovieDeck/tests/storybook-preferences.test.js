@@ -65,5 +65,8 @@ function loadPreferences(stored) {
     reducedMotion: false
   });
   assert.strictEqual(harness.saved().key, 'rawi.storybook.preferences');
-  assert.deepStrictEqual(JSON.parse(harness.saved().value), result);
+  assert.deepStrictEqual(
+    JSON.parse(harness.saved().value),
+    JSON.parse(JSON.stringify(result))
+  );
 }());

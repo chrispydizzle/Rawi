@@ -5,12 +5,6 @@
   var VERSION = 1;
   var storage = global.RawiStorage;
 
-  function cloneForReturn(value) {
-    return global.window.constructor.constructor(
-      'return JSON.parse(JSON.stringify(arguments[0]))'
-    )(value);
-  }
-
   function defaults() {
     return {
       version: VERSION,
@@ -71,7 +65,7 @@
   function save(preferences) {
     var normalized = normalize(preferences);
     storage.set(KEY, JSON.stringify(normalized));
-    return cloneForReturn(normalized);
+    return normalized;
   }
 
   global.RawiStorybookPreferences = {
