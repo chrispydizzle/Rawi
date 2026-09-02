@@ -195,6 +195,8 @@
     var favorites = byId('storybook-favorites');
     var categorySection = byId('storybook-categories-section');
     var categories = byId('storybook-categories');
+    var magicPickHomeSection = byId('storybook-magic-pick-home-section');
+    var magicPickButton = byId('storybook-magic-pick-button');
     var container = byId('storybook-doors');
     var editButton = byId('storybook-edit-libraries');
     var emptyState = byId('storybook-empty-state');
@@ -267,6 +269,13 @@
     categorySection.style.display = categoryButtons.length ? 'block' : 'none';
     if (!firstChoice && categoryButtons.length) {
       firstChoice = categories.firstChild;
+    }
+
+    if (magicPickHomeSection) {
+      magicPickHomeSection.style.display = model && model.showMagicPick ? 'block' : 'none';
+    }
+    if (!firstChoice && magicPickButton && model && model.showMagicPick) {
+      firstChoice = magicPickButton;
     }
 
     scroller = document.createElement('div');
@@ -394,6 +403,31 @@
     focusWhenReady(byId('storybook-details-play'));
   }
 
+  function renderMagicPick(model) {
+    var art = byId('storybook-magic-pick-art');
+
+    art.className = 'storybook-details-art ' + (model.accentClass || 'storybook-accent-sea');
+    art.innerHTML = '';
+    if (model.empty) {
+      art.style.display = 'none';
+    } else {
+      art.style.display = 'block';
+      art.appendChild(createArtwork({
+        accentClass: model.accentClass,
+        artworkUrl: model.artworkUrl,
+        title: model.title
+      }, 'storybook-details-artwork'));
+    }
+
+    byId('storybook-magic-pick-title').textContent = model.title;
+    byId('storybook-magic-pick-reason').textContent = model.reason;
+    byId('storybook-magic-pick-meta').textContent = model.minutesLabel || '';
+    byId('storybook-magic-pick-overview').textContent = model.overview;
+    byId('storybook-magic-pick-primary').textContent = model.primaryActionLabel;
+    byId('storybook-magic-pick-secondary').textContent = model.secondaryActionLabel;
+    focusWhenReady(byId('storybook-magic-pick-primary'));
+  }
+
   function renderEnding(model) {
     byId('storybook-ending-title').textContent = model.childName ?
       copy.get('storybookEndingTitle', { child: model.childName }) :
@@ -496,6 +530,10 @@
     byId('storybook-details-restart').addEventListener('click', function () {
       callbacks.onStartStorybookPlayback(true);
     });
+    byId('storybook-magic-pick-button').addEventListener('click', callbacks.onOpenMagicPick);
+    byId('storybook-magic-pick-back').addEventListener('click', callbacks.onCloseMagicPick);
+    byId('storybook-magic-pick-primary').addEventListener('click', callbacks.onMagicPickPrimary);
+    byId('storybook-magic-pick-secondary').addEventListener('click', callbacks.onMagicPickSecondary);
     byId('storybook-ending-all-done').addEventListener('click', function () {
       callbacks.onStorybookEndingAction('done');
     });
@@ -518,6 +556,7 @@
     renderEnding: renderEnding,
     renderHome: renderHome,
     renderLibrary: renderLibrary,
+    renderMagicPick: renderMagicPick,
     renderSettings: renderSettings,
     setMode: setMode
   };

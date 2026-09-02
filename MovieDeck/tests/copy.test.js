@@ -140,3 +140,19 @@ var copy = load('js/copy.js', { window: {} }).RawiCopy;
 (function exposesStorybookLittleMenuCopyDefault() {
   assert.strictEqual(copy.get('storybookLittleMenuTitle'), "Tonight's Little Menu");
 }());
+
+(function exposesStorybookMagicPickCopyDefaults() {
+  assert.strictEqual(copy.get('storybookMagicPickButton'), 'Magic Pick');
+  assert.strictEqual(copy.get('storybookMagicPickTitle'), 'Magic Pick');
+  assert.strictEqual(copy.get('storybookMagicPickOpenButton'), 'Tell me about this story');
+  assert.strictEqual(copy.get('storybookMagicPickAgainButton'), 'Pick again');
+  assert.strictEqual(copy.get('storybookMagicPickBackButton'), '← Storybook');
+  assert.strictEqual(copy.get('storybookMagicReasonUnwatched'), 'A new story to discover.');
+  assert.strictEqual(copy.get('storybookMagicReasonFavorite'), 'A favorite with a little extra sparkle.');
+  assert.strictEqual(copy.get('storybookMagicReasonDifferentCategory'), 'Something a little different from last time.');
+  assert.strictEqual(copy.get('storybookMagicReasonAnyStory'), 'A cozy surprise from your Story Doors.');
+  assert.strictEqual(copy.get('storybookMagicPickEmptyTitle'), 'No Magic Pick right now');
+  assert.strictEqual(copy.get('storybookMagicPickEmptyBody'), 'Everything in the selected Storybook libraries was finished recently. Try a Story Door instead.');
+  assert.strictEqual(copy.get('storybookMagicPickEmptyPrimaryButton'), 'Open Story Doors');
+  assert.strictEqual(copy.get('storybookMagicPickEmptySecondaryButton'), 'Back to Storybook');
+}());

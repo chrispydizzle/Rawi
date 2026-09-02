@@ -416,6 +416,16 @@ body.mode-storybook.storybook-reduced-motion .storybook-door {
 .storybook-details-page {
   padding-top: 150px;
 }
+.storybook-magic-pick-page {
+  padding-top: 150px;
+}
+.storybook-magic-card {
+  align-items: center;
+}
+.storybook-magic-pick-screen .storybook-edit {
+  bottom: auto;
+  top: 150px;
+}
 .storybook-details-card {
   align-items: center;
   display: flex;

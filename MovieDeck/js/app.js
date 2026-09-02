@@ -57,10 +57,16 @@
     childName: '',
     title: ''
   };
+  var storybookMagicPickState = {
+    empty: false,
+    result: null,
+    returnFocusId: 'storybook-magic-pick-button'
+  };
   var STORYBOOK_PRESENTATION_SCREENS = {
     'storybook-screen': true,
     'storybook-library-screen': true,
     'storybook-details-screen': true,
+    'storybook-magic-pick-screen': true,
     'storybook-ending-screen': true
   };
   var playerReturnState = {
@@ -563,6 +569,85 @@
     return null;
   }
 
+  function firstStoryDoorFocusId() {
+    var catalogue = currentStorybookCatalogue || buildStorybookCatalogue();
+    if (catalogue.selectedLibraries && catalogue.selectedLibraries.length) {
+      return 'storybook-door-' + catalogue.selectedLibraries[0].id;
+    }
+    return 'storybook-edit-libraries';
+  }
+
+  function storybookMagicRandom() {
+    if (previewStorybookFixture && previewStorybookFixture.magicRandom !== undefined) {
+      return function () {
+        return Number(previewStorybookFixture.magicRandom);
+      };
+    }
+    if (typeof global.RawiStorybookRandom === 'function') {
+      return global.RawiStorybookRandom;
+    }
+    return Math.random;
+  }
+
+  function storybookMagicPickModel(result) {
+    var item = result && result.item;
+    return {
+      accentClass: item ? storybookAccentClass(itemId(item)) : 'storybook-accent-sea',
+      artworkUrl: item ? (imageUrl(item, 'Primary', 760, 760) || imageUrl(item, 'Backdrop', 1280, 720)) : '',
+      empty: !item,
+      minutesLabel: item ? storybookRuntime(item) : '',
+      overview: item ? (value(item, 'Overview', 'overview') || copy.get('noSynopsis')) : copy.get('storybookMagicPickEmptyBody'),
+      primaryActionLabel: item ? copy.get('storybookMagicPickOpenButton') : copy.get('storybookMagicPickEmptyPrimaryButton'),
+      reason: copy.get(result && result.reason ? result.reason.copyKey : 'storybookMagicReasonAnyStory'),
+      secondaryActionLabel: item ? copy.get('storybookMagicPickAgainButton') : copy.get('storybookMagicPickEmptySecondaryButton'),
+      title: item ? name(item) : copy.get('storybookMagicPickEmptyTitle')
+    };
+  }
+
+  function renderStorybookMagicPick() {
+    storybookView.renderMagicPick(storybookMagicPickModel(storybookMagicPickState.result));
+  }
+
+  function openStorybookMagicPick() {
+    var result = storybookDiscovery.magicPick({
+      catalogue: buildStorybookCatalogue(),
+      discovery: buildStorybookDiscovery(),
+      nowMs: currentStorybookNowMs(),
+      preferences: storybookState,
+      random: storybookMagicRandom()
+    });
+
+    storybookMagicPickState = {
+      empty: !result.item,
+      result: result,
+      returnFocusId: 'storybook-magic-pick-button'
+    };
+    showScreen('storybook-magic-pick-screen');
+    renderStorybookMagicPick();
+  }
+
+  function closeStorybookMagicPick() {
+    showScreen('storybook-screen');
+    renderStorybookHome(storybookMagicPickState.returnFocusId || 'storybook-magic-pick-button');
+  }
+
+  function handleStorybookMagicPickPrimary() {
+    if (!storybookMagicPickState.result || !storybookMagicPickState.result.item) {
+      showScreen('storybook-screen');
+      renderStorybookHome(firstStoryDoorFocusId());
+      return;
+    }
+    openStorybookDetails(storybookMagicPickState.result.item, 'magic');
+  }
+
+  function handleStorybookMagicPickSecondary() {
+    if (!storybookMagicPickState.result || !storybookMagicPickState.result.item) {
+      closeStorybookMagicPick();
+      return;
+    }
+    openStorybookMagicPick();
+  }
+
   function favoriteIds() {
     return copyIds(storybookState.favoriteItemIds);
   }
@@ -765,7 +850,8 @@
       }),
       preferredFocusId: preferredFocusId,
       reducedMotion: isStorybookReducedMotion(),
-      resume: catalogue.resumeItem ? storybookCardModel(catalogue.resumeItem) : null
+      resume: catalogue.resumeItem ? storybookCardModel(catalogue.resumeItem) : null,
+      showMagicPick: catalogue.selectedLibraries.length > 0
     });
   }
 
@@ -904,6 +990,9 @@
     if (source === 'resume') {
       storybookDetailsState.focusId = 'storybook-resume-card';
     }
+    if (source === 'magic') {
+      storybookDetailsState.focusId = 'storybook-magic-pick-primary';
+    }
     showScreen('storybook-details-screen');
     storybookView.renderDetails(storybookDetailsModel(item));
   }
@@ -911,6 +1000,11 @@
   function closeStorybookDetails() {
     if (storybookDetailsState.source === 'library' && storybookDetailsState.collection) {
       openStorybookCollection(storybookDetailsState.collection, storybookDetailsState.focusId);
+      return;
+    }
+    if (storybookDetailsState.source === 'magic') {
+      showScreen('storybook-magic-pick-screen');
+      renderStorybookMagicPick();
       return;
     }
     showScreen('storybook-screen');
@@ -1393,6 +1487,10 @@
       return;
     }
     if (activeScreen === 'storybook-details-screen') { closeStorybookDetails(); return; }
+    if (activeScreen === 'storybook-magic-pick-screen') {
+      closeStorybookMagicPick();
+      return;
+    }
     if (activeScreen === 'storybook-library-screen') {
       closeStorybookLibrary();
       return;
@@ -1450,6 +1548,10 @@
         if (!currentStorybookCatalogue || !currentStorybookCatalogue.itemById[itemId]) { return; }
         openStorybookDetails(currentStorybookCatalogue.itemById[itemId], source);
       },
+      onOpenMagicPick: openStorybookMagicPick,
+      onCloseMagicPick: closeStorybookMagicPick,
+      onMagicPickPrimary: handleStorybookMagicPickPrimary,
+      onMagicPickSecondary: handleStorybookMagicPickSecondary,
       onStorybookEndingAction: handleStorybookEndingAction,
       onStartStorybookPlayback: startPlayback,
       onResetSettingsRecovery: resetStorybookSettingsRecovery,

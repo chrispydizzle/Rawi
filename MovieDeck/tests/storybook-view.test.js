@@ -218,6 +218,7 @@ function loadViewHarness(options) {
   var pendingStorybookHomeReady = [];
   var resetCount = 0;
   var storybookHomeAnimationCalls = 0;
+  var magicActions = [];
   var buttons = {
     adult: append(document, document.body, 'button', 'storybook-home-adult-mode-button'),
     cancel: append(document, document.body, 'button', 'storybook-cancel'),
@@ -272,6 +273,20 @@ function loadViewHarness(options) {
     storybook: append(document, document.body, 'button', 'storybook-home-storybook-mode-button')
   };
 
+  buttons.magicPickHomeSection = append(document, document.body, 'section', 'storybook-magic-pick-home-section');
+  buttons.magicTrigger = append(document, buttons.magicPickHomeSection, 'button', 'storybook-magic-pick-button');
+  buttons.magicScreen = append(document, document.body, 'section', 'storybook-magic-pick-screen');
+  buttons.magicBack = append(document, buttons.magicScreen, 'button', 'storybook-magic-pick-back');
+  buttons.magicAdult = append(document, buttons.magicScreen, 'button', 'storybook-magic-adult-mode-button');
+  buttons.magicStorybook = append(document, buttons.magicScreen, 'button', 'storybook-magic-storybook-mode-button');
+  buttons.magicArt = append(document, buttons.magicScreen, 'div', 'storybook-magic-pick-art');
+  buttons.magicTitle = append(document, buttons.magicScreen, 'h1', 'storybook-magic-pick-title');
+  buttons.magicReason = append(document, buttons.magicScreen, 'p', 'storybook-magic-pick-reason');
+  buttons.magicMeta = append(document, buttons.magicScreen, 'p', 'storybook-magic-pick-meta');
+  buttons.magicBody = append(document, buttons.magicScreen, 'p', 'storybook-magic-pick-overview');
+  buttons.magicPrimary = append(document, buttons.magicScreen, 'button', 'storybook-magic-pick-primary');
+  buttons.magicSecondary = append(document, buttons.magicScreen, 'button', 'storybook-magic-pick-secondary');
+
   buttons.adult.setAttribute('data-mode', 'adult');
   buttons.detailsAdult.setAttribute('data-mode', 'adult');
   append(document, buttons.detailsProgress, 'span', '');
@@ -279,6 +294,8 @@ function loadViewHarness(options) {
   buttons.libraryAdult.setAttribute('data-mode', 'adult');
   buttons.libraryStorybook.setAttribute('data-mode', 'storybook');
   buttons.storybook.setAttribute('data-mode', 'storybook');
+  buttons.magicAdult.setAttribute('data-mode', 'adult');
+  buttons.magicStorybook.setAttribute('data-mode', 'storybook');
   document.modeButtons = [
     buttons.adult,
     buttons.storybook,
@@ -287,6 +304,7 @@ function loadViewHarness(options) {
     buttons.detailsAdult,
     buttons.detailsStorybook
   ];
+  document.modeButtons = document.modeButtons.concat([buttons.magicAdult, buttons.magicStorybook]);
 
   function shouldDeferStorybookHomeReady(callIndex) {
     return Array.isArray(options.deferStorybookHomeReadyCalls) &&
@@ -404,6 +422,18 @@ function loadViewHarness(options) {
     onOpenStorybookItem: function (itemId, source) {
       openItems.push({ id: itemId, source: source });
     },
+    onOpenMagicPick: function () {
+      magicActions.push('open');
+    },
+    onCloseMagicPick: function () {
+      magicActions.push('close');
+    },
+    onMagicPickPrimary: function () {
+      magicActions.push('primary');
+    },
+    onMagicPickSecondary: function () {
+      magicActions.push('secondary');
+    },
     onPreferencesChange: function () {},
     onResetSettingsRecovery: function () {
       resetCount += 1;
@@ -442,6 +472,7 @@ function loadViewHarness(options) {
       return pendingStorybookHomeReady.length;
     },
     endingActions: function () { return endingActions.slice(); },
+    magicActions: function () { return magicActions.slice(); },
     playbackStarts: function () { return playbackStarts.slice(); },
     releaseStorybookHomeReady: function () {
       var callback = pendingStorybookHomeReady.shift();
@@ -1011,4 +1042,31 @@ function loadViewHarness(options) {
   });
 
   assert.strictEqual(harness.buttons.detailsMeta.textContent, '41 min • Big movie');
+}());
+
+(function rendersMagicPickCandidateAndExportsTheRenderer() {
+  var harness = loadViewHarness();
+
+  assert.strictEqual(typeof harness.view.renderMagicPick, 'function');
+  harness.view.renderMagicPick({
+    accentClass: 'storybook-accent-sea',
+    artworkUrl: '',
+    empty: false,
+    minutesLabel: '12 min • Quick story',
+    overview: 'A cozy surprise.',
+    primaryActionLabel: 'Tell me about this story',
+    reason: 'A favorite with a little extra sparkle.',
+    secondaryActionLabel: 'Pick again',
+    title: 'Dance With Me'
+  });
+
+  assert.strictEqual(harness.buttons.magicTitle.textContent, 'Dance With Me');
+  assert.strictEqual(harness.buttons.magicReason.textContent, 'A favorite with a little extra sparkle.');
+  assert.strictEqual(harness.buttons.magicMeta.textContent, '12 min • Quick story');
+  assert.strictEqual(harness.document.activeElement.id, 'storybook-magic-pick-primary');
+
+  harness.buttons.magicPrimary.click();
+  harness.buttons.magicSecondary.click();
+  harness.buttons.magicBack.click();
+  assert.deepStrictEqual(harness.magicActions(), ['primary', 'secondary', 'close']);
 }());

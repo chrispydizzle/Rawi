@@ -143,6 +143,13 @@
           <div id="storybook-categories" class="storybook-category-strip"></div>
         </section>
 
+        <section id="storybook-magic-pick-home-section" class="storybook-section">
+          <button id="storybook-magic-pick-button"
+                  class="storybook-edit focusable"
+                  data-focusable
+                  data-copy="storybookMagicPickButton">Magic Pick</button>
+        </section>
+
         <section id="storybook-doors-section" class="storybook-section">
           <h2 class="storybook-section-title" data-copy="storybookDoorsTitle">Story Doors</h2>
           <div id="storybook-doors" class="storybook-doors"></div>
@@ -236,6 +243,52 @@
             <div class="storybook-details-actions">
               <button id="storybook-details-play" class="button button-primary focusable" data-focusable></button>
               <button id="storybook-details-restart" class="button button-secondary focusable" data-focusable data-copy="restartButton">Start from beginning</button>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section id="storybook-magic-pick-screen"
+             class="screen storybook-screen storybook-magic-pick-screen"
+             aria-labelledby="storybook-magic-pick-title">
+      <div class="storybook-sky" aria-hidden="true">
+        <span class="storybook-moon"></span>
+        <span class="storybook-star star-one">✦</span>
+        <span class="storybook-star star-two">✧</span>
+        <span class="storybook-star star-three">✦</span>
+      </div>
+      <header class="storybook-topbar">
+        <div class="storybook-wordmark"><i>/</i> <span data-copy="appName">Rawi</span></div>
+        <div class="mode-toggle" role="group" aria-label="Display mode">
+          <button id="storybook-magic-adult-mode-button"
+                  class="mode-option focusable"
+                  data-focusable
+                  data-mode="adult"
+                  data-copy="modeAdult">Adult</button>
+          <button id="storybook-magic-storybook-mode-button"
+                  class="mode-option focusable"
+                  data-focusable
+                  data-mode="storybook"
+                  data-copy="modeStorybook">Storybook</button>
+        </div>
+      </header>
+      <div class="storybook-page storybook-magic-pick-page">
+        <button id="storybook-magic-pick-back"
+                class="storybook-edit focusable"
+                data-focusable
+                data-copy="storybookMagicPickBackButton">← Storybook</button>
+        <article class="storybook-details-card storybook-magic-card">
+          <div id="storybook-magic-pick-art" class="storybook-details-art"></div>
+          <div class="storybook-details-copy">
+            <p class="storybook-section-title" data-copy="storybookMagicPickTitle">Magic Pick</p>
+            <h1 id="storybook-magic-pick-title"></h1>
+            <p id="storybook-magic-pick-reason" class="storybook-library-count"></p>
+            <p id="storybook-magic-pick-meta" class="storybook-library-count"></p>
+            <p id="storybook-magic-pick-overview" class="storybook-details-overview"></p>
+            <div class="storybook-details-actions">
+              <button id="storybook-magic-pick-primary" class="button button-primary focusable" data-focusable></button>
+              <button id="storybook-magic-pick-secondary" class="button button-secondary focusable" data-focusable></button>
             </div>
           </div>
         </article>

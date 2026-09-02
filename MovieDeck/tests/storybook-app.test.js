@@ -391,6 +391,7 @@ function buildDom(document) {
   var storybookScreen = append(document.body, 'section', 'storybook-screen', 'screen');
   var storybookLibraryScreen = append(document.body, 'section', 'storybook-library-screen', 'screen');
   var storybookDetailsScreen = append(document.body, 'section', 'storybook-details-screen', 'screen');
+  var storybookMagicScreen = append(document.body, 'section', 'storybook-magic-pick-screen', 'screen');
   var storybookEndingScreen = append(document.body, 'section', 'storybook-ending-screen', 'screen');
   var detailsScreen = append(document.body, 'section', 'details-screen', 'screen');
   var settingsScreen = append(document.body, 'section', 'storybook-settings-screen', 'screen');
@@ -441,6 +442,8 @@ function buildDom(document) {
   var storybookCategoriesSection = append(storybookScreen, 'section', 'storybook-categories-section', '');
   append(storybookCategoriesSection, 'h2', 'storybook-categories-title', '');
   append(storybookCategoriesSection, 'div', 'storybook-categories', '');
+  var storybookMagicHomeSection = append(storybookScreen, 'section', 'storybook-magic-pick-home-section', '');
+  focusable(append(storybookMagicHomeSection, 'button', 'storybook-magic-pick-button', ''));
   append(storybookScreen, 'div', 'storybook-doors', '');
   append(storybookScreen, 'p', 'storybook-empty-state', '');
   focusable(append(storybookScreen, 'button', 'storybook-home-adult-mode-button', '')).setAttribute('data-mode', 'adult');
@@ -474,6 +477,17 @@ function buildDom(document) {
   append(storybookDetailsScreen, 'p', 'storybook-details-overview', '');
   focusable(append(storybookDetailsScreen, 'button', 'storybook-details-play', ''));
   focusable(append(storybookDetailsScreen, 'button', 'storybook-details-restart', ''));
+
+  focusable(append(storybookMagicScreen, 'button', 'storybook-magic-pick-back', ''));
+  focusable(append(storybookMagicScreen, 'button', 'storybook-magic-adult-mode-button', '')).setAttribute('data-mode', 'adult');
+  focusable(append(storybookMagicScreen, 'button', 'storybook-magic-storybook-mode-button', '')).setAttribute('data-mode', 'storybook');
+  append(storybookMagicScreen, 'div', 'storybook-magic-pick-art', '');
+  append(storybookMagicScreen, 'h1', 'storybook-magic-pick-title', '');
+  append(storybookMagicScreen, 'p', 'storybook-magic-pick-reason', '');
+  append(storybookMagicScreen, 'p', 'storybook-magic-pick-meta', '');
+  append(storybookMagicScreen, 'p', 'storybook-magic-pick-overview', '');
+  focusable(append(storybookMagicScreen, 'button', 'storybook-magic-pick-primary', ''));
+  focusable(append(storybookMagicScreen, 'button', 'storybook-magic-pick-secondary', ''));
 
   append(storybookEndingScreen, 'h1', 'storybook-ending-title', '');
   append(storybookEndingScreen, 'p', 'storybook-ending-body', '');
@@ -649,6 +663,18 @@ function loadAppHarness(options) {
     storybookCategoryLearning: 'Little Lessons',
     storybookCategoryMovement: 'Move Around',
     storybookLittleMenuTitle: "Tonight's Little Menu",
+    storybookMagicPickButton: 'Magic Pick',
+    storybookMagicPickBackButton: '← Storybook',
+    storybookMagicPickEmptyBody: 'Everything in the selected Storybook libraries was finished recently. Try a Story Door instead.',
+    storybookMagicPickEmptyPrimaryButton: 'Open Story Doors',
+    storybookMagicPickEmptySecondaryButton: 'Back to Storybook',
+    storybookMagicPickEmptyTitle: 'No Magic Pick right now',
+    storybookMagicPickOpenButton: 'Tell me about this story',
+    storybookMagicPickAgainButton: 'Pick again',
+    storybookMagicReasonAnyStory: 'A cozy surprise from your Story Doors.',
+    storybookMagicReasonDifferentCategory: 'Something a little different from last time.',
+    storybookMagicReasonFavorite: 'A favorite with a little extra sparkle.',
+    storybookMagicReasonUnwatched: 'A new story to discover.',
     storybookMissingLibrary: 'A previously selected library is no longer available.',
     storybookMissingLibraryIdMultiple: 'Previously selected Storybook library IDs are no longer available: {ids}.',
     storybookMissingLibraryIdSingle: 'A previously selected Storybook library ID is no longer available: {ids}.',
@@ -2557,6 +2583,13 @@ asyncTest('reducedMotionSkipsGeneralScreenEntryAnimationOnAllStorybookPresentati
     assert.strictEqual(harness.screenActive('storybook-screen'), true);
     baselineCount = harness.screenEntries().length;
 
+    harness.document.getElementById('storybook-magic-pick-button').click();
+    assert.strictEqual(harness.screenActive('storybook-magic-pick-screen'), true);
+    assert.strictEqual(harness.screenEntries().indexOf('storybook-magic-pick-screen'), -1);
+
+    harness.document.getElementById('storybook-magic-pick-back').click();
+    assert.strictEqual(harness.screenActive('storybook-screen'), true);
+
     harness.document.getElementById('storybook-door-kids').click();
     assert.strictEqual(harness.screenActive('storybook-library-screen'), true);
     assert.strictEqual(harness.screenEntries().indexOf('storybook-library-screen'), -1);
@@ -3373,5 +3406,172 @@ asyncTest('littleMenuIsStableForTheAppSessionAndOpensDetailsWithoutPlayback', fu
       assert.strictEqual(harness.screenActive('storybook-details-screen'), true);
       assert.deepStrictEqual(harness.playCalls(), []);
     });
+  });
+});
+
+asyncTest('reducedMotionSkipsEntryAnimationOnMagicPickScreenButKeepsItWhenAllowed', function () {
+  var reducedMotionHarness = loadAppHarness({
+    libraries: [{ Id: 'songs', Name: 'Songs' }],
+    preferences: basePreferences({
+      enabled: true,
+      lastMode: 'storybook',
+      libraryIds: ['songs'],
+      reducedMotion: true
+    }),
+    restoreSession: true,
+    videosByLibrary: {
+      songs: [{ Id: 'dance', Name: 'Dance With Me', RunTimeTicks: 7200000000, Tags: ['sing-along'] }]
+    }
+  });
+  var motionHarness = loadAppHarness({
+    libraries: [{ Id: 'songs', Name: 'Songs' }],
+    preferences: basePreferences({
+      enabled: true,
+      lastMode: 'storybook',
+      libraryIds: ['songs'],
+      reducedMotion: false
+    }),
+    restoreSession: true,
+    videosByLibrary: {
+      songs: [{ Id: 'dance', Name: 'Dance With Me', RunTimeTicks: 7200000000, Tags: ['sing-along'] }]
+    }
+  });
+
+  return flush(12).then(function () {
+    reducedMotionHarness.document.getElementById('storybook-magic-pick-button').click();
+    motionHarness.document.getElementById('storybook-magic-pick-button').click();
+    return flush(12);
+  }).then(function () {
+    assert.strictEqual(reducedMotionHarness.screenActive('storybook-magic-pick-screen'), true);
+    assert.strictEqual(reducedMotionHarness.screenEntries().indexOf('storybook-magic-pick-screen'), -1);
+    assert.strictEqual(motionHarness.screenActive('storybook-magic-pick-screen'), true);
+    assert.notStrictEqual(motionHarness.screenEntries().indexOf('storybook-magic-pick-screen'), -1);
+  });
+});
+
+asyncTest('magicPickOpensWithoutPlaybackAndPrimaryOpensStorybookDetailsInstead', function () {
+  var harness = loadAppHarness({
+    libraries: [{ Id: 'songs', Name: 'Songs' }],
+    preferences: basePreferences({
+      enabled: true,
+      lastMode: 'storybook',
+      libraryIds: ['songs'],
+      favoriteItemIds: ['dance']
+    }),
+    restoreSession: true,
+    storybookBootstrap: defaultStorybookBootstrap({
+      nowMs: Date.parse('2026-09-02T02:00:00.000Z'),
+      storybookSessionSeed: 'magic-pick-app-seed'
+    }),
+    videosByLibrary: {
+      songs: [{ Id: 'dance', Name: 'Dance With Me', RunTimeTicks: 7200000000, Tags: ['sing-along'] }]
+    }
+  });
+
+  return flush(12).then(function () {
+    assert.strictEqual(harness.screenActive('storybook-screen'), true);
+
+    harness.document.getElementById('storybook-magic-pick-button').click();
+    assert.strictEqual(harness.screenActive('storybook-magic-pick-screen'), true);
+    assert.deepStrictEqual(harness.playCalls(), []);
+    assert.strictEqual(harness.document.getElementById('storybook-magic-pick-title').textContent, 'Dance With Me');
+    assert.strictEqual(harness.document.activeElement.id, 'storybook-magic-pick-primary');
+
+    harness.document.getElementById('storybook-magic-pick-primary').click();
+    assert.strictEqual(harness.screenActive('storybook-details-screen'), true);
+    assert.strictEqual(harness.screenActive('storybook-magic-pick-screen'), false);
+    assert.deepStrictEqual(harness.playCalls(), []);
+
+    harness.document.getElementById('storybook-details-back').click();
+    assert.strictEqual(harness.screenActive('storybook-magic-pick-screen'), true);
+    assert.strictEqual(harness.document.activeElement.id, 'storybook-magic-pick-primary');
+
+    harness.document.getElementById('storybook-magic-pick-secondary').click();
+    assert.strictEqual(harness.screenActive('storybook-magic-pick-screen'), true);
+    assert.deepStrictEqual(harness.playCalls(), []);
+
+    harness.document.getElementById('storybook-magic-pick-back').click();
+    assert.strictEqual(harness.screenActive('storybook-screen'), true);
+    assert.strictEqual(harness.document.activeElement.id, 'storybook-magic-pick-button');
+  });
+});
+
+asyncTest('emptyMagicPickPrimaryGoesHomeFocusedOnFirstStoryDoorAndSecondaryReturnsHome', function () {
+  var harness = loadAppHarness({
+    libraries: [
+      { Id: 'pixar', Name: 'Disney Pixar' },
+      { Id: 'songs', Name: 'Songs' }
+    ],
+    preferences: basePreferences({
+      enabled: true,
+      lastMode: 'storybook',
+      libraryIds: ['pixar', 'songs']
+    }),
+    restoreSession: true,
+    videosByLibrary: {
+      pixar: [{
+        Id: 'sleepy',
+        Name: 'Sleepy Moon',
+        RunTimeTicks: 19800000000,
+        UserData: { Played: true, LastPlayedDate: '2026-09-01T18:00:00.000Z' }
+      }],
+      songs: [{
+        Id: 'stretch',
+        Name: 'Stretch and Sway',
+        RunTimeTicks: 8400000000,
+        UserData: { Played: true, LastPlayedDate: '2026-09-01T18:00:00.000Z' }
+      }]
+    },
+    storybookBootstrap: defaultStorybookBootstrap({
+      nowMs: Date.parse('2026-09-02T02:00:00.000Z'),
+      storybookSessionSeed: 'magic-pick-empty-seed'
+    })
+  });
+
+  return flush(12).then(function () {
+    harness.document.getElementById('storybook-magic-pick-button').click();
+    assert.strictEqual(harness.screenActive('storybook-magic-pick-screen'), true);
+    assert.strictEqual(harness.document.getElementById('storybook-magic-pick-title').textContent, 'No Magic Pick right now');
+
+    harness.document.getElementById('storybook-magic-pick-primary').click();
+    assert.strictEqual(harness.screenActive('storybook-screen'), true);
+    assert.strictEqual(harness.document.activeElement.id, 'storybook-door-pixar');
+
+    harness.document.getElementById('storybook-magic-pick-button').click();
+    harness.document.getElementById('storybook-magic-pick-secondary').click();
+    assert.strictEqual(harness.screenActive('storybook-screen'), true);
+    assert.strictEqual(harness.document.activeElement.id, 'storybook-magic-pick-button');
+
+    harness.document.getElementById('storybook-magic-pick-button').click();
+    harness.document.getElementById('storybook-magic-pick-back').click();
+    assert.strictEqual(harness.screenActive('storybook-screen'), true);
+    assert.strictEqual(harness.document.activeElement.id, 'storybook-magic-pick-button');
+
+    assert.deepStrictEqual(harness.playCalls(), []);
+  });
+});
+
+asyncTest('magicPickModeToggleIsWiredLikeOtherStorybookScreens', function () {
+  var harness = loadAppHarness({
+    libraries: [{ Id: 'songs', Name: 'Songs' }],
+    preferences: basePreferences({
+      enabled: true,
+      lastMode: 'storybook',
+      libraryIds: ['songs']
+    }),
+    restoreSession: true,
+    videosByLibrary: {
+      songs: [{ Id: 'dance', Name: 'Dance With Me', RunTimeTicks: 7200000000 }]
+    }
+  });
+
+  return flush(12).then(function () {
+    harness.document.getElementById('storybook-magic-pick-button').click();
+    assert.strictEqual(harness.screenActive('storybook-magic-pick-screen'), true);
+
+    harness.document.getElementById('storybook-magic-adult-mode-button').click();
+    return flush(12);
+  }).then(function () {
+    assert.strictEqual(harness.screenActive('browse-screen'), true);
   });
 });
