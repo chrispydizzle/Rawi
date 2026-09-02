@@ -601,6 +601,12 @@ function loadAppHarness(options) {
         storybookStopCalls += 1;
       }
     },
+    matchMedia: function (query) {
+      return {
+        matches: query === '(prefers-reduced-motion: reduce)' &&
+          options.prefersReducedMotion === true
+      };
+    },
     MovieDeckApi: api,
     MovieDeckPlayer: {
       handleKey: function () {},
@@ -1749,6 +1755,61 @@ asyncTest('opensStoryDoorOnStorybookLibraryScreenAndBackRestoresStorybookHome', 
       ['kids', 'disney']
     );
     assert.strictEqual(harness.document.activeElement.id, 'storybook-door-kids');
+  });
+});
+
+asyncTest('keepsStorybookLibraryEntryAnimationOffWhenReducedMotionIsEnabledAndOnOtherwise', function () {
+  var reducedMotionHarness = loadAppHarness({
+    libraries: [
+      { Id: 'kids', Name: 'Kids' }
+    ],
+    preferences: {
+      version: 2,
+      enabled: true,
+      lastMode: 'storybook',
+      childName: 'Nova',
+      libraryIds: ['kids'],
+      favoriteItemIds: [],
+      reducedMotion: true
+    },
+    restoreSession: true,
+    videosByLibrary: {
+      kids: [{ Id: 'story-1', Name: 'First Story' }]
+    }
+  });
+  var normalMotionHarness = loadAppHarness({
+    libraries: [
+      { Id: 'kids', Name: 'Kids' }
+    ],
+    preferences: {
+      version: 2,
+      enabled: true,
+      lastMode: 'storybook',
+      childName: 'Nova',
+      libraryIds: ['kids'],
+      favoriteItemIds: [],
+      reducedMotion: false
+    },
+    restoreSession: true,
+    videosByLibrary: {
+      kids: [{ Id: 'story-1', Name: 'First Story' }]
+    }
+  });
+
+  return flush(12).then(function () {
+    reducedMotionHarness.document.getElementById('storybook-door-kids').click();
+    normalMotionHarness.document.getElementById('storybook-door-kids').click();
+
+    assert.strictEqual(reducedMotionHarness.screenActive('storybook-library-screen'), true);
+    assert.strictEqual(
+      reducedMotionHarness.screenEntries().indexOf('storybook-library-screen'),
+      -1
+    );
+    assert.strictEqual(normalMotionHarness.screenActive('storybook-library-screen'), true);
+    assert.notStrictEqual(
+      normalMotionHarness.screenEntries().indexOf('storybook-library-screen'),
+      -1
+    );
   });
 });
 

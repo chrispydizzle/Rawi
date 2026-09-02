@@ -2353,6 +2353,8 @@ git add MovieDeck\index.html MovieDeck\js\copy.js MovieDeck\js\storybook-view.js
 git commit -m "feat: add storybook library pages" -m "Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
 ```
 
+**Validation evidence for the Task 3 reduced-motion gate:** `MovieDeck\js\app.js` now routes `showScreen()` through a shared `shouldAnimateScreenEntry(id)` helper that suppresses `animations.enterScreen(...)` for `storybook-screen` and `storybook-library-screen` when Storybook/system reduced motion is active while leaving `storybook-settings-screen` unchanged. The new `MovieDeck\tests\storybook-app.test.js` regression opens a Story Door with `reducedMotion: true` and proves `screenEntries()` omits `storybook-library-screen`, then repeats the same flow with normal motion and proves `storybook-library-screen` is entered; the existing reduced-motion home coverage remains intact. Targeted `animations.test.js` + `storybook-app.test.js`, the full suite, `node -c MovieDeck\js\app.js` + `node -c MovieDeck\tests\storybook-app.test.js`, and `git diff --check` all passed.
+
 ---
 
 ### Task 4: Adult Favorites and Safe Pruning

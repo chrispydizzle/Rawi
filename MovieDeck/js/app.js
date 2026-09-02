@@ -42,6 +42,10 @@
     libraryId: '',
     returnFocusId: ''
   };
+  var STORYBOOK_PRESENTATION_SCREENS = {
+    'storybook-screen': true,
+    'storybook-library-screen': true
+  };
   var storybookResetConfirming = false;
   var storybookSettingsReturnFocusId = 'storybook-settings-button';
   var storybookSettingsIntent = {
@@ -81,6 +85,16 @@
     });
   }
 
+  function shouldAnimateScreenEntry(id) {
+    if (id === 'storybook-settings-screen') {
+      return true;
+    }
+    if (STORYBOOK_PRESENTATION_SCREENS[id]) {
+      return !isStorybookReducedMotion();
+    }
+    return true;
+  }
+
   // Screens and feedback
   function showScreen(id, focusId) {
     if (activeScreen === 'storybook-screen' &&
@@ -92,7 +106,7 @@
       screen.classList.toggle('is-active', screen.id === id);
     });
     activeScreen = id;
-    if (!(id === 'storybook-screen' && storybookState.lastMode === 'storybook' && isStorybookReducedMotion())) {
+    if (animations.enterScreen && shouldAnimateScreenEntry(id)) {
       animations.enterScreen(byId(id));
     }
     if (focusId) { focusScreenTarget(focusId); }
