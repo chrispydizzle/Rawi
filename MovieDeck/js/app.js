@@ -5,6 +5,7 @@
   var animations = global.MovieDeckAnimations;
   var copy = global.RawiCopy;
   var player = global.MovieDeckPlayer;
+  var storybookCatalogue = global.RawiStorybookCatalogue;
   var storybookModel = global.RawiStorybookModel;
   var storybookPreferences = global.RawiStorybookPreferences;
   var storybookView = global.RawiStorybookView;
@@ -25,6 +26,12 @@
   var availableLibrariesReady = false;
   var availableLibrariesFailed = false;
   var availableLibrariesLoading = false;
+  var currentLibraryLoadState = {
+    viewsSucceeded: false,
+    requestedLibraryIds: [],
+    videoRequests: {}
+  };
+  var currentStorybookCatalogue = null;
   var currentGroups = [];
   var currentLatest = [];
   var currentResume = [];
@@ -306,17 +313,123 @@
     return shelf;
   }
 
-  function currentStorybookGroups() {
-    return currentGroups.filter(function (group) {
-      return storybookState.libraryIds.indexOf(String(group.id)) !== -1;
-    });
+  function copyIds(values) {
+    return Array.isArray(values) ? values.slice() : [];
   }
 
-  function renderStorybookHome() {
+  function saveStorybookState(overrides) {
+    overrides = overrides || {};
+    storybookState = storybookPreferences.save({
+      enabled: overrides.enabled !== undefined ? overrides.enabled : storybookState.enabled,
+      lastMode: overrides.lastMode || storybookState.lastMode,
+      childName: overrides.childName !== undefined ? overrides.childName : storybookState.childName,
+      libraryIds: overrides.libraryIds !== undefined ? copyIds(overrides.libraryIds) : copyIds(storybookState.libraryIds),
+      favoriteItemIds: overrides.favoriteItemIds !== undefined ? copyIds(overrides.favoriteItemIds) : copyIds(storybookState.favoriteItemIds),
+      reducedMotion: overrides.reducedMotion !== undefined ? overrides.reducedMotion : storybookState.reducedMotion
+    });
+    storybookRestoreStatus = storybookPreferences.getRestoreStatus ?
+      storybookPreferences.getRestoreStatus() :
+      { needsRecovery: false, type: 'ok' };
+    return storybookState;
+  }
+
+  function imageUrl(item, type, width, height) {
+    var previewKey = type === 'Backdrop' ? 'PreviewBackdropUrl' : 'PreviewImageUrl';
+    var previewUrl = value(item, previewKey, previewKey.charAt(0).toLowerCase() + previewKey.slice(1));
+    if (previewUrl) { return previewUrl; }
+    return api.imageUrl(item, type, width, height);
+  }
+
+  function storybookAccentClass(key) {
+    var accents = ['storybook-accent-periwinkle', 'storybook-accent-sea', 'storybook-accent-coral'];
+    var text = String(key || 'storybook');
+    var total = 0;
+    var i;
+
+    for (i = 0; i < text.length; i += 1) {
+      total += text.charCodeAt(i);
+    }
+
+    return accents[total % accents.length];
+  }
+
+  function buildStorybookCatalogue() {
+    currentStorybookCatalogue = storybookCatalogue.resolve({
+      accessibleLibraries: availableLibraries,
+      groups: currentGroups,
+      libraryLoadState: currentLibraryLoadState,
+      preferences: storybookState,
+      resumeItems: currentResume
+    });
+    return currentStorybookCatalogue;
+  }
+
+  function storybookCardModel(item) {
+    var ticks = value(item, 'RunTimeTicks', 'runTimeTicks') || 0;
+
+    return {
+      accentClass: storybookAccentClass(itemId(item)),
+      ariaLabel: copy.get('storybookItemAriaLabel', { title: name(item) }),
+      artworkUrl: imageUrl(item, 'Primary', 560, 560) || imageUrl(item, 'Backdrop', 960, 540),
+      id: itemId(item),
+      minutesLabel: ticks ? copy.get('runtimeMinutes', { minutes: Math.round(ticks / 600000000) }) : '',
+      progressPercent: playbackPercent(item),
+      resumeLabel: resumeTicks(item) > 0 ? copy.get('storybookResumeProgress', { time: runtimeFromTicks(resumeTicks(item)) }) : '',
+      title: name(item)
+    };
+  }
+
+  function storybookDoorModel(group) {
+    return {
+      accentClass: storybookAccentClass(group.id),
+      artworkUrl: '',
+      id: group.id,
+      name: group.name,
+      subtitle: copy.get('libraryCaption', { count: group.videos.length }),
+      title: group.name
+    };
+  }
+
+  function previewStorybookState(fixture) {
+    var preferences = fixture && fixture.preferences ? fixture.preferences : {};
+    return {
+      version: 2,
+      enabled: true,
+      lastMode: 'storybook',
+      childName: typeof preferences.childName === 'string' ? preferences.childName : 'Nova',
+      libraryIds: Array.isArray(preferences.libraryIds) ? preferences.libraryIds.slice() : previewLibraryIds(),
+      favoriteItemIds: Array.isArray(preferences.favoriteItemIds) ? preferences.favoriteItemIds.slice() : [],
+      reducedMotion: preferences.reducedMotion === true
+    };
+  }
+
+  function previewLibraryLoadState() {
+    var requests = {};
+    var ids = previewLibraryIds();
+    ids.forEach(function (id) {
+      requests[id] = { complete: true, succeeded: true };
+    });
+    return {
+      viewsSucceeded: true,
+      requestedLibraryIds: ids,
+      videoRequests: requests
+    };
+  }
+
+  function renderStorybookHome(preferredFocusId) {
+    var catalogue = buildStorybookCatalogue();
+
     storybookView.renderHome({
       childName: storybookState.childName,
-      libraries: currentStorybookGroups(),
-      reducedMotion: isStorybookReducedMotion()
+      favorites: catalogue.favoriteItems.map(function (item) {
+        return storybookCardModel(item);
+      }),
+      libraries: catalogue.selectedLibraries.map(function (group) {
+        return storybookDoorModel(group);
+      }),
+      preferredFocusId: preferredFocusId,
+      reducedMotion: isStorybookReducedMotion(),
+      resume: catalogue.resumeItem ? storybookCardModel(catalogue.resumeItem) : null
     });
   }
 
@@ -362,30 +475,23 @@
     previewStorybookFixture = fixture;
     api.user = fixture.user;
     updateProfile();
-    availableLibraries = fixture.libraries;
+    availableLibraries = fixture.libraries || [];
     availableLibrariesReady = true;
     availableLibrariesFailed = false;
     availableLibrariesLoading = false;
-    currentGroups = fixture.groups;
-    currentLatest = [];
-    currentResume = [];
+    currentGroups = previewGroups();
+    currentLatest = fixture.latest || [];
+    currentResume = fixture.resume || [];
+    currentLibraryLoadState = previewLibraryLoadState();
     storybookRestoreStatus = {
       needsRecovery: false,
       type: 'ok'
     };
     storybookResetConfirming = false;
-    storybookState = storybookPreferences.defaults();
-    storybookState.enabled = true;
-    storybookState.lastMode = 'storybook';
-    storybookState.childName = 'Nova';
-    storybookState.libraryIds = previewLibraryIds();
+    storybookState = previewStorybookState(fixture);
     storybookView.setMode('storybook');
     showScreen('storybook-screen');
-    storybookView.renderHome({
-      childName: storybookState.childName,
-      libraries: previewGroups(),
-      reducedMotion: false
-    });
+    renderStorybookHome();
   }
 
   function openStorybookLibrary(libraryId) {
@@ -406,6 +512,11 @@
     currentGroups = [];
     currentLatest = [];
     currentResume = [];
+    currentLibraryLoadState = {
+      viewsSucceeded: false,
+      requestedLibraryIds: [],
+      videoRequests: {}
+    };
     var libraryGroups;
     var latestPromise;
     var resumePromise;
@@ -417,6 +528,7 @@
       availableLibrariesLoading = false;
       latestPromise = Promise.resolve(previewStorybookFixture.latest || []);
       resumePromise = Promise.resolve(previewStorybookFixture.resume || []);
+      currentLibraryLoadState = previewLibraryLoadState();
       libraryGroups = Promise.resolve(previewGroups());
     } else {
       availableLibraries = [];
@@ -431,11 +543,28 @@
         availableLibrariesLoading = false;
         availableLibrariesReady = true;
         availableLibrariesFailed = false;
+        currentLibraryLoadState.viewsSucceeded = true;
+        currentLibraryLoadState.requestedLibraryIds = libraries.map(function (library) {
+          return itemId(library);
+        });
         return Promise.all(libraries.map(function (library) {
-          return api.getVideos(itemId(library)).then(function (videos) {
-            return { id: itemId(library), name: name(library), videos: videos };
+          var libraryId = itemId(library);
+          currentLibraryLoadState.videoRequests[libraryId] = {
+            complete: false,
+            succeeded: false
+          };
+          return api.getVideos(libraryId).then(function (videos) {
+            currentLibraryLoadState.videoRequests[libraryId] = {
+              complete: true,
+              succeeded: true
+            };
+            return { id: libraryId, name: name(library), videos: videos };
           }).catch(function () {
-            return { id: itemId(library), name: name(library), videos: [] };
+            currentLibraryLoadState.videoRequests[libraryId] = {
+              complete: true,
+              succeeded: false
+            };
+            return { id: libraryId, name: name(library), videos: [] };
           });
         }));
       }).catch(function () {
@@ -443,6 +572,11 @@
         availableLibrariesLoading = false;
         availableLibrariesReady = false;
         availableLibrariesFailed = true;
+        currentLibraryLoadState = {
+          viewsSucceeded: false,
+          requestedLibraryIds: [],
+          videoRequests: {}
+        };
         return api.getVideos().then(function (videos) {
           return [{ name: copy.get('allVideos'), videos: videos }];
         });
@@ -560,10 +694,11 @@
     }
     storybookState.lastMode = nextMode;
     storybookState.enabled = storybookState.enabled || nextMode === 'storybook';
-    storybookState = storybookPreferences.save(storybookState);
-    storybookRestoreStatus = storybookPreferences.getRestoreStatus ?
-      storybookPreferences.getRestoreStatus() :
-      { needsRecovery: false, type: 'ok' };
+    saveStorybookState({
+      enabled: storybookState.enabled,
+      favoriteItemIds: storybookState.favoriteItemIds,
+      lastMode: nextMode
+    });
     storybookResetConfirming = false;
     storybookView.setMode(nextMode);
     openLibrary();
@@ -591,17 +726,14 @@
 
   function saveStorybookSettings(nextPreferences) {
     if (storybookRestoreStatus && storybookRestoreStatus.needsRecovery) { return; }
-    storybookState = storybookPreferences.save({
+    saveStorybookState({
       enabled: true,
+      favoriteItemIds: storybookState.favoriteItemIds,
       lastMode: storybookSettingsIntent.activateStorybookOnSave ? 'storybook' : storybookSettingsIntent.modeOnOpen,
       childName: nextPreferences.childName,
       libraryIds: nextPreferences.libraryIds,
-      favoriteItemIds: storybookState.favoriteItemIds,
       reducedMotion: nextPreferences.reducedMotion
     });
-    storybookRestoreStatus = storybookPreferences.getRestoreStatus ?
-      storybookPreferences.getRestoreStatus() :
-      { needsRecovery: false, type: 'ok' };
     storybookResetConfirming = false;
     setStorybookSettingsIntent();
     storybookView.setMode(storybookState.lastMode);
@@ -780,6 +912,10 @@
       onModeChange: applyMode,
       onOpenLibrary: openStorybookLibrary,
       onOpenSettings: openStorybookSettings,
+      onOpenStorybookItem: function (itemId) {
+        if (!currentStorybookCatalogue || !currentStorybookCatalogue.itemById[itemId]) { return; }
+        openDetails(currentStorybookCatalogue.itemById[itemId]);
+      },
       onResetSettingsRecovery: resetStorybookSettingsRecovery,
       onPreferencesChange: saveStorybookSettings
     });

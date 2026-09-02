@@ -76,38 +76,158 @@
     control.focus();
   }
 
+  function sectionTitle(withNameKey, withoutNameKey, childName) {
+    return childName ? copy.get(withNameKey, { child: childName }) : copy.get(withoutNameKey);
+  }
+
+  function createArtwork(model, className) {
+    var frame = document.createElement('div');
+    var fallback = document.createElement('div');
+    var image;
+
+    frame.className = className + '-art';
+    fallback.className = className + '-fallback ' + (model.accentClass || 'storybook-accent-periwinkle');
+    fallback.textContent = model.title;
+
+    if (model.artworkUrl) {
+      image = document.createElement('img');
+      image.className = className + '-image';
+      image.src = model.artworkUrl;
+      image.alt = '';
+      image.onerror = function () {
+        this.style.display = 'none';
+        fallback.style.display = 'flex';
+      };
+      frame.appendChild(image);
+      fallback.style.display = 'none';
+    }
+
+    frame.appendChild(fallback);
+    return frame;
+  }
+
+  function createStoryCard(model, className, source) {
+    var card = document.createElement('button');
+    var copyBlock = document.createElement('div');
+    var title = document.createElement('h3');
+    var meta = document.createElement('p');
+    var resume = document.createElement('p');
+    var progress = document.createElement('div');
+    var fill = document.createElement('span');
+
+    card.id = source === 'resume' ? 'storybook-resume-card' : 'storybook-' + source + '-card-' + model.id;
+    card.className = className + ' focusable';
+    card.setAttribute('data-focusable', '');
+    card.setAttribute('data-item-id', model.id);
+    card.setAttribute('aria-label', model.ariaLabel || copy.get('storybookItemAriaLabel', { title: model.title }));
+    card.appendChild(createArtwork(model, className));
+
+    copyBlock.className = className + '-copy';
+    title.className = 'storybook-card-title';
+    title.textContent = model.title;
+    copyBlock.appendChild(title);
+
+    if (model.minutesLabel) {
+      meta.className = 'storybook-card-meta';
+      meta.textContent = model.minutesLabel;
+      copyBlock.appendChild(meta);
+    }
+
+    if (model.progressPercent > 0) {
+      progress.className = 'storybook-card-progress';
+      fill.style.width = model.progressPercent + '%';
+      progress.appendChild(fill);
+      copyBlock.appendChild(progress);
+    }
+
+    if (model.resumeLabel) {
+      resume.className = 'storybook-card-resume';
+      resume.textContent = model.resumeLabel;
+      copyBlock.appendChild(resume);
+    }
+
+    card.appendChild(copyBlock);
+    card.addEventListener('click', function () {
+      callbacks.onOpenStorybookItem(model.id, source);
+    });
+
+    return card;
+  }
+
   function renderHome(model) {
+    var resumeSection = byId('storybook-resume-section');
+    var resumeSlot = byId('storybook-resume-slot');
+    var favoritesSection = byId('storybook-favorites-section');
+    var favorites = byId('storybook-favorites');
     var container = byId('storybook-doors');
     var editButton = byId('storybook-edit-libraries');
     var emptyState = byId('storybook-empty-state');
-    var firstDoor = null;
-    var hasLibraries;
     var hint = byId('storybook-home-hint');
+    var firstChoice = null;
     var libraries = model && model.libraries ? model.libraries : [];
-    var greeting = model && model.childName ?
-      copy.get('storybookGreeting', { child: model.childName }) :
-      copy.get('storybookGreetingWithoutName');
+    var favoriteCards = model && model.favorites ? model.favorites : [];
+    var resumeCard = model && model.resume ? model.resume : null;
+    var childName = model && model.childName ? model.childName : '';
     var reducedMotion = !!(model && model.reducedMotion);
     var strip;
 
-    byId('storybook-greeting').textContent = greeting;
+    byId('storybook-greeting').textContent = childName ?
+      copy.get('storybookGreeting', { child: childName }) :
+      copy.get('storybookGreetingWithoutName');
+    byId('storybook-resume-title').textContent = sectionTitle(
+      'storybookContinueTitle',
+      'storybookContinueTitleWithoutName',
+      childName
+    );
+    byId('storybook-favorites-title').textContent = sectionTitle(
+      'storybookFavoritesTitle',
+      'storybookFavoritesTitleWithoutName',
+      childName
+    );
+
+    resumeSlot.innerHTML = '';
+    favorites.innerHTML = '';
     container.innerHTML = '';
     container.scrollLeft = 0;
+
+    if (resumeCard) {
+      firstChoice = createStoryCard(resumeCard, 'storybook-resume-card', 'resume');
+      resumeSlot.appendChild(firstChoice);
+      resumeSection.style.display = 'block';
+    } else {
+      resumeSection.style.display = 'none';
+    }
+
+    favoriteCards.forEach(function (item) {
+      var card = createStoryCard(item, 'storybook-favorite-card', 'favorite');
+      if (!firstChoice) { firstChoice = card; }
+      favorites.appendChild(card);
+    });
+    favoritesSection.style.display = favoriteCards.length ? 'block' : 'none';
+
     strip = document.createElement('div');
     strip.className = 'storybook-door-strip';
     container.appendChild(strip);
-    hasLibraries = libraries.length > 0;
 
     libraries.forEach(function (library) {
       var door = document.createElement('button');
-      door.className = 'storybook-door focusable';
+      var label = document.createElement('span');
+      var subtitle = document.createElement('span');
+      var libraryTitle = library.title || library.name || copy.get('untitled');
+      door.id = 'storybook-door-' + library.id;
+      door.className = 'storybook-door focusable ' + (library.accentClass || 'storybook-accent-periwinkle');
       door.setAttribute('data-focusable', '');
       door.setAttribute('data-library-id', library.id);
       door.setAttribute(
         'aria-label',
-        copy.get('storybookDoorAriaLabel', { library: library.name })
+        copy.get('storybookDoorAriaLabel', { library: libraryTitle })
       );
-      door.textContent = library.name;
+      label.className = 'storybook-door-title';
+      label.textContent = libraryTitle;
+      door.appendChild(label);
+      subtitle.className = 'storybook-door-subtitle';
+      subtitle.textContent = library.subtitle || '';
+      door.appendChild(subtitle);
       door.addEventListener('focus', function () {
         if (global.MovieDeckAnimations && global.MovieDeckAnimations.focusStorybookDoor) {
           global.MovieDeckAnimations.focusStorybookDoor(door, reducedMotion);
@@ -116,14 +236,16 @@
       door.addEventListener('click', function () {
         callbacks.onOpenLibrary(library.id);
       });
-      if (!firstDoor) { firstDoor = door; }
+      if (!firstChoice) { firstChoice = door; }
       strip.appendChild(door);
     });
 
-    if (hint) { hint.style.display = hasLibraries ? '' : 'none'; }
+    if (hint) {
+      hint.style.display = (resumeCard || favoriteCards.length || libraries.length) ? '' : 'none';
+    }
     if (emptyState) {
-      emptyState.textContent = hasLibraries ? '' : copy.get('storybookNoSelectedLibraries');
-      emptyState.style.display = hasLibraries ? 'none' : 'block';
+      emptyState.textContent = (resumeCard || favoriteCards.length || libraries.length) ? '' : copy.get('storybookNoSelectedLibraries');
+      emptyState.style.display = emptyState.textContent ? 'block' : 'none';
     }
     document.body.classList.toggle(
       'storybook-reduced-motion',
@@ -132,7 +254,11 @@
     if (global.MovieDeckAnimations) {
       global.MovieDeckAnimations.animateStorybookHome(reducedMotion);
     }
-    if (firstDoor) { focusWhenReady(firstDoor); }
+    if (model && model.preferredFocusId && byId(model.preferredFocusId)) {
+      focusWhenReady(byId(model.preferredFocusId));
+    } else if (firstChoice) {
+      focusWhenReady(firstChoice);
+    }
     else if (editButton) { focusWhenReady(editButton); }
   }
 

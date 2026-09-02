@@ -162,6 +162,7 @@ function loadViewHarness() {
   var focusDoorCalls = [];
   var modeCalls = [];
   var openLibraries = [];
+  var openItems = [];
   var openSettingsCount = 0;
   var resetCount = 0;
   var buttons = {
@@ -171,9 +172,15 @@ function loadViewHarness() {
     doors: append(document, document.body, 'div', 'storybook-doors'),
     edit: append(document, document.body, 'button', 'storybook-edit-libraries'),
     emptyState: append(document, document.body, 'p', 'storybook-empty-state'),
+    favoriteSection: append(document, document.body, 'section', 'storybook-favorites-section'),
+    favoriteTitle: append(document, document.body, 'h2', 'storybook-favorites-title'),
+    favorites: append(document, document.body, 'div', 'storybook-favorites'),
     greeting: append(document, document.body, 'h1', 'storybook-greeting'),
     hint: append(document, document.body, 'p', 'storybook-home-hint'),
     reset: append(document, document.body, 'button', 'storybook-reset'),
+    resumeSection: append(document, document.body, 'section', 'storybook-resume-section'),
+    resumeSlot: append(document, document.body, 'div', 'storybook-resume-slot'),
+    resumeTitle: append(document, document.body, 'h2', 'storybook-resume-title'),
     settings: append(document, document.body, 'button', 'storybook-settings-button'),
     settingsError: append(document, document.body, 'p', 'storybook-settings-error'),
     settingsLibraries: append(document, document.body, 'div', 'storybook-library-options'),
@@ -203,9 +210,21 @@ function loadViewHarness() {
       },
       RawiCopy: {
         get: function (key, values) {
+          if (key === 'libraryCaption') { return values.count + ' titles'; }
           if (key === 'storybookDoorAriaLabel') { return 'Open ' + values.library; }
           if (key === 'storybookGreeting') { return 'What should we watch tonight, ' + values.child + '?'; }
           if (key === 'storybookGreetingWithoutName') { return 'What should we watch tonight?'; }
+          if (key === 'storybookContinueTitle') {
+            return "Continue " + values.child + "'s Story";
+          }
+          if (key === 'storybookContinueTitleWithoutName') { return 'Continue the story'; }
+          if (key === 'storybookFavoritesTitle') {
+            return values.child + "'s Favorites";
+          }
+          if (key === 'storybookFavoritesTitleWithoutName') { return 'Favorites'; }
+          if (key === 'storybookHomeHint') { return 'Pick a favorite or open a story door.'; }
+          if (key === 'storybookItemAriaLabel') { return 'Open ' + values.title; }
+          if (key === 'storybookResumeProgress') { return 'Resume from ' + values.time; }
           if (key === 'storybookMissingLibraryIdSingle') {
             return 'A previously selected Storybook library ID is no longer available: ' + values.ids + '.';
           }
@@ -242,6 +261,9 @@ function loadViewHarness() {
     onOpenSettings: function () {
       openSettingsCount += 1;
     },
+    onOpenStorybookItem: function (itemId, source) {
+      openItems.push({ id: itemId, source: source });
+    },
     onPreferencesChange: function () {},
     onResetSettingsRecovery: function () {
       resetCount += 1;
@@ -260,6 +282,7 @@ function loadViewHarness() {
     },
     modeCalls: modeCalls,
     openLibraries: openLibraries,
+    openItems: openItems,
     openSettingsCount: function () { return openSettingsCount; },
     resetCount: function () { return resetCount; },
     view: window.RawiStorybookView
@@ -301,6 +324,63 @@ function loadViewHarness() {
 
   secondDoor.click();
   assert.deepStrictEqual(harness.openLibraries, ['disney']);
+}());
+
+(function rendersResumeAndFavoritesBeforeStoryDoors() {
+  var harness = loadViewHarness();
+  var favoriteCards;
+
+  harness.view.renderHome({
+    childName: 'Nova',
+    reducedMotion: false,
+    resume: {
+      accentClass: 'storybook-accent-periwinkle',
+      ariaLabel: 'Open Bluey',
+      artworkUrl: '',
+      id: 'bluey',
+      minutesLabel: '28 min',
+      progressPercent: 21,
+      resumeLabel: 'Resume from 6m',
+      title: "Bluey's Big Adventure"
+    },
+    favorites: [
+      {
+        accentClass: 'storybook-accent-sea',
+        ariaLabel: 'Open Dance With Me',
+        artworkUrl: '',
+        id: 'dance',
+        minutesLabel: '12 min',
+        progressPercent: 0,
+        resumeLabel: '',
+        title: 'Dance With Me'
+      }
+    ],
+    libraries: [
+      {
+        accentClass: 'storybook-accent-coral',
+        artworkUrl: '',
+        id: 'kids',
+        subtitle: '1 story',
+        title: 'Kids'
+      }
+    ]
+  });
+
+  favoriteCards = harness.buttons.favorites.children;
+
+  assert.strictEqual(harness.buttons.resumeSection.style.display, 'block');
+  assert.strictEqual(harness.buttons.favoriteSection.style.display, 'block');
+  assert.strictEqual(harness.buttons.resumeTitle.textContent, "Continue Nova's Story");
+  assert.strictEqual(harness.buttons.favoriteTitle.textContent, "Nova's Favorites");
+  assert.strictEqual(harness.document.activeElement.id, 'storybook-resume-card');
+  assert.strictEqual(favoriteCards.length, 1);
+  assert.strictEqual(favoriteCards[0].getAttribute('data-item-id'), 'dance');
+
+  harness.document.getElementById('storybook-resume-card').click();
+  assert.deepStrictEqual(
+    JSON.parse(JSON.stringify(harness.openItems)),
+    [{ id: 'bluey', source: 'resume' }]
+  );
 }());
 
 (function rendersAllStoryDoorsWithoutCapAndUsesGenericGreeting() {

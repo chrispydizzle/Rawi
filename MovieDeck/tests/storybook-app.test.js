@@ -1,6 +1,7 @@
 'use strict';
 
 var assert = global.RawiTest.assert;
+var load = global.RawiTest.loadBrowserScript;
 var registerAsync = global.RawiTest.registerAsync;
 var fs = require('fs');
 var path = require('path');
@@ -383,6 +384,12 @@ function buildDom(document) {
 
   append(storybookScreen, 'div', 'storybook-greeting', '');
   append(storybookScreen, 'p', 'storybook-home-hint', '');
+  var storybookResumeSection = append(storybookScreen, 'section', 'storybook-resume-section', '');
+  append(storybookResumeSection, 'h2', 'storybook-resume-title', '');
+  append(storybookResumeSection, 'div', 'storybook-resume-slot', '');
+  var storybookFavoritesSection = append(storybookScreen, 'section', 'storybook-favorites-section', '');
+  append(storybookFavoritesSection, 'h2', 'storybook-favorites-title', '');
+  append(storybookFavoritesSection, 'div', 'storybook-favorites', '');
   append(storybookScreen, 'div', 'storybook-doors', '');
   append(storybookScreen, 'p', 'storybook-empty-state', '');
   focusable(append(storybookScreen, 'button', 'storybook-home-adult-mode-button', '')).setAttribute('data-mode', 'adult');
@@ -424,6 +431,12 @@ function buildDom(document) {
 }
 
 function loadAppHarness(options) {
+  var modelWindow = load('js/storybook-model.js', { window: {} });
+  var catalogueWindow = load('js/storybook-catalogue.js', {
+    window: {
+      RawiStorybookModel: modelWindow.RawiStorybookModel
+    }
+  });
   var document = new FakeDocument();
   var localStorage = createStorage();
   var timers = [];
@@ -493,16 +506,23 @@ function loadAppHarness(options) {
     storybookMissingLibrary: 'A previously selected library is no longer available.',
     storybookMissingLibraryIdMultiple: 'Previously selected Storybook library IDs are no longer available: {ids}.',
     storybookMissingLibraryIdSingle: 'A previously selected Storybook library ID is no longer available: {ids}.',
+    storybookContinueTitle: "Continue {child}'s Story",
+    storybookContinueTitleWithoutName: 'Continue the story',
     storybookDoorAriaLabel: 'Open {library}',
+    storybookDoorsTitle: 'Story Doors',
     storybookEditLibrariesButton: 'Choose libraries',
+    storybookFavoritesTitle: "{child}'s Favorites",
+    storybookFavoritesTitleWithoutName: 'Favorites',
     storybookGreeting: 'What should we watch tonight, {child}?',
     storybookGreetingWithoutName: 'What should we watch tonight?',
-    storybookHomeHint: 'Pick a story door.',
+    storybookHomeHint: 'Pick a favorite or open a story door.',
+    storybookItemAriaLabel: 'Open {title}',
     storybookNoSelectedLibraries: 'No Storybook libraries are available.',
     storybookNoLibraries: 'Choose at least one library for Storybook Mode.',
     storybookPreferencesMalformed: 'Saved Storybook settings could not be read.',
     storybookPreferencesUnsupported: 'Saved Storybook settings use unsupported version {version}.',
     storybookRecoveryResetRequired: 'Reset Storybook settings before saving new Storybook options.',
+    storybookResumeProgress: 'Resume from {time}',
     storybookResetButton: 'Reset Storybook settings',
     storybookResetConfirmButton: 'Confirm reset',
     storybookResetConfirmPrompt: 'Select Confirm reset to clear the saved Storybook settings.',
@@ -586,26 +606,8 @@ function loadAppHarness(options) {
         return template;
       }
     },
-    RawiStorybookModel: {
-      isReducedMotion: function (preferences, mediaQueryMatches) {
-        return !!(preferences && preferences.reducedMotion) || !!mediaQueryMatches;
-      },
-      resolveLibraries: function (libraries, selectedIds) {
-        var ids = selectedIds || [];
-        var list = libraries || [];
-        var selected = [];
-        var missing = [];
-        var map = {};
-        list.forEach(function (library) {
-          map[String(library.Id)] = library;
-        });
-        ids.forEach(function (id) {
-          if (map[String(id)]) { selected.push(map[String(id)]); }
-          else { missing.push(id); }
-        });
-        return { selected: selected, missingIds: missing };
-      }
-    },
+    RawiStorybookModel: modelWindow.RawiStorybookModel,
+    RawiStorybookCatalogue: catalogueWindow.RawiStorybookCatalogue,
     RawiStorybookPreferences: {
       defaults: function () {
         return {
@@ -1351,6 +1353,47 @@ asyncTest('rendersSavedStorybookLibrariesOnDedicatedHome', function () {
     assert.deepStrictEqual(
       JSON.parse(JSON.stringify(harness.storybookMotionCalls())),
       [true]
+    );
+  });
+});
+
+asyncTest('rendersStorybookHomeResumeAndFavoritesFromSelectedLibrariesOnly', function () {
+  var harness = loadAppHarness({
+    libraries: [
+      { Id: 'kids', Name: 'Kids' },
+      { Id: 'grownups', Name: 'Grownups' }
+    ],
+    preferences: {
+      version: 2,
+      enabled: true,
+      lastMode: 'storybook',
+      childName: 'Nova',
+      libraryIds: ['kids'],
+      favoriteItemIds: ['story-1', 'movie-9'],
+      reducedMotion: false
+    },
+    restoreSession: true,
+    resume: [
+      { Id: 'movie-9', Name: 'Late Movie', UserData: { PlaybackPositionTicks: 300000000 } },
+      { Id: 'story-1', Name: 'First Story', UserData: { PlaybackPositionTicks: 600000000, PlayedPercentage: 14 } }
+    ],
+    videosByLibrary: {
+      grownups: [{ Id: 'movie-9', Name: 'Late Movie', RunTimeTicks: 2400000000 }],
+      kids: [{ Id: 'story-1', Name: 'First Story', RunTimeTicks: 7200000000, UserData: { PlaybackPositionTicks: 600000000, PlayedPercentage: 14 } }]
+    }
+  });
+
+  return flush(12).then(function () {
+    assert.strictEqual(harness.screenActive('storybook-screen'), true);
+    assert.strictEqual(harness.document.getElementById('storybook-resume-card').getAttribute('data-item-id'), 'story-1');
+    assert.strictEqual(harness.document.getElementById('storybook-resume-title').textContent, "Continue Nova's Story");
+    assert.strictEqual(harness.document.getElementById('storybook-favorites-title').textContent, "Nova's Favorites");
+    assert.strictEqual(harness.document.activeElement.id, 'storybook-resume-card');
+    assert.strictEqual(harness.document.getElementById('storybook-favorites').children.length, 1);
+    assert.strictEqual(harness.document.getElementById('storybook-favorites').children[0].getAttribute('data-item-id'), 'story-1');
+    assert.deepStrictEqual(
+      JSON.parse(JSON.stringify(harness.doorLibraryIds())),
+      ['kids']
     );
   });
 });

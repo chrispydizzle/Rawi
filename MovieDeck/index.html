@@ -113,19 +113,36 @@
                   data-copy="modeStorybook">Storybook</button>
         </div>
       </header>
-      <div class="storybook-copy">
-        <h1 id="storybook-greeting"></h1>
-        <p id="storybook-home-hint" data-copy="storybookHomeHint">Pick a story door.</p>
+      <div class="storybook-page storybook-home-page">
+        <div class="storybook-copy">
+          <h1 id="storybook-greeting"></h1>
+          <p id="storybook-home-hint" data-copy="storybookHomeHint">Pick a favorite or open a story door.</p>
+        </div>
+
+        <section id="storybook-resume-section" class="storybook-section">
+          <h2 id="storybook-resume-title" class="storybook-section-title"></h2>
+          <div id="storybook-resume-slot"></div>
+        </section>
+
+        <section id="storybook-favorites-section" class="storybook-section">
+          <h2 id="storybook-favorites-title" class="storybook-section-title"></h2>
+          <div id="storybook-favorites" class="storybook-card-strip"></div>
+        </section>
+
+        <section id="storybook-doors-section" class="storybook-section">
+          <h2 class="storybook-section-title" data-copy="storybookDoorsTitle">Story Doors</h2>
+          <div id="storybook-doors" class="storybook-doors"></div>
+        </section>
+
+        <p id="storybook-empty-state"
+           class="storybook-empty-state"
+           role="status"
+           aria-live="polite"></p>
+        <button id="storybook-edit-libraries"
+                    class="storybook-edit focusable"
+                    data-focusable
+                    data-copy="storybookEditLibrariesButton">Choose libraries</button>
       </div>
-      <div id="storybook-doors" class="storybook-doors"></div>
-      <p id="storybook-empty-state"
-         class="storybook-empty-state"
-         role="status"
-         aria-live="polite"></p>
-      <button id="storybook-edit-libraries"
-              class="storybook-edit focusable"
-              data-focusable
-              data-copy="storybookEditLibrariesButton">Choose libraries</button>
     </section>
 
     <section id="details-screen" class="screen details-screen" aria-label="Movie details" data-copy-aria-label="detailsAriaLabel">

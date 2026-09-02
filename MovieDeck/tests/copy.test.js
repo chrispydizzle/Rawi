@@ -39,3 +39,32 @@ var copy = load('js/copy.js', { window: {} }).RawiCopy;
     'Confirm reset'
   );
 }());
+
+(function exposesStorybookHomePhase2CopyDefaults() {
+  assert.strictEqual(
+    copy.get('storybookContinueTitle', { child: 'Nova' }),
+    "Continue Nova's Story"
+  );
+  assert.strictEqual(
+    copy.get('storybookContinueTitleWithoutName'),
+    'Continue the story'
+  );
+  assert.strictEqual(
+    copy.get('storybookFavoritesTitle', { child: 'Nova' }),
+    "Nova's Favorites"
+  );
+  assert.strictEqual(copy.get('storybookFavoritesTitleWithoutName'), 'Favorites');
+  assert.strictEqual(copy.get('storybookDoorsTitle'), 'Story Doors');
+  assert.strictEqual(
+    copy.get('storybookHomeHint'),
+    'Pick a favorite or open a story door.'
+  );
+  assert.strictEqual(
+    copy.get('storybookItemAriaLabel', { title: 'Bluey' }),
+    'Open Bluey'
+  );
+  assert.strictEqual(
+    copy.get('storybookResumeProgress', { time: '6m' }),
+    'Resume from 6m'
+  );
+}());
