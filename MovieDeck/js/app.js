@@ -38,7 +38,10 @@
   var defaultServer = 'http://192.168.1.2:8096';
   var previousScreen = 'browse-screen';
   var previewStorybookFixture = null;
-  var storybookLibraryOpen = false;
+  var storybookLibraryState = {
+    libraryId: '',
+    returnFocusId: ''
+  };
   var storybookResetConfirming = false;
   var storybookSettingsReturnFocusId = 'storybook-settings-button';
   var storybookSettingsIntent = {
@@ -433,6 +436,20 @@
     });
   }
 
+  function selectedStorybookLibrary(libraryId) {
+    var catalogue = currentStorybookCatalogue || buildStorybookCatalogue();
+    var libraries = catalogue.selectedLibraries;
+    var i;
+
+    for (i = 0; i < libraries.length; i += 1) {
+      if (String(libraries[i].id) === String(libraryId)) {
+        return libraries[i];
+      }
+    }
+
+    return null;
+  }
+
   function renderAdultGroups(groups, includeDefaultShelves) {
     var definitions = [];
     var firstCard = null;
@@ -494,17 +511,34 @@
     renderStorybookHome();
   }
 
-  function openStorybookLibrary(libraryId) {
-    storybookLibraryOpen = true;
-    showScreen('browse-screen');
-    renderAdultGroups(currentGroups.filter(function (group) {
-      return group.id === libraryId;
-    }), false);
+  function openStorybookLibrary(libraryId, preferredFocusId) {
+    var library = selectedStorybookLibrary(libraryId);
+
+    if (!library) { return; }
+
+    storybookLibraryState = {
+      libraryId: libraryId,
+      returnFocusId: 'storybook-door-' + libraryId
+    };
+
+    showScreen('storybook-library-screen');
+    storybookView.renderLibrary({
+      cards: library.videos.map(function (item) {
+        return storybookCardModel(item);
+      }),
+      libraryId: libraryId,
+      preferredFocusId: preferredFocusId,
+      title: library.name
+    });
+  }
+
+  function closeStorybookLibrary() {
+    showScreen('storybook-screen');
+    renderStorybookHome(storybookLibraryState.returnFocusId);
   }
 
   function openLibrary() {
     updateProfile();
-    storybookLibraryOpen = false;
     showScreen('browse-screen');
     byId('browse-loading').style.display = 'block';
     byId('browse-error').style.display = 'none';
@@ -865,14 +899,12 @@
       cancelStorybookSettings();
       return;
     }
-    if (activeScreen === 'details-screen') { showScreen('browse-screen'); if (selectedCard) { selectedCard.focus(); } return; }
-    if (activeScreen === 'quick-screen') { clearInterval(quickTimer); showScreen('setup-screen', 'server-url'); return; }
-    if (activeScreen === 'browse-screen' && storybookLibraryOpen) {
-      storybookLibraryOpen = false;
-      showScreen('storybook-screen');
-      renderStorybookHome();
+    if (activeScreen === 'storybook-library-screen') {
+      closeStorybookLibrary();
       return;
     }
+    if (activeScreen === 'details-screen') { showScreen('browse-screen'); if (selectedCard) { selectedCard.focus(); } return; }
+    if (activeScreen === 'quick-screen') { clearInterval(quickTimer); showScreen('setup-screen', 'server-url'); return; }
     if (activeScreen === 'browse-screen' && global.tizen && global.tizen.application) { global.tizen.application.getCurrentApplication().exit(); }
   }
 
@@ -909,12 +941,13 @@
   function init() {
     storybookView.init({
       onCancelSettings: cancelStorybookSettings,
+      onCloseStorybookLibrary: closeStorybookLibrary,
       onModeChange: applyMode,
       onOpenLibrary: openStorybookLibrary,
       onOpenSettings: openStorybookSettings,
-      onOpenStorybookItem: function (itemId) {
+      onOpenStorybookItem: function (itemId, source) {
         if (!currentStorybookCatalogue || !currentStorybookCatalogue.itemById[itemId]) { return; }
-        openDetails(currentStorybookCatalogue.itemById[itemId]);
+        openDetails(currentStorybookCatalogue.itemById[itemId], source);
       },
       onResetSettingsRecovery: resetStorybookSettingsRecovery,
       onPreferencesChange: saveStorybookSettings

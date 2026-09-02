@@ -69,6 +69,8 @@
     storybookDoorsTitle: 'Story Doors',
     storybookHomeHint: 'Pick a favorite or open a story door.',
     storybookItemAriaLabel: 'Open {title}',
+    storybookLibraryBackButton: '← Storybook',
+    storybookLibraryEmpty: 'No stories are available in {library} right now.',
     storybookResumeProgress: 'Resume from {time}',
     storybookDoorAriaLabel: 'Open {library}',
     storybookNoSelectedLibraries: 'No Storybook libraries are available.',

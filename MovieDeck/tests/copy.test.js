@@ -68,3 +68,11 @@ var copy = load('js/copy.js', { window: {} }).RawiCopy;
     'Resume from 6m'
   );
 }());
+
+(function exposesStorybookLibraryCopyDefaults() {
+  assert.strictEqual(copy.get('storybookLibraryBackButton'), '← Storybook');
+  assert.strictEqual(
+    copy.get('storybookLibraryEmpty', { library: 'Kids' }),
+    'No stories are available in Kids right now.'
+  );
+}());

@@ -300,6 +300,54 @@ body.mode-storybook.storybook-reduced-motion .storybook-door {
   display: block;
   height: 100%;
 }
+.storybook-library-page {
+  padding-top: 160px;
+}
+.storybook-library-page h1 {
+  font-family: "Segoe Print", "Comic Sans MS", cursive;
+  font-size: 58px;
+  margin: 0 0 10px;
+}
+.storybook-library-count {
+  color: var(--storybook-muted);
+  font-size: 20px;
+  margin: 0 0 24px;
+}
+.storybook-library-cards {
+  display: grid;
+  gap: 22px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.storybook-library-card {
+  align-items: stretch;
+  background: rgba(10, 20, 44, .78);
+  border: 2px solid rgba(255,255,255,.16);
+  border-radius: 32px;
+  display: flex;
+  min-height: 260px;
+  overflow: hidden;
+  padding: 0;
+  position: relative;
+  text-align: left;
+}
+.storybook-library-card-art,
+.storybook-library-card-image,
+.storybook-library-card-fallback {
+  height: 260px;
+  width: 260px;
+}
+.storybook-library-card-copy {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  padding: 26px 28px;
+}
+.storybook-library-card:focus {
+  box-shadow: 0 0 0 6px var(--storybook-gold), 0 24px 55px rgba(4,9,22,.5);
+  outline: 0;
+  transform: translateY(-4px);
+}
 .storybook-door-title,
 .storybook-door-subtitle {
   display: block;

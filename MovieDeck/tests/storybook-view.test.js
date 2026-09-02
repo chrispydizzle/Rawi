@@ -159,6 +159,7 @@ function append(document, parent, tagName, id) {
 function loadViewHarness() {
   var document = new FakeDocument();
   var animationCalls = [];
+  var closeLibraryCount = 0;
   var focusDoorCalls = [];
   var modeCalls = [];
   var openLibraries = [];
@@ -177,6 +178,13 @@ function loadViewHarness() {
     favorites: append(document, document.body, 'div', 'storybook-favorites'),
     greeting: append(document, document.body, 'h1', 'storybook-greeting'),
     hint: append(document, document.body, 'p', 'storybook-home-hint'),
+    libraryAdult: append(document, document.body, 'button', 'storybook-library-adult-mode-button'),
+    libraryBack: append(document, document.body, 'button', 'storybook-library-back'),
+    libraryCards: append(document, document.body, 'div', 'storybook-library-cards'),
+    libraryCount: append(document, document.body, 'p', 'storybook-library-count'),
+    libraryEmpty: append(document, document.body, 'p', 'storybook-library-empty'),
+    libraryStorybook: append(document, document.body, 'button', 'storybook-library-storybook-mode-button'),
+    libraryTitle: append(document, document.body, 'h1', 'storybook-library-title'),
     reset: append(document, document.body, 'button', 'storybook-reset'),
     resumeSection: append(document, document.body, 'section', 'storybook-resume-section'),
     resumeSlot: append(document, document.body, 'div', 'storybook-resume-slot'),
@@ -191,8 +199,15 @@ function loadViewHarness() {
   };
 
   buttons.adult.setAttribute('data-mode', 'adult');
+  buttons.libraryAdult.setAttribute('data-mode', 'adult');
+  buttons.libraryStorybook.setAttribute('data-mode', 'storybook');
   buttons.storybook.setAttribute('data-mode', 'storybook');
-  document.modeButtons = [buttons.adult, buttons.storybook];
+  document.modeButtons = [
+    buttons.adult,
+    buttons.storybook,
+    buttons.libraryAdult,
+    buttons.libraryStorybook
+  ];
 
   var window = load('js/storybook-view.js', {
     document: document,
@@ -224,6 +239,10 @@ function loadViewHarness() {
           if (key === 'storybookFavoritesTitleWithoutName') { return 'Favorites'; }
           if (key === 'storybookHomeHint') { return 'Pick a favorite or open a story door.'; }
           if (key === 'storybookItemAriaLabel') { return 'Open ' + values.title; }
+          if (key === 'storybookLibraryBackButton') { return '← Storybook'; }
+          if (key === 'storybookLibraryEmpty') {
+            return 'No stories are available in ' + values.library + ' right now.';
+          }
           if (key === 'storybookResumeProgress') { return 'Resume from ' + values.time; }
           if (key === 'storybookMissingLibraryIdSingle') {
             return 'A previously selected Storybook library ID is no longer available: ' + values.ids + '.';
@@ -252,6 +271,9 @@ function loadViewHarness() {
 
   window.RawiStorybookView.init({
     onCancelSettings: function () {},
+    onCloseStorybookLibrary: function () {
+      closeLibraryCount += 1;
+    },
     onModeChange: function (mode, id) {
       modeCalls.push({ id: id, mode: mode });
     },
@@ -273,6 +295,7 @@ function loadViewHarness() {
   return {
     animationCalls: animationCalls,
     buttons: buttons,
+    closeLibraryCount: function () { return closeLibraryCount; },
     document: document,
     doorButtons: function () {
       return buttons.doors.firstChild && buttons.doors.firstChild.firstChild ?
@@ -427,6 +450,86 @@ function loadViewHarness() {
   assert.deepStrictEqual(
     harness.modeCalls,
     [{ id: 'storybook-home-adult-mode-button', mode: 'adult' }]
+  );
+}());
+
+(function rendersStorybookLibraryPageWithLargeCardsAndBackButton() {
+  var harness = loadViewHarness();
+  var cards;
+
+  harness.view.renderLibrary({
+    libraryId: 'kids',
+    title: 'Kids',
+    cards: [
+      {
+        accentClass: 'storybook-accent-periwinkle',
+        ariaLabel: 'Open First Story',
+        artworkUrl: '',
+        id: 'story-1',
+        minutesLabel: '12 min',
+        progressPercent: 0,
+        resumeLabel: '',
+        title: 'First Story'
+      },
+      {
+        accentClass: 'storybook-accent-sea',
+        ariaLabel: 'Open Second Story',
+        artworkUrl: '',
+        id: 'story-2',
+        minutesLabel: '18 min',
+        progressPercent: 32,
+        resumeLabel: 'Resume from 5m',
+        title: 'Second Story'
+      }
+    ]
+  });
+
+  cards = harness.buttons.libraryCards.children;
+
+  assert.strictEqual(harness.buttons.libraryTitle.textContent, 'Kids');
+  assert.strictEqual(cards.length, 2);
+  assert.strictEqual(harness.document.activeElement.id, 'storybook-library-card-story-1');
+  cards[1].click();
+  assert.deepStrictEqual(
+    JSON.parse(JSON.stringify(harness.openItems)),
+    [{ id: 'story-2', source: 'library' }]
+  );
+
+  harness.buttons.libraryBack.click();
+  assert.strictEqual(harness.closeLibraryCount(), 1);
+}());
+
+(function rendersEmptyStorybookLibraryAndFocusesBackButton() {
+  var harness = loadViewHarness();
+
+  harness.view.renderLibrary({
+    libraryId: 'kids',
+    title: 'Kids',
+    cards: []
+  });
+
+  assert.strictEqual(
+    harness.buttons.libraryEmpty.textContent,
+    'No stories are available in Kids right now.'
+  );
+  assert.strictEqual(harness.document.activeElement.id, 'storybook-library-back');
+}());
+
+(function storybookLibraryTopbarModeButtonsInvokeOnModeChange() {
+  var harness = loadViewHarness();
+
+  assert.strictEqual(harness.buttons.libraryAdult.getAttribute('data-mode'), 'adult');
+  assert.strictEqual(harness.buttons.libraryStorybook.getAttribute('data-mode'), 'storybook');
+
+  harness.buttons.libraryAdult.click();
+  harness.buttons.libraryStorybook.click();
+
+  assert.deepStrictEqual(
+    JSON.parse(JSON.stringify(harness.modeCalls.slice(-2))),
+    [
+      { id: 'storybook-library-adult-mode-button', mode: 'adult' },
+      { id: 'storybook-library-storybook-mode-button', mode: 'storybook' }
+    ]
   );
 }());
 

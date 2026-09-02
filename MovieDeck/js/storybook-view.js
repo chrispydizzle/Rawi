@@ -266,6 +266,36 @@
     else if (editButton) { focusWhenReady(editButton); }
   }
 
+  function renderLibrary(model) {
+    var container = byId('storybook-library-cards');
+    var emptyState = byId('storybook-library-empty');
+    var firstCard = null;
+    var cards = model && model.cards ? model.cards : [];
+    var title = model && model.title ? model.title : '';
+
+    byId('storybook-library-title').textContent = title;
+    byId('storybook-library-count').textContent = copy.get('libraryCaption', { count: cards.length });
+    container.innerHTML = '';
+
+    cards.forEach(function (cardModel) {
+      var card = createStoryCard(cardModel, 'storybook-library-card', 'library');
+      card.id = 'storybook-library-card-' + cardModel.id;
+      if (!firstCard) { firstCard = card; }
+      container.appendChild(card);
+    });
+
+    emptyState.textContent = cards.length ? '' : copy.get('storybookLibraryEmpty', { library: title });
+    emptyState.style.display = cards.length ? 'none' : 'block';
+
+    if (model && model.preferredFocusId && byId(model.preferredFocusId)) {
+      focusWhenReady(byId(model.preferredFocusId));
+    } else if (firstCard) {
+      focusWhenReady(firstCard);
+    } else {
+      focusWhenReady(byId('storybook-library-back'));
+    }
+  }
+
   function renderSettings(libraries, preferences, missingIds, recovery) {
     var container = byId('storybook-library-options');
     var childName = byId('storybook-child-name');
@@ -351,6 +381,7 @@
     byId('storybook-edit-libraries').addEventListener('click', function () {
       callbacks.onOpenSettings('storybook-edit-libraries');
     });
+    byId('storybook-library-back').addEventListener('click', callbacks.onCloseStorybookLibrary);
     byId('storybook-save').addEventListener('click', saveSettings);
     byId('storybook-cancel').addEventListener('click', callbacks.onCancelSettings);
     if (byId('storybook-reset')) {
@@ -363,6 +394,7 @@
   global.RawiStorybookView = {
     init: init,
     renderHome: renderHome,
+    renderLibrary: renderLibrary,
     renderSettings: renderSettings,
     setMode: setMode
   };

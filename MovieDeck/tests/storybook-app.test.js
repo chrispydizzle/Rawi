@@ -347,6 +347,7 @@ function buildDom(document) {
   var quickScreen = append(document.body, 'section', 'quick-screen', 'screen');
   var browseScreen = append(document.body, 'section', 'browse-screen', 'screen');
   var storybookScreen = append(document.body, 'section', 'storybook-screen', 'screen');
+  var storybookLibraryScreen = append(document.body, 'section', 'storybook-library-screen', 'screen');
   var detailsScreen = append(document.body, 'section', 'details-screen', 'screen');
   var settingsScreen = append(document.body, 'section', 'storybook-settings-screen', 'screen');
   var playerScreen = append(document.body, 'section', 'player-screen', 'screen');
@@ -395,6 +396,17 @@ function buildDom(document) {
   focusable(append(storybookScreen, 'button', 'storybook-home-adult-mode-button', '')).setAttribute('data-mode', 'adult');
   focusable(append(storybookScreen, 'button', 'storybook-home-storybook-mode-button', '')).setAttribute('data-mode', 'storybook');
   focusable(append(storybookScreen, 'button', 'storybook-edit-libraries', ''));
+
+  var storybookLibraryTopbar = append(storybookLibraryScreen, 'header', '', 'storybook-topbar');
+  append(storybookLibraryTopbar, 'div', '', 'storybook-wordmark');
+  var storybookLibraryModeToggle = append(storybookLibraryTopbar, 'div', '', 'mode-toggle');
+  focusable(append(storybookLibraryModeToggle, 'button', 'storybook-library-adult-mode-button', '')).setAttribute('data-mode', 'adult');
+  focusable(append(storybookLibraryModeToggle, 'button', 'storybook-library-storybook-mode-button', '')).setAttribute('data-mode', 'storybook');
+  focusable(append(storybookLibraryScreen, 'button', 'storybook-library-back', ''));
+  append(storybookLibraryScreen, 'h1', 'storybook-library-title', '');
+  append(storybookLibraryScreen, 'p', 'storybook-library-count', '');
+  append(storybookLibraryScreen, 'div', 'storybook-library-cards', '');
+  append(storybookLibraryScreen, 'p', 'storybook-library-empty', '');
 
   focusable(append(detailsScreen, 'button', 'details-back', ''));
   focusable(append(detailsScreen, 'button', 'details-adult-mode-button', '')).setAttribute('data-mode', 'adult');
@@ -517,6 +529,8 @@ function loadAppHarness(options) {
     storybookGreetingWithoutName: 'What should we watch tonight?',
     storybookHomeHint: 'Pick a favorite or open a story door.',
     storybookItemAriaLabel: 'Open {title}',
+    storybookLibraryBackButton: '← Storybook',
+    storybookLibraryEmpty: 'No stories are available in {library} right now.',
     storybookNoSelectedLibraries: 'No Storybook libraries are available.',
     storybookNoLibraries: 'Choose at least one library for Storybook Mode.',
     storybookPreferencesMalformed: 'Saved Storybook settings could not be read.',
@@ -1442,11 +1456,12 @@ asyncTest('opensEmptyStoryDoorWithExistingNoVideosRecoveryState', function () {
     ],
     latest: [{ Id: 'latest-1', Name: 'Latest film' }],
     preferences: {
-      version: 1,
+      version: 2,
       enabled: true,
       lastMode: 'storybook',
       childName: 'Nova',
       libraryIds: ['kids', 'disney'],
+      favoriteItemIds: [],
       reducedMotion: false
     },
     restoreSession: true,
@@ -1468,14 +1483,15 @@ asyncTest('opensEmptyStoryDoorWithExistingNoVideosRecoveryState', function () {
     kidsDoor.click();
 
     assert.strictEqual(harness.storybookStopCalls(), 1);
-    assert.strictEqual(harness.screenActive('browse-screen'), true);
-    assert.deepStrictEqual(JSON.parse(JSON.stringify(harness.shelfHeadings())), []);
+    assert.strictEqual(harness.screenActive('storybook-library-screen'), true);
+    assert.strictEqual(harness.screenActive('browse-screen'), false);
+    assert.strictEqual(harness.document.getElementById('storybook-library-title').textContent, 'Kids');
+    assert.strictEqual(harness.document.getElementById('storybook-library-cards').children.length, 0);
     assert.strictEqual(
-      harness.document.getElementById('browse-error').textContent,
-      'No videos are visible to this Jellyfin user.'
+      harness.document.getElementById('storybook-library-empty').textContent,
+      'No stories are available in Kids right now.'
     );
-    assert.strictEqual(harness.document.getElementById('browse-error').style.display, 'block');
-    assert.strictEqual(harness.document.activeElement.id, 'refresh-button');
+    assert.strictEqual(harness.document.activeElement.id, 'storybook-library-back');
   });
 });
 
@@ -1486,11 +1502,12 @@ asyncTest('clearsStaleHeroStateWhenOpeningAnEmptyStoryDoorAfterSelectingAnAdultI
       { Id: 'disney', Name: 'Disney' }
     ],
     preferences: {
-      version: 1,
+      version: 2,
       enabled: true,
       lastMode: 'adult',
       childName: 'Nova',
       libraryIds: ['kids', 'disney'],
+      favoriteItemIds: [],
       reducedMotion: false
     },
     restoreSession: true,
@@ -1519,28 +1536,16 @@ asyncTest('clearsStaleHeroStateWhenOpeningAnEmptyStoryDoorAfterSelectingAnAdultI
     kidsDoor.click();
 
     assert.strictEqual(harness.storybookStopCalls(), 1);
-    assert.strictEqual(harness.screenActive('browse-screen'), true);
-    assert.deepStrictEqual(JSON.parse(JSON.stringify(harness.shelfHeadings())), []);
-    assert.strictEqual(
-      harness.document.getElementById('browse-error').textContent,
-      'No videos are visible to this Jellyfin user.'
-    );
-    assert.strictEqual(harness.document.getElementById('hero-title').textContent, 'Your movies are ready.');
-    assert.strictEqual(harness.document.getElementById('selection-title').textContent, 'Choose a video');
-    assert.strictEqual(harness.document.getElementById('hero-meta').textContent, '');
-    assert.strictEqual(
-      harness.document.getElementById('hero-overview').textContent,
-      'Choose a poster below to see it on the big screen.'
-    );
-    assert.strictEqual(harness.document.getElementById('hero-number').textContent, '00');
-    assert.strictEqual(harness.document.getElementById('hero-backdrop').style.backgroundImage, 'none');
-    assert.strictEqual(harness.document.getElementById('hero-open').disabled, true);
-
-    harness.document.getElementById('hero-open').click();
-
+    assert.strictEqual(harness.screenActive('storybook-library-screen'), true);
+    assert.strictEqual(harness.screenActive('browse-screen'), false);
     assert.strictEqual(harness.screenActive('details-screen'), false);
-    assert.strictEqual(harness.screenActive('browse-screen'), true);
-    assert.strictEqual(harness.document.getElementById('details-title').textContent, '');
+    assert.strictEqual(harness.document.getElementById('storybook-library-title').textContent, 'Kids');
+    assert.strictEqual(harness.document.getElementById('storybook-library-cards').children.length, 0);
+    assert.strictEqual(
+      harness.document.getElementById('storybook-library-empty').textContent,
+      'No stories are available in Kids right now.'
+    );
+    assert.strictEqual(harness.document.activeElement.id, 'storybook-library-back');
   });
 });
 
@@ -1698,7 +1703,7 @@ asyncTest('movesRemoteFocusAcrossSixStoryDoorsWithoutDroppingLaterSelections', f
   });
 });
 
-asyncTest('opensStoryDoorInAdultShelfViewAndBackRestoresStorybookHome', function () {
+asyncTest('opensStoryDoorOnStorybookLibraryScreenAndBackRestoresStorybookHome', function () {
   var harness = loadAppHarness({
     libraries: [
       { Id: 'kids', Name: 'Kids' },
@@ -1706,11 +1711,12 @@ asyncTest('opensStoryDoorInAdultShelfViewAndBackRestoresStorybookHome', function
       { Id: 'grownups', Name: 'Grownups' }
     ],
     preferences: {
-      version: 1,
+      version: 2,
       enabled: true,
       lastMode: 'storybook',
       childName: 'Nova',
       libraryIds: ['kids', 'disney'],
+      favoriteItemIds: [],
       reducedMotion: false
     },
     latest: [{ Id: 'latest-1', Name: 'Latest film' }],
@@ -1722,20 +1728,15 @@ asyncTest('opensStoryDoorInAdultShelfViewAndBackRestoresStorybookHome', function
       kids: [{ Id: 'video-1', Name: 'First video' }]
     }
   });
-  var firstDoor;
 
   return flush(12).then(function () {
-    firstDoor = harness.document.querySelectorAll('#storybook-doors .storybook-door')[0];
-    firstDoor.click();
+    harness.document.getElementById('storybook-door-kids').click();
 
     assert.strictEqual(harness.storybookStopCalls(), 1);
-    assert.strictEqual(harness.screenActive('browse-screen'), true);
-    assert.deepStrictEqual(
-      JSON.parse(JSON.stringify(harness.shelfHeadings())),
-      ['Kids']
-    );
-    assert.strictEqual(harness.document.activeElement.classList.contains('movie-card'), true);
-    assert.strictEqual(harness.document.activeElement.getAttribute('data-index'), '1');
+    assert.strictEqual(harness.screenActive('storybook-library-screen'), true);
+    assert.strictEqual(harness.screenActive('browse-screen'), false);
+    assert.strictEqual(harness.document.getElementById('storybook-library-title').textContent, 'Kids');
+    assert.strictEqual(harness.document.activeElement.id, 'storybook-library-card-video-1');
 
     harness.document.dispatchEvent('keydown', {
       keyCode: 8,
@@ -1747,10 +1748,50 @@ asyncTest('opensStoryDoorInAdultShelfViewAndBackRestoresStorybookHome', function
       JSON.parse(JSON.stringify(harness.doorLibraryIds())),
       ['kids', 'disney']
     );
-    assert.strictEqual(
-      harness.document.activeElement.getAttribute('data-library-id'),
-      'kids'
-    );
+    assert.strictEqual(harness.document.activeElement.id, 'storybook-door-kids');
+  });
+});
+
+asyncTest('adultBrowseBackDoesNotReopenStorybookAfterLibraryRoundTrip', function () {
+  var harness = loadAppHarness({
+    libraries: [
+      { Id: 'kids', Name: 'Kids' }
+    ],
+    preferences: {
+      version: 2,
+      enabled: true,
+      lastMode: 'storybook',
+      childName: 'Nova',
+      libraryIds: ['kids'],
+      favoriteItemIds: [],
+      reducedMotion: false
+    },
+    restoreSession: true,
+    videosByLibrary: {
+      kids: [{ Id: 'story-1', Name: 'First Story' }]
+    }
+  });
+
+  return flush(12).then(function () {
+    harness.document.getElementById('storybook-door-kids').click();
+    harness.document.dispatchEvent('keydown', {
+      keyCode: 8,
+      preventDefault: function () {}
+    });
+
+    assert.strictEqual(harness.screenActive('storybook-screen'), true);
+
+    harness.document.getElementById('storybook-home-adult-mode-button').click();
+    return flush(12);
+  }).then(function () {
+    assert.strictEqual(harness.screenActive('browse-screen'), true);
+
+    harness.document.dispatchEvent('keydown', {
+      keyCode: 8,
+      preventDefault: function () {}
+    });
+
+    assert.strictEqual(harness.screenActive('storybook-screen'), false);
   });
 });
 

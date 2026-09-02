@@ -145,6 +145,42 @@
       </div>
     </section>
 
+    <section id="storybook-library-screen"
+             class="screen storybook-screen storybook-library-screen"
+             aria-labelledby="storybook-library-title">
+      <div class="storybook-sky" aria-hidden="true">
+        <span class="storybook-moon"></span>
+        <span class="storybook-star star-one">✦</span>
+        <span class="storybook-star star-two">✧</span>
+        <span class="storybook-star star-three">✦</span>
+      </div>
+      <header class="storybook-topbar">
+        <div class="storybook-wordmark"><i>/</i> <span data-copy="appName">Rawi</span></div>
+        <div class="mode-toggle" role="group" aria-label="Display mode">
+          <button id="storybook-library-adult-mode-button"
+                  class="mode-option focusable"
+                  data-focusable
+                  data-mode="adult"
+                  data-copy="modeAdult">Adult</button>
+          <button id="storybook-library-storybook-mode-button"
+                  class="mode-option focusable"
+                  data-focusable
+                  data-mode="storybook"
+                  data-copy="modeStorybook">Storybook</button>
+        </div>
+      </header>
+      <div class="storybook-page storybook-library-page">
+        <button id="storybook-library-back"
+                class="storybook-edit focusable"
+                data-focusable
+                data-copy="storybookLibraryBackButton">← Storybook</button>
+        <h1 id="storybook-library-title"></h1>
+        <p id="storybook-library-count" class="storybook-library-count"></p>
+        <div id="storybook-library-cards" class="storybook-library-cards"></div>
+        <p id="storybook-library-empty" class="storybook-empty-state" role="status" aria-live="polite"></p>
+      </div>
+    </section>
+
     <section id="details-screen" class="screen details-screen" aria-label="Movie details" data-copy-aria-label="detailsAriaLabel">
       <div id="details-backdrop" class="details-backdrop"></div>
       <div class="details-shade"></div>
