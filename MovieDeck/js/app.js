@@ -13,6 +13,7 @@
 
   // Application state
   var selectedItem = null;
+  var selectedItemDetailsOrigin = 'adult';
   var selectedCard = null;
   var quickTimer = null;
   var toastTimer = null;
@@ -390,12 +391,20 @@
     return favoriteIds().indexOf(id) !== -1;
   }
 
+  function canUseStorybookFavoriteControl() {
+    return storybookState.lastMode === 'adult' && selectedItemDetailsOrigin === 'adult';
+  }
+
   function updateFavoriteButton(item) {
     var button = byId('favorite-button');
     var active = !!(item && isStorybookFavorite(item));
+    var allowed = !!(item && canUseStorybookFavoriteControl());
 
     if (!button) { return; }
-    button.setAttribute('aria-pressed', active ? 'true' : 'false');
+    button.style.display = allowed ? '' : 'none';
+    button.disabled = !allowed;
+    button.setAttribute('aria-hidden', allowed ? 'false' : 'true');
+    button.setAttribute('aria-pressed', allowed && active ? 'true' : 'false');
     button.textContent = copy.get(active ? 'storybookFavoriteRemoveButton' : 'storybookFavoriteAddButton');
   }
 
@@ -404,7 +413,7 @@
     var ids;
     var index;
 
-    if (!selectedItem) { return; }
+    if (!selectedItem || !canUseStorybookFavoriteControl()) { return; }
     id = itemId(selectedItem);
     if (!id) { return; }
 
@@ -876,8 +885,9 @@
   }
 
   // Details and playback
-  function openDetails(item) {
+  function openDetails(item, source) {
     selectedItem = item;
+    selectedItemDetailsOrigin = source ? 'storybook' : 'adult';
     var poster = api.imageUrl(item, 'Primary', 700, 1050);
     var backdrop = api.imageUrl(item, 'Backdrop', 1920, 1080);
     var genres = value(item, 'Genres', 'genres') || [];

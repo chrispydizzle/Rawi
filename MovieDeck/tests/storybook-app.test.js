@@ -1444,29 +1444,36 @@ asyncTest('adultDetailsAddsStorybookFavoriteWithoutLeavingAdultMode', function (
   });
 
   return flush(12).then(function () {
+    var favoriteButton = harness.document.getElementById('favorite-button');
+
     harness.document.getElementById('hero-open').click();
 
     assert.strictEqual(
-      harness.document.getElementById('favorite-button').textContent,
+      favoriteButton.style.display,
+      ''
+    );
+    assert.strictEqual(favoriteButton.disabled, false);
+    assert.strictEqual(
+      favoriteButton.textContent,
       'Add to Storybook favorites'
     );
     assert.strictEqual(
-      harness.document.getElementById('favorite-button').getAttribute('aria-pressed'),
+      favoriteButton.getAttribute('aria-pressed'),
       'false'
     );
 
-    harness.document.getElementById('favorite-button').click();
+    favoriteButton.click();
 
     assert.deepStrictEqual(
       JSON.parse(JSON.stringify(harness.savedState().favoriteItemIds)),
       ['story-1']
     );
     assert.strictEqual(
-      harness.document.getElementById('favorite-button').textContent,
+      favoriteButton.textContent,
       'Remove from Storybook favorites'
     );
     assert.strictEqual(
-      harness.document.getElementById('favorite-button').getAttribute('aria-pressed'),
+      favoriteButton.getAttribute('aria-pressed'),
       'true'
     );
     assert.strictEqual(harness.currentPreferences().lastMode, 'adult');
@@ -1497,35 +1504,84 @@ asyncTest('adultDetailsRemovesStorybookFavoriteWithoutLeavingAdultMode', functio
   });
 
   return flush(12).then(function () {
+    var favoriteButton = harness.document.getElementById('favorite-button');
+
     harness.document.getElementById('hero-open').click();
 
     assert.strictEqual(
-      harness.document.getElementById('favorite-button').textContent,
+      favoriteButton.style.display,
+      ''
+    );
+    assert.strictEqual(favoriteButton.disabled, false);
+    assert.strictEqual(
+      favoriteButton.textContent,
       'Remove from Storybook favorites'
     );
     assert.strictEqual(
-      harness.document.getElementById('favorite-button').getAttribute('aria-pressed'),
+      favoriteButton.getAttribute('aria-pressed'),
       'true'
     );
 
-    harness.document.getElementById('favorite-button').click();
+    favoriteButton.click();
 
     assert.deepStrictEqual(
       JSON.parse(JSON.stringify(harness.savedState().favoriteItemIds)),
       []
     );
     assert.strictEqual(
-      harness.document.getElementById('favorite-button').textContent,
+      favoriteButton.textContent,
       'Add to Storybook favorites'
     );
     assert.strictEqual(
-      harness.document.getElementById('favorite-button').getAttribute('aria-pressed'),
+      favoriteButton.getAttribute('aria-pressed'),
       'false'
     );
     assert.strictEqual(harness.currentPreferences().lastMode, 'adult');
     assert.strictEqual(harness.screenActive('details-screen'), true);
     assert.strictEqual(harness.screenActive('storybook-screen'), false);
     assert.strictEqual(harness.toastText(), 'Removed First Story from Storybook favorites.');
+  });
+});
+
+asyncTest('storybookHomeDetailsHidesFavoriteControlAndDoesNotMutatePreferences', function () {
+  var harness = loadAppHarness({
+    libraries: [
+      { Id: 'kids', Name: 'Kids' }
+    ],
+    preferences: {
+      version: 2,
+      enabled: true,
+      lastMode: 'storybook',
+      childName: 'Nova',
+      libraryIds: ['kids'],
+      favoriteItemIds: [],
+      reducedMotion: false
+    },
+    restoreSession: true,
+    resume: [
+      { Id: 'story-1', Name: 'First Story', RunTimeTicks: 7200000000, UserData: { PlaybackPositionTicks: 600000000 } }
+    ],
+    videosByLibrary: {
+      kids: [{ Id: 'story-1', Name: 'First Story', RunTimeTicks: 7200000000, UserData: { PlaybackPositionTicks: 600000000 } }]
+    }
+  });
+
+  return flush(12).then(function () {
+    var favoriteButton = harness.document.getElementById('favorite-button');
+
+    assert.strictEqual(harness.screenActive('storybook-screen'), true);
+    harness.document.getElementById('storybook-resume-card').click();
+
+    assert.strictEqual(favoriteButton.style.display, 'none');
+    assert.strictEqual(favoriteButton.disabled, true);
+    assert.strictEqual(favoriteButton.getAttribute('aria-pressed'), 'false');
+
+    favoriteButton.click();
+
+    assert.strictEqual(harness.savedState(), null);
+    assert.deepStrictEqual(harness.currentPreferences().favoriteItemIds, []);
+    assert.strictEqual(harness.screenActive('details-screen'), true);
+    assert.strictEqual(harness.toastText(), '');
   });
 });
 
