@@ -3,6 +3,21 @@
 var assert = global.RawiTest.assert;
 var load = global.RawiTest.loadBrowserScript;
 
+function clone(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function defaultPreferences() {
+  return {
+    version: 1,
+    enabled: false,
+    lastMode: 'adult',
+    childName: '',
+    libraryIds: [],
+    reducedMotion: false
+  };
+}
+
 function loadPreferences(stored) {
   var saved = null;
   var window = load('js/storybook-preferences.js', {
@@ -17,19 +32,38 @@ function loadPreferences(stored) {
 }
 
 (function missingPreferencesUseSafeDefaults() {
-  var result = loadPreferences(null).api.restore();
-  assert.deepStrictEqual(JSON.parse(JSON.stringify(result)), {
+  var harness = loadPreferences(null);
+  var result = harness.api.restore();
+  assert.deepStrictEqual(clone(result), defaultPreferences());
+  assert.deepStrictEqual(clone(harness.api.getRestoreStatus()), {
+    needsRecovery: false,
+    type: 'ok'
+  });
+}());
+
+(function supportedVersionNormalizesMissingOptionalFieldsWithoutRecovery() {
+  var harness = loadPreferences(JSON.stringify({
     version: 1,
-    enabled: false,
+    enabled: true
+  }));
+  var result = harness.api.restore();
+
+  assert.deepStrictEqual(clone(result), {
+    version: 1,
+    enabled: true,
     lastMode: 'adult',
     childName: '',
     libraryIds: [],
     reducedMotion: false
   });
+  assert.deepStrictEqual(clone(harness.api.getRestoreStatus()), {
+    needsRecovery: false,
+    type: 'ok'
+  });
 }());
 
 (function validPreferencesAreNormalized() {
-  var result = loadPreferences(JSON.stringify({
+  var harness = loadPreferences(JSON.stringify({
     version: 1,
     enabled: true,
     lastMode: 'storybook',
@@ -37,9 +71,10 @@ function loadPreferences(stored) {
     libraryIds: ['pixar', 'pixar', 42],
     reducedMotion: true,
     ignored: 'value'
-  })).api.restore();
+  }));
+  var result = harness.api.restore();
 
-  assert.deepStrictEqual(JSON.parse(JSON.stringify(result)), {
+  assert.deepStrictEqual(clone(result), {
     version: 1,
     enabled: true,
     lastMode: 'storybook',
@@ -47,12 +82,47 @@ function loadPreferences(stored) {
     libraryIds: ['pixar'],
     reducedMotion: true
   });
+  assert.deepStrictEqual(clone(harness.api.getRestoreStatus()), {
+    needsRecovery: false,
+    type: 'ok'
+  });
 }());
 
-(function unsupportedVersionUsesDefaultsWithoutOverwritingStorage() {
+(function malformedPreferencesRequireRecoveryWithoutOverwritingStorage() {
+  var harness = loadPreferences('{not valid json');
+  assert.deepStrictEqual(clone(harness.api.restore()), defaultPreferences());
+  assert.deepStrictEqual(clone(harness.api.getRestoreStatus()), {
+    needsRecovery: true,
+    type: 'malformed'
+  });
+  assert.strictEqual(harness.saved(), null);
+}());
+
+(function unsupportedVersionRequiresRecoveryWithoutOverwritingStorage() {
   var harness = loadPreferences(JSON.stringify({ version: 99, enabled: true }));
   assert.strictEqual(harness.api.restore().enabled, false);
+  assert.deepStrictEqual(clone(harness.api.getRestoreStatus()), {
+    needsRecovery: true,
+    type: 'unsupported-version',
+    version: 99
+  });
   assert.strictEqual(harness.saved(), null);
+}());
+
+(function resetWritesVersionedDefaultsAfterRecovery() {
+  var harness = loadPreferences('{broken');
+  var result;
+
+  harness.api.restore();
+  result = harness.api.reset();
+
+  assert.deepStrictEqual(clone(result), defaultPreferences());
+  assert.strictEqual(harness.saved().key, 'rawi.storybook.preferences');
+  assert.deepStrictEqual(JSON.parse(harness.saved().value), defaultPreferences());
+  assert.deepStrictEqual(clone(harness.api.getRestoreStatus()), {
+    needsRecovery: false,
+    type: 'ok'
+  });
 }());
 
 (function saveWritesNormalizedVersionedData() {
@@ -67,6 +137,13 @@ function loadPreferences(stored) {
   assert.strictEqual(harness.saved().key, 'rawi.storybook.preferences');
   assert.deepStrictEqual(
     JSON.parse(harness.saved().value),
-    JSON.parse(JSON.stringify(result))
+    clone(result)
+  );
+  assert.deepStrictEqual(
+    clone(harness.api.getRestoreStatus()),
+    {
+      needsRecovery: false,
+      type: 'ok'
+    }
   );
 }());

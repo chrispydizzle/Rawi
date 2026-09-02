@@ -335,6 +335,13 @@ button { color: inherit; }
 }
 .settings-check:focus-within { background: rgba(255,255,255,.08); }
 .settings-check input { height: 24px; margin-right: 12px; width: 24px; }
+.settings-warning {
+  color: #f6dea0;
+  line-height: 1.45;
+  margin: 22px 0 0;
+  max-width: 860px;
+  min-height: 30px;
+}
 .settings-actions { display: flex; gap: 16px; margin-top: 30px; }
 .settings-actions .button:focus {
   box-shadow:

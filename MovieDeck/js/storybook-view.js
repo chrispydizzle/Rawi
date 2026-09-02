@@ -32,22 +32,73 @@
     ).map(function (input) { return input.value; });
   }
 
+  function settingsWarningText(missingIds, recovery) {
+    var messages = [];
+
+    if (missingIds && missingIds.length) {
+      messages.push(copy.get(
+        missingIds.length === 1 ?
+          'storybookMissingLibraryIdSingle' :
+          'storybookMissingLibraryIdMultiple',
+        { ids: missingIds.join(', ') }
+      ));
+    }
+
+    if (recovery && recovery.needsRecovery) {
+      if (recovery.type === 'unsupported-version') {
+        messages.push(copy.get('storybookPreferencesUnsupported', { version: recovery.version }));
+      } else {
+        messages.push(copy.get('storybookPreferencesMalformed'));
+      }
+      messages.push(copy.get(
+        recovery.confirmingReset ?
+          'storybookResetConfirmPrompt' :
+          'storybookRecoveryResetRequired'
+      ));
+    }
+
+    return messages.join(' ');
+  }
+
+  function toggleDisabled(control, disabled) {
+    if (!control) { return; }
+    control.disabled = disabled;
+  }
+
+  function focusWhenReady(control) {
+    if (!control) { return; }
+    if (global.setTimeout) {
+      global.setTimeout(function () {
+        control.focus();
+      }, 0);
+      return;
+    }
+    control.focus();
+  }
+
   function renderHome(model) {
     var container = byId('storybook-doors');
     var editButton = byId('storybook-edit-libraries');
     var emptyState = byId('storybook-empty-state');
-    var hint = byId('storybook-home-hint');
+    var firstDoor = null;
     var hasLibraries;
+    var hint = byId('storybook-home-hint');
     var libraries = model && model.libraries ? model.libraries : [];
     var greeting = model && model.childName ?
       copy.get('storybookGreeting', { child: model.childName }) :
       copy.get('storybookGreetingWithoutName');
+    var reducedMotion = !!(model && model.reducedMotion);
+    var strip;
 
     byId('storybook-greeting').textContent = greeting;
     container.innerHTML = '';
+    container.scrollLeft = 0;
+    strip = document.createElement('div');
+    strip.className = 'storybook-door-strip';
+    container.appendChild(strip);
     hasLibraries = libraries.length > 0;
 
-    libraries.slice(0, 5).forEach(function (library) {
+    libraries.forEach(function (library) {
       var door = document.createElement('button');
       door.className = 'storybook-door focusable';
       door.setAttribute('data-focusable', '');
@@ -57,10 +108,16 @@
         copy.get('storybookDoorAriaLabel', { library: library.name })
       );
       door.textContent = library.name;
+      door.addEventListener('focus', function () {
+        if (global.MovieDeckAnimations && global.MovieDeckAnimations.focusStorybookDoor) {
+          global.MovieDeckAnimations.focusStorybookDoor(door, reducedMotion);
+        }
+      });
       door.addEventListener('click', function () {
         callbacks.onOpenLibrary(library.id);
       });
-      container.appendChild(door);
+      if (!firstDoor) { firstDoor = door; }
+      strip.appendChild(door);
     });
 
     if (hint) { hint.style.display = hasLibraries ? '' : 'none'; }
@@ -70,17 +127,25 @@
     }
     document.body.classList.toggle(
       'storybook-reduced-motion',
-      !!(model && model.reducedMotion)
+      reducedMotion
     );
     if (global.MovieDeckAnimations) {
-      global.MovieDeckAnimations.animateStorybookHome(!!(model && model.reducedMotion));
+      global.MovieDeckAnimations.animateStorybookHome(reducedMotion);
     }
-    if (container.firstChild) { container.firstChild.focus(); }
-    else if (editButton) { editButton.focus(); }
+    if (firstDoor) { focusWhenReady(firstDoor); }
+    else if (editButton) { focusWhenReady(editButton); }
   }
 
-  function renderSettings(libraries, preferences, missingIds) {
+  function renderSettings(libraries, preferences, missingIds, recovery) {
     var container = byId('storybook-library-options');
+    var childName = byId('storybook-child-name');
+    var reducedMotion = byId('storybook-reduced-motion');
+    var resetButton = byId('storybook-reset');
+    var saveButton = byId('storybook-save');
+    var settingsError = byId('storybook-settings-error');
+    var settingsWarning = byId('storybook-settings-warning');
+    var locked = !!(recovery && recovery.needsRecovery);
+
     container.innerHTML = '';
     (libraries || []).forEach(function (library) {
       var label = document.createElement('label');
@@ -91,25 +156,51 @@
       checkbox.checked = preferences.libraryIds.indexOf(checkbox.value) !== -1;
       checkbox.className = 'focusable';
       checkbox.setAttribute('data-focusable', '');
+      checkbox.disabled = locked;
       text.textContent = itemName(library);
       label.className = 'library-option';
       label.appendChild(checkbox);
       label.appendChild(text);
       container.appendChild(label);
     });
-    byId('storybook-child-name').value = preferences.childName;
-    byId('storybook-reduced-motion').checked = preferences.reducedMotion;
-    byId('storybook-settings-error').textContent =
-      missingIds && missingIds.length ? copy.get('storybookMissingLibrary') : '';
+
+    childName.value = preferences.childName;
+    reducedMotion.checked = preferences.reducedMotion;
+    toggleDisabled(childName, locked);
+    toggleDisabled(reducedMotion, locked);
+    toggleDisabled(saveButton, locked);
+
+    if (settingsWarning) {
+      settingsWarning.textContent = settingsWarningText(missingIds, recovery);
+      settingsWarning.style.display = settingsWarning.textContent ? 'block' : 'none';
+    }
+
+    if (settingsError) {
+      settingsError.textContent = '';
+    }
+
+    if (resetButton) {
+      resetButton.disabled = !locked;
+      resetButton.style.display = locked ? 'inline-block' : 'none';
+      resetButton.textContent = copy.get(
+        locked && recovery.confirmingReset ?
+          'storybookResetConfirmButton' :
+          'storybookResetButton'
+      );
+    }
   }
 
   function saveSettings() {
-    var preferences = {
+    var preferences;
+
+    if (byId('storybook-save').disabled) { return; }
+    preferences = {
       enabled: true,
       childName: byId('storybook-child-name').value,
       libraryIds: selectedLibraryIds(),
       reducedMotion: byId('storybook-reduced-motion').checked
     };
+    byId('storybook-settings-error').textContent = '';
     if (!preferences.libraryIds.length) {
       byId('storybook-settings-error').textContent = copy.get('storybookNoLibraries');
       return;
@@ -132,6 +223,11 @@
     });
     byId('storybook-save').addEventListener('click', saveSettings);
     byId('storybook-cancel').addEventListener('click', callbacks.onCancelSettings);
+    if (byId('storybook-reset')) {
+      byId('storybook-reset').addEventListener('click', function () {
+        callbacks.onResetSettingsRecovery();
+      });
+    }
   }
 
   global.RawiStorybookView = {

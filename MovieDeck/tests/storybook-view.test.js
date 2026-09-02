@@ -49,12 +49,18 @@ function FakeElement(document, tagName) {
   this.ownerDocument = document;
   this.tagName = String(tagName || 'div').toUpperCase();
   this.children = [];
+  this.parentNode = null;
   this.attributes = {};
   this.listeners = {};
   this.classList = new FakeClassList();
   this.style = {};
   this.textContent = '';
   this.id = '';
+  this.checked = false;
+  this.disabled = false;
+  this.scrollLeft = 0;
+  this.scrollWidth = 0;
+  this.clientWidth = 0;
 
   Object.defineProperty(this, 'className', {
     get: function () { return self.classList.toString(); },
@@ -92,10 +98,13 @@ FakeElement.prototype.dispatch = function (type, event) {
 };
 
 FakeElement.prototype.focus = function () {
+  if (this.disabled) { return; }
   this.ownerDocument.activeElement = this;
+  this.dispatch('focus', {});
 };
 
 FakeElement.prototype.click = function () {
+  if (this.disabled) { return; }
   this.focus();
   this.dispatch('click', {});
 };
@@ -105,6 +114,8 @@ FakeElement.prototype.setAttribute = function (name, value) {
   if (name === 'id') {
     this.id = String(value);
     this.ownerDocument.elementsById[this.id] = this;
+  } else if (name === 'disabled') {
+    this.disabled = true;
   }
 };
 
@@ -147,10 +158,12 @@ function append(document, parent, tagName, id) {
 
 function loadViewHarness() {
   var document = new FakeDocument();
+  var animationCalls = [];
+  var focusDoorCalls = [];
   var modeCalls = [];
   var openLibraries = [];
   var openSettingsCount = 0;
-  var animationCalls = [];
+  var resetCount = 0;
   var buttons = {
     adult: append(document, document.body, 'button', 'storybook-home-adult-mode-button'),
     cancel: append(document, document.body, 'button', 'storybook-cancel'),
@@ -160,9 +173,11 @@ function loadViewHarness() {
     emptyState: append(document, document.body, 'p', 'storybook-empty-state'),
     greeting: append(document, document.body, 'h1', 'storybook-greeting'),
     hint: append(document, document.body, 'p', 'storybook-home-hint'),
+    reset: append(document, document.body, 'button', 'storybook-reset'),
     settings: append(document, document.body, 'button', 'storybook-settings-button'),
     settingsError: append(document, document.body, 'p', 'storybook-settings-error'),
     settingsLibraries: append(document, document.body, 'div', 'storybook-library-options'),
+    settingsWarning: append(document, document.body, 'p', 'storybook-settings-warning'),
     reducedMotion: append(document, document.body, 'input', 'storybook-reduced-motion'),
     save: append(document, document.body, 'button', 'storybook-save'),
     storybook: append(document, document.body, 'button', 'storybook-home-storybook-mode-button')
@@ -178,6 +193,12 @@ function loadViewHarness() {
       MovieDeckAnimations: {
         animateStorybookHome: function (reducedMotion) {
           animationCalls.push(reducedMotion);
+        },
+        focusStorybookDoor: function (door, reducedMotion) {
+          focusDoorCalls.push({
+            id: door.getAttribute('data-library-id'),
+            reducedMotion: reducedMotion
+          });
         }
       },
       RawiCopy: {
@@ -185,7 +206,25 @@ function loadViewHarness() {
           if (key === 'storybookDoorAriaLabel') { return 'Open ' + values.library; }
           if (key === 'storybookGreeting') { return 'What should we watch tonight, ' + values.child + '?'; }
           if (key === 'storybookGreetingWithoutName') { return 'What should we watch tonight?'; }
+          if (key === 'storybookMissingLibraryIdSingle') {
+            return 'A previously selected Storybook library ID is no longer available: ' + values.ids + '.';
+          }
+          if (key === 'storybookMissingLibraryIdMultiple') {
+            return 'Previously selected Storybook library IDs are no longer available: ' + values.ids + '.';
+          }
           if (key === 'storybookNoSelectedLibraries') { return 'No Storybook libraries are available.'; }
+          if (key === 'storybookPreferencesMalformed') { return 'Saved Storybook settings could not be read.'; }
+          if (key === 'storybookPreferencesUnsupported') {
+            return 'Saved Storybook settings use unsupported version ' + values.version + '.';
+          }
+          if (key === 'storybookRecoveryResetRequired') {
+            return 'Reset Storybook settings before saving new Storybook options.';
+          }
+          if (key === 'storybookResetButton') { return 'Reset Storybook settings'; }
+          if (key === 'storybookResetConfirmButton') { return 'Confirm reset'; }
+          if (key === 'storybookResetConfirmPrompt') {
+            return 'Select Confirm reset to clear the saved Storybook settings.';
+          }
           return key;
         }
       }
@@ -193,6 +232,7 @@ function loadViewHarness() {
   });
 
   window.RawiStorybookView.init({
+    onCancelSettings: function () {},
     onModeChange: function (mode, id) {
       modeCalls.push({ id: id, mode: mode });
     },
@@ -201,6 +241,10 @@ function loadViewHarness() {
     },
     onOpenSettings: function () {
       openSettingsCount += 1;
+    },
+    onPreferencesChange: function () {},
+    onResetSettingsRecovery: function () {
+      resetCount += 1;
     }
   });
 
@@ -208,15 +252,23 @@ function loadViewHarness() {
     animationCalls: animationCalls,
     buttons: buttons,
     document: document,
+    doorButtons: function () {
+      return buttons.doors.firstChild ? buttons.doors.firstChild.children : [];
+    },
+    focusDoorCalls: function () {
+      return JSON.parse(JSON.stringify(focusDoorCalls));
+    },
     modeCalls: modeCalls,
     openLibraries: openLibraries,
     openSettingsCount: function () { return openSettingsCount; },
+    resetCount: function () { return resetCount; },
     view: window.RawiStorybookView
   };
 }
 
 (function rendersStoryDoorsAndBindsOpenCallbacks() {
   var harness = loadViewHarness();
+  var doors;
   var secondDoor;
 
   harness.view.renderHome({
@@ -228,26 +280,32 @@ function loadViewHarness() {
     reducedMotion: true
   });
 
-  secondDoor = harness.buttons.doors.children[1];
+  doors = harness.doorButtons();
+  secondDoor = doors[1];
 
   assert.strictEqual(
     harness.buttons.greeting.textContent,
     'What should we watch tonight, Nova?'
   );
-  assert.strictEqual(harness.buttons.doors.children.length, 2);
+  assert.strictEqual(doors.length, 2);
   assert.strictEqual(secondDoor.getAttribute('aria-label'), 'Open Disney');
-  assert.strictEqual(harness.document.activeElement, harness.buttons.doors.children[0]);
+  assert.strictEqual(harness.document.activeElement, doors[0]);
   assert.strictEqual(harness.document.body.classList.contains('storybook-reduced-motion'), true);
   assert.strictEqual(harness.buttons.emptyState.style.display, 'none');
   assert.strictEqual(harness.buttons.hint.style.display, '');
   assert.deepStrictEqual(harness.animationCalls, [true]);
+  assert.deepStrictEqual(harness.focusDoorCalls(), [{
+    id: 'kids',
+    reducedMotion: true
+  }]);
 
   secondDoor.click();
   assert.deepStrictEqual(harness.openLibraries, ['disney']);
 }());
 
-(function capsDoorCountAndUsesGenericGreeting() {
+(function rendersAllStoryDoorsWithoutCapAndUsesGenericGreeting() {
   var harness = loadViewHarness();
+  var doors;
 
   harness.view.renderHome({
     childName: '',
@@ -262,6 +320,8 @@ function loadViewHarness() {
     reducedMotion: false
   });
 
+  doors = harness.doorButtons();
+  doors[5].focus();
   harness.buttons.edit.click();
   harness.buttons.adult.click();
 
@@ -269,8 +329,15 @@ function loadViewHarness() {
     harness.buttons.greeting.textContent,
     'What should we watch tonight?'
   );
-  assert.strictEqual(harness.buttons.doors.children.length, 5);
+  assert.strictEqual(doors.length, 6);
   assert.strictEqual(harness.openSettingsCount(), 1);
+  assert.deepStrictEqual(
+    harness.focusDoorCalls(),
+    [
+      { id: 'one', reducedMotion: false },
+      { id: 'six', reducedMotion: false }
+    ]
+  );
   assert.deepStrictEqual(
     harness.modeCalls,
     [{ id: 'storybook-home-adult-mode-button', mode: 'adult' }]
@@ -294,4 +361,107 @@ function loadViewHarness() {
   );
   assert.strictEqual(harness.document.activeElement, harness.buttons.edit);
   assert.deepStrictEqual(harness.animationCalls, [false]);
+}());
+
+(function identifiesOneOrManyMissingLibraryIdsOnlyInSettings() {
+  var harness = loadViewHarness();
+
+  harness.view.renderSettings(
+    [{ Id: 'kids', Name: 'Kids' }],
+    {
+      childName: 'Nova',
+      libraryIds: ['kids'],
+      reducedMotion: false
+    },
+    ['missing-one'],
+    null
+  );
+  assert.strictEqual(
+    harness.buttons.settingsWarning.textContent,
+    'A previously selected Storybook library ID is no longer available: missing-one.'
+  );
+
+  harness.view.renderSettings(
+    [{ Id: 'kids', Name: 'Kids' }],
+    {
+      childName: 'Nova',
+      libraryIds: ['kids'],
+      reducedMotion: false
+    },
+    ['missing-one', 'missing-two'],
+    null
+  );
+  assert.strictEqual(
+    harness.buttons.settingsWarning.textContent,
+    'Previously selected Storybook library IDs are no longer available: missing-one, missing-two.'
+  );
+}());
+
+(function showsRecoveryResetControlsOnlyWhenNeeded() {
+  var harness = loadViewHarness();
+
+  harness.view.renderSettings(
+    [{ Id: 'kids', Name: 'Kids' }],
+    {
+      childName: 'Nova',
+      libraryIds: ['kids'],
+      reducedMotion: false
+    },
+    [],
+    {
+      needsRecovery: true,
+      type: 'malformed',
+      confirmingReset: false
+    }
+  );
+  assert.strictEqual(
+    harness.buttons.settingsWarning.textContent,
+    'Saved Storybook settings could not be read. Reset Storybook settings before saving new Storybook options.'
+  );
+  assert.strictEqual(harness.buttons.childName.disabled, true);
+  assert.strictEqual(harness.buttons.reducedMotion.disabled, true);
+  assert.strictEqual(harness.buttons.save.disabled, true);
+  assert.strictEqual(harness.buttons.reset.disabled, false);
+  assert.strictEqual(harness.buttons.reset.style.display, 'inline-block');
+  assert.strictEqual(harness.buttons.reset.textContent, 'Reset Storybook settings');
+  harness.buttons.reset.click();
+  assert.strictEqual(harness.resetCount(), 1);
+
+  harness.view.renderSettings(
+    [{ Id: 'kids', Name: 'Kids' }],
+    {
+      childName: 'Nova',
+      libraryIds: ['kids'],
+      reducedMotion: false
+    },
+    [],
+    {
+      needsRecovery: true,
+      type: 'unsupported-version',
+      version: 99,
+      confirmingReset: true
+    }
+  );
+  assert.strictEqual(
+    harness.buttons.settingsWarning.textContent,
+    'Saved Storybook settings use unsupported version 99. Select Confirm reset to clear the saved Storybook settings.'
+  );
+  assert.strictEqual(harness.buttons.reset.textContent, 'Confirm reset');
+
+  harness.view.renderSettings(
+    [{ Id: 'kids', Name: 'Kids' }],
+    {
+      childName: 'Nova',
+      libraryIds: ['kids'],
+      reducedMotion: false
+    },
+    [],
+    null
+  );
+  assert.strictEqual(harness.buttons.settingsWarning.textContent, '');
+  assert.strictEqual(harness.buttons.childName.disabled, false);
+  assert.strictEqual(harness.buttons.reducedMotion.disabled, false);
+  assert.strictEqual(harness.buttons.save.disabled, false);
+  assert.strictEqual(harness.buttons.reset.disabled, true);
+  assert.strictEqual(harness.buttons.reset.style.display, 'none');
 }());

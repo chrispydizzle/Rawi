@@ -237,7 +237,9 @@ The home screen loads:
 3. Every top-level view returned by `/Users/{userId}/Views`.
 
 Each library shelf recursively loads videos from that view. If view discovery
-fails, Rawi falls back to a single All Videos shelf.
+fails, Adult Mode falls back to a single All Videos shelf. If restored
+Storybook Mode cannot enumerate libraries, Rawi instead shows a recoverable
+library error so curated Storybook selections are not bypassed.
 
 ## Controls
 

@@ -18,6 +18,9 @@
   var signOutTimer = null;
   var activeScreen = 'setup-screen';
   var storybookState = storybookPreferences.restore();
+  var storybookRestoreStatus = storybookPreferences.getRestoreStatus ?
+    storybookPreferences.getRestoreStatus() :
+    { needsRecovery: false, type: 'ok' };
   var availableLibraries = [];
   var availableLibrariesReady = false;
   var availableLibrariesFailed = false;
@@ -29,6 +32,7 @@
   var previousScreen = 'browse-screen';
   var previewStorybookFixture = null;
   var storybookLibraryOpen = false;
+  var storybookResetConfirming = false;
   var storybookSettingsReturnFocusId = 'storybook-settings-button';
   var storybookSettingsIntent = {
     activateStorybookOnSave: false,
@@ -475,6 +479,39 @@
     return '';
   }
 
+  function storybookSettingsRecovery() {
+    if (!storybookRestoreStatus || !storybookRestoreStatus.needsRecovery) {
+      return null;
+    }
+
+    return {
+      confirmingReset: storybookResetConfirming,
+      needsRecovery: true,
+      type: storybookRestoreStatus.type,
+      version: storybookRestoreStatus.version
+    };
+  }
+
+  function storybookSettingsFocusTargetId() {
+    return storybookRestoreStatus && storybookRestoreStatus.needsRecovery ?
+      'storybook-reset' :
+      'storybook-child-name';
+  }
+
+  function renderStorybookSettings() {
+    var resolution = storybookModel.resolveLibraries(
+      availableLibraries,
+      storybookState.libraryIds
+    );
+
+    storybookView.renderSettings(
+      availableLibraries,
+      storybookState,
+      resolution.missingIds,
+      storybookSettingsRecovery()
+    );
+  }
+
   function rememberStorybookSettingsFocus(controlId) {
     var activeId = document.activeElement && document.activeElement.id ?
       document.activeElement.id : '';
@@ -508,6 +545,10 @@
     storybookState.lastMode = nextMode;
     storybookState.enabled = storybookState.enabled || nextMode === 'storybook';
     storybookState = storybookPreferences.save(storybookState);
+    storybookRestoreStatus = storybookPreferences.getRestoreStatus ?
+      storybookPreferences.getRestoreStatus() :
+      { needsRecovery: false, type: 'ok' };
+    storybookResetConfirming = false;
     storybookView.setMode(nextMode);
     openLibrary();
   }
@@ -515,7 +556,6 @@
   function openStorybookSettings(controlId, options) {
     var message = storybookSettingsGateMessage();
     var panel;
-    var resolution;
 
     if (message) {
       showToast(message);
@@ -523,25 +563,18 @@
     }
 
     setStorybookSettingsIntent(options);
-    resolution = storybookModel.resolveLibraries(
-      availableLibraries,
-      storybookState.libraryIds
-    );
     previousScreen = activeScreen === 'storybook-settings-screen' ?
       previousScreen : activeScreen;
     rememberStorybookSettingsFocus(controlId);
-    storybookView.renderSettings(
-      availableLibraries,
-      storybookState,
-      resolution.missingIds
-    );
+    renderStorybookSettings();
     panel = storybookSettingsPanel();
     if (panel) { panel.scrollTop = 0; }
-    showScreen('storybook-settings-screen', 'storybook-child-name');
+    showScreen('storybook-settings-screen', storybookSettingsFocusTargetId());
     return true;
   }
 
   function saveStorybookSettings(nextPreferences) {
+    if (storybookRestoreStatus && storybookRestoreStatus.needsRecovery) { return; }
     storybookState = storybookPreferences.save({
       enabled: true,
       lastMode: storybookSettingsIntent.activateStorybookOnSave ? 'storybook' : storybookSettingsIntent.modeOnOpen,
@@ -549,13 +582,40 @@
       libraryIds: nextPreferences.libraryIds,
       reducedMotion: nextPreferences.reducedMotion
     });
+    storybookRestoreStatus = storybookPreferences.getRestoreStatus ?
+      storybookPreferences.getRestoreStatus() :
+      { needsRecovery: false, type: 'ok' };
+    storybookResetConfirming = false;
     setStorybookSettingsIntent();
     storybookView.setMode(storybookState.lastMode);
     showToast(copy.get('storybookSettingsSaved'));
     openLibrary();
   }
 
+  function resetStorybookSettingsRecovery() {
+    if (!storybookRestoreStatus || !storybookRestoreStatus.needsRecovery) { return; }
+
+    if (!storybookResetConfirming) {
+      storybookResetConfirming = true;
+      renderStorybookSettings();
+      focusScreenTarget('storybook-reset');
+      return;
+    }
+
+    storybookState = storybookPreferences.reset ?
+      storybookPreferences.reset() :
+      storybookPreferences.save(storybookPreferences.defaults());
+    storybookRestoreStatus = storybookPreferences.getRestoreStatus ?
+      storybookPreferences.getRestoreStatus() :
+      { needsRecovery: false, type: 'ok' };
+    storybookResetConfirming = false;
+    storybookView.setMode(storybookState.lastMode);
+    renderStorybookSettings();
+    focusScreenTarget('storybook-child-name');
+  }
+
   function cancelStorybookSettings() {
+    storybookResetConfirming = false;
     setStorybookSettingsIntent();
     showScreen(previousScreen, storybookSettingsReturnFocusId);
   }
@@ -703,6 +763,7 @@
       onModeChange: applyMode,
       onOpenLibrary: openStorybookLibrary,
       onOpenSettings: openStorybookSettings,
+      onResetSettingsRecovery: resetStorybookSettingsRecovery,
       onPreferencesChange: saveStorybookSettings
     });
     storybookView.setMode(storybookState.lastMode);

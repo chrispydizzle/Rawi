@@ -91,11 +91,22 @@ body.mode-storybook {
 .storybook-doors {
   align-items: flex-end;
   bottom: 125px;
-  display: flex;
-  left: 95px;
-  min-height: 422px;
+  left: 72px;
+  min-height: 454px;
+  overflow: hidden;
   position: absolute;
+  right: 105px;
+  padding: 18px 0 26px;
   z-index: 2;
+}
+.storybook-door-strip {
+  align-items: flex-end;
+  display: inline-flex;
+  min-height: 422px;
+  min-width: 100%;
+  padding: 0 130px 0 24px;
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
 }
 .storybook-door + .storybook-door { margin-left: 45px; }
 .storybook-door {

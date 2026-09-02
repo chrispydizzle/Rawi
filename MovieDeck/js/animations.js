@@ -2,6 +2,8 @@
   'use strict';
 
   var gsap = global.gsap;
+  var doorFocusMotion = null;
+  var doorFocusTween = null;
   var scrollMotion = null;
   var scrollTween = null;
   var storybookDoors = [];
@@ -116,7 +118,85 @@
   }
 
   function stopStorybookHome() {
+    settleDoorFocus();
     resetStorybookDoors();
+  }
+
+  function completeDoorFocus(motion) {
+    if (doorFocusMotion !== motion) { return; }
+    motion.track.style.transform = 'none';
+    motion.scroller.scrollLeft = motion.position;
+    doorFocusMotion = null;
+    doorFocusTween = null;
+  }
+
+  function settleDoorFocus() {
+    var motion = doorFocusMotion;
+    if (!motion) { return; }
+    if (doorFocusTween) { doorFocusTween.kill(); }
+    completeDoorFocus(motion);
+  }
+
+  function focusStorybookDoor(door, forceReducedMotion) {
+    var track;
+    var scroller;
+    var viewportRect;
+    var doorRect;
+    var maximum;
+    var start;
+    var target;
+    var margin = 72;
+    var motion;
+
+    if (!door || !door.parentNode || !door.parentNode.parentNode) { return; }
+    track = door.parentNode;
+    scroller = track.parentNode;
+    if (!scroller.getBoundingClientRect || !door.getBoundingClientRect) { return; }
+
+    settleDoorFocus();
+    viewportRect = scroller.getBoundingClientRect();
+    doorRect = door.getBoundingClientRect();
+    maximum = Math.max(0, (scroller.scrollWidth || 0) - (scroller.clientWidth || 0));
+    start = scroller.scrollLeft || 0;
+    target = start;
+
+    if (doorRect.left < viewportRect.left + margin) {
+      target += doorRect.left - viewportRect.left - margin;
+    } else if (doorRect.right > viewportRect.right - margin) {
+      target += doorRect.right - viewportRect.right + margin;
+    }
+
+    if (target < 0) { target = 0; }
+    if (target > maximum) { target = maximum; }
+
+    if (target === start) {
+      track.style.transform = 'none';
+      return;
+    }
+
+    if (forceReducedMotion || prefersReducedMotion()) {
+      track.style.transform = 'none';
+      scroller.scrollLeft = target;
+      return;
+    }
+
+    motion = {
+      position: start,
+      scroller: scroller,
+      start: start,
+      track: track
+    };
+    doorFocusMotion = motion;
+    doorFocusTween = gsap.to(motion, {
+      duration: 0.34,
+      ease: 'back.out(1.05)',
+      onComplete: function () { completeDoorFocus(motion); },
+      onUpdate: function () {
+        motion.track.style.transform = 'translate3d(' + (motion.start - motion.position) + 'px, 0, 0)';
+      },
+      overwrite: true,
+      position: target
+    });
   }
 
   function completeScroll(motion) {
@@ -183,6 +263,7 @@
     animateSelection: animateSelection,
     animateShelves: animateShelves,
     enterScreen: enterScreen,
+    focusStorybookDoor: focusStorybookDoor,
     focusCard: focusCard,
     stopStorybookHome: stopStorybookHome
   };

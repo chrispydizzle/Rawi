@@ -13,6 +13,33 @@ function createDoor() {
   };
 }
 
+function createScroller(clientWidth, scrollWidth, scrollLeft, rect) {
+  return {
+    clientWidth: clientWidth,
+    getBoundingClientRect: function () {
+      return rect;
+    },
+    scrollLeft: scrollLeft,
+    scrollWidth: scrollWidth
+  };
+}
+
+function createDoorTrack(scroller) {
+  return {
+    parentNode: scroller,
+    style: {}
+  };
+}
+
+function createFocusableDoor(track, rect) {
+  return {
+    getBoundingClientRect: function () {
+      return rect;
+    },
+    parentNode: track
+  };
+}
+
 function createGsapRecorder() {
   var recorder = {
     fromToCalls: [],
@@ -50,6 +77,11 @@ function createGsapRecorder() {
         target: target,
         vars: vars
       });
+      return {
+        kill: function () {
+          recorder.killedTweens = (recorder.killedTweens || 0) + 1;
+        }
+      };
     }
   };
 
@@ -167,4 +199,51 @@ function loadAnimationsHarness(matchMediaMatches, doors) {
   assert.strictEqual(harness.gsap.setCalls.length, 3);
   assert.strictEqual(harness.gsap.setCalls[1].target.length, 3);
   assert.strictEqual(harness.gsap.setCalls[2].target.length, 2);
+}());
+
+(function keepsFocusedStoryDoorsVisibleWithHorizontalTransformMotion() {
+  var scroller = createScroller(1400, 2210, 0, {
+    left: 90,
+    right: 1490
+  });
+  var track = createDoorTrack(scroller);
+  var door = createFocusableDoor(track, {
+    left: 1685,
+    right: 1955,
+    width: 270,
+    height: 390
+  });
+  var harness = loadAnimationsHarness(false, []);
+
+  harness.animations.focusStorybookDoor(door, false);
+
+  assert.strictEqual(harness.gsap.toCalls.length, 1);
+  assert.strictEqual(harness.gsap.toCalls[0].vars.position, 537);
+  harness.gsap.toCalls[0].target.position = 537;
+  harness.gsap.toCalls[0].vars.onUpdate();
+  assert.strictEqual(track.style.transform, 'translate3d(-537px, 0, 0)');
+  harness.gsap.toCalls[0].vars.onComplete();
+  assert.strictEqual(track.style.transform, 'none');
+  assert.strictEqual(scroller.scrollLeft, 537);
+}());
+
+(function jumpsFocusedStoryDoorsIntoViewWhenReducedMotionIsRequested() {
+  var scroller = createScroller(1400, 2210, 0, {
+    left: 90,
+    right: 1490
+  });
+  var track = createDoorTrack(scroller);
+  var door = createFocusableDoor(track, {
+    left: 1685,
+    right: 1955,
+    width: 270,
+    height: 390
+  });
+  var harness = loadAnimationsHarness(false, []);
+
+  harness.animations.focusStorybookDoor(door, true);
+
+  assert.strictEqual(harness.gsap.toCalls.length, 0);
+  assert.strictEqual(track.style.transform, 'none');
+  assert.strictEqual(scroller.scrollLeft, 537);
 }());
