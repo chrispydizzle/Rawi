@@ -923,13 +923,13 @@
   }
 
   function renderStorybookSettings() {
-    var resolution = storybookModel.resolveLibraries(
-      availableLibraries,
-      storybookState.libraryIds
-    );
+    var libraries = availableLibrariesReady ? availableLibraries : [];
+    var resolution = availableLibrariesReady ?
+      storybookModel.resolveLibraries(libraries, storybookState.libraryIds) :
+      { missingIds: [] };
 
     storybookView.renderSettings(
-      availableLibraries,
+      libraries,
       storybookState,
       resolution.missingIds,
       storybookSettingsRecovery()
@@ -1000,7 +1000,8 @@
   }
 
   function openStorybookSettings(controlId, options) {
-    var message = storybookSettingsGateMessage();
+    var recovery = storybookSettingsRecovery();
+    var message = recovery ? '' : storybookSettingsGateMessage();
     var panel;
 
     if (message) {

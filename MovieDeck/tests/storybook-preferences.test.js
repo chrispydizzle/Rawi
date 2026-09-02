@@ -40,6 +40,41 @@ function loadPreferences(stored) {
   };
 }
 
+function assertMalformedPreferencesRequireRecovery(stored) {
+  var harness = loadPreferences(stored);
+
+  assert.deepStrictEqual(clone(harness.api.restore()), defaultPreferences());
+  assert.deepStrictEqual(clone(harness.api.getRestoreStatus()), {
+    needsRecovery: true,
+    type: 'malformed'
+  });
+  assert.strictEqual(harness.saved(), null);
+  assert.strictEqual(harness.rawStored(), stored);
+}
+
+function assertRecoveryWriteBarrier(stored) {
+  var harness = loadPreferences(stored);
+  var result;
+
+  harness.api.restore();
+  result = harness.api.save({
+    enabled: true,
+    lastMode: 'storybook',
+    childName: 'Nova',
+    libraryIds: ['kids'],
+    favoriteItemIds: ['story-1'],
+    reducedMotion: true
+  });
+
+  assert.strictEqual(result, null);
+  assert.strictEqual(harness.saved(), null);
+  assert.strictEqual(harness.rawStored(), stored);
+  assert.deepStrictEqual(clone(harness.api.getRestoreStatus()), {
+    needsRecovery: true,
+    type: 'malformed'
+  });
+}
+
 (function missingPreferencesUseSafeDefaults() {
   var harness = loadPreferences(null);
   var result = harness.api.restore();
@@ -154,6 +189,14 @@ function loadPreferences(stored) {
   assert.strictEqual(harness.saved(), null);
 }());
 
+(function emptyStringPreferencesRequireRecoveryWithoutOverwritingStorage() {
+  assertMalformedPreferencesRequireRecovery('');
+}());
+
+(function whitespaceOnlyPreferencesRequireRecoveryWithoutOverwritingStorage() {
+  assertMalformedPreferencesRequireRecovery('  \n\t  ');
+}());
+
 (function unsupportedVersionRequiresRecoveryWithoutOverwritingStorage() {
   var harness = loadPreferences(JSON.stringify({ version: 99, enabled: true }));
   assert.strictEqual(harness.api.restore().enabled, false);
@@ -187,6 +230,14 @@ function loadPreferences(stored) {
     needsRecovery: true,
     type: 'malformed'
   });
+}());
+
+(function emptyStringPreferencesBlockNonResetWritesWhileRecoveryIsRequired() {
+  assertRecoveryWriteBarrier('');
+}());
+
+(function whitespaceOnlyPreferencesBlockNonResetWritesWhileRecoveryIsRequired() {
+  assertRecoveryWriteBarrier('  \n\t  ');
 }());
 
 (function resetWritesVersionedDefaultsAfterRecovery() {

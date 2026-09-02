@@ -823,4 +823,17 @@ function loadViewHarness(options) {
   assert.strictEqual(harness.buttons.save.disabled, false);
   assert.strictEqual(harness.buttons.reset.disabled, true);
   assert.strictEqual(harness.buttons.reset.style.display, 'none');
+
+  harness.view.renderSettings(
+    [],
+    {
+      childName: 'Nova',
+      libraryIds: [],
+      reducedMotion: false
+    },
+    [],
+    null
+  );
+  assert.strictEqual(harness.buttons.settingsWarning.textContent, '');
+  assert.strictEqual(harness.buttons.save.disabled, true);
 }());

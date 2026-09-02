@@ -356,6 +356,7 @@
     var saveButton = byId('storybook-save');
     var settingsError = byId('storybook-settings-error');
     var settingsWarning = byId('storybook-settings-warning');
+    var hasLibraryChoices = false;
     var locked = !!(recovery && recovery.needsRecovery);
 
     container.innerHTML = '';
@@ -375,12 +376,13 @@
       label.appendChild(text);
       container.appendChild(label);
     });
+    hasLibraryChoices = !!container.children.length;
 
     childName.value = preferences.childName;
     reducedMotion.checked = preferences.reducedMotion;
     toggleDisabled(childName, locked);
     toggleDisabled(reducedMotion, locked);
-    toggleDisabled(saveButton, locked);
+    toggleDisabled(saveButton, locked || !hasLibraryChoices);
 
     if (settingsWarning) {
       settingsWarning.textContent = settingsWarningText(missingIds, recovery);

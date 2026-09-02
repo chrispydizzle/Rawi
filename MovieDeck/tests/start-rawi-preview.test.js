@@ -5,9 +5,62 @@ var childProcess = require('child_process');
 var fs = require('fs');
 var path = require('path');
 var powerShellInvocationId = 0;
+var currentPowerShellHost = null;
+var powerShellHosts = detectPowerShellHosts();
+
+assert.notStrictEqual(
+  powerShellHosts.length,
+  0,
+  'Expected at least one available PowerShell host for preview helper tests.'
+);
 
 function joinOutput(result) {
   return (result.stdout || '') + (result.stderr ? '\n' + result.stderr : '');
+}
+
+function detectPowerShellHosts() {
+  var hosts = [
+    {
+      command: 'powershell.exe',
+      invocationArgs: ['-NoProfile', '-ExecutionPolicy', 'Bypass'],
+      probeArgs: ['-NoProfile', '-Command', '$PSVersionTable.PSEdition']
+    },
+    {
+      command: 'pwsh.exe',
+      invocationArgs: ['-NoProfile', '-ExecutionPolicy', 'Bypass'],
+      probeArgs: ['-NoProfile', '-Command', '$PSVersionTable.PSEdition']
+    }
+  ];
+
+  return hosts.filter(function (host) {
+    var probe = childProcess.spawnSync(host.command, host.probeArgs, {
+      stdio: 'ignore'
+    });
+
+    if (probe.error || probe.status !== 0) {
+      console.log('Skipping preview helper ownership tests for ' + host.command + ': host unavailable.');
+      return false;
+    }
+
+    return true;
+  });
+}
+
+function activePowerShellHost() {
+  return currentPowerShellHost || powerShellHosts[0];
+}
+
+function withPowerShellHost(host, run) {
+  currentPowerShellHost = host;
+  try {
+    run();
+  } finally {
+    currentPowerShellHost = null;
+  }
+}
+
+function hostLabel() {
+  return '[' + activePowerShellHost().command + '] ';
 }
 
 function deleteTree(root) {
@@ -70,6 +123,7 @@ function previewEnvironment(sharedTemp) {
 }
 
 function runPowerShell(commandArgs, env) {
+  var host = activePowerShellHost();
   var tempRoot = env && env.TEMP ? env.TEMP : __dirname;
   var invocationId = powerShellInvocationId + 1;
   var stdoutPath = path.join(tempRoot, 'run-powershell-' + process.pid + '-' + invocationId + '.stdout.txt');
@@ -84,8 +138,8 @@ function runPowerShell(commandArgs, env) {
 
   try {
     result = childProcess.spawnSync(
-      'powershell.exe',
-      ['-NoProfile', '-ExecutionPolicy', 'Bypass'].concat(commandArgs),
+      host.command,
+      host.invocationArgs.concat(commandArgs),
       {
         env: env,
         stdio: ['ignore', stdoutHandle, stderrHandle]
@@ -171,10 +225,9 @@ function isProcessAlive(pid, env) {
 
   if (!pid) { return false; }
   result = runPowerShellCommand(
-    '(Get-Process -Id ' + pid + ' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Id -First 1)',
+    '$process = Get-Process -Id ' + pid + ' -ErrorAction SilentlyContinue; if ($process) { $process.Id }',
     env
   );
-  assert.strictEqual(result.status, 0, joinOutput(result));
   value = String(result.stdout || '').trim();
   return value ? Number(value) === pid : false;
 }
@@ -238,7 +291,7 @@ function getFreePort() {
   return Number(value);
 }
 
-(function reusesOwnedPreviewForNewStorybookRoutes() {
+function testReusesOwnedPreviewForNewStorybookRoutes() {
   var workspace = makeWorkspace();
   var sharedTemp = path.join(workspace, 'shared-temp');
   var root = createPreviewCopy(workspace, 'owner-a', 'Owner A');
@@ -255,7 +308,7 @@ function getFreePort() {
     var secondPid;
     var stopResult;
 
-    assert.strictEqual(initial.status, 0, joinOutput(initial));
+    assert.strictEqual(initial.status, 0, hostLabel() + joinOutput(initial));
     initialState = getPreviewState(root, env);
     assert(initialState, 'expected preview state metadata after starting the preview');
     listenerPid = Number(initialState.ProcessId);
@@ -270,34 +323,34 @@ function getFreePort() {
     ]);
     routeOutput = joinOutput(second);
 
-    assert.strictEqual(second.status, 0, routeOutput);
+    assert.strictEqual(second.status, 0, hostLabel() + routeOutput);
     secondState = getPreviewState(root, env);
     assert(secondState, 'expected preview state metadata after reusing the preview');
     secondPid = Number(secondState.ProcessId);
-    assert.strictEqual(secondPid, listenerPid, routeOutput);
-    assert.strictEqual(waitForProcessState(secondPid, env, true), true, routeOutput);
+    assert.strictEqual(secondPid, listenerPid, hostLabel() + routeOutput);
+    assert.strictEqual(waitForProcessState(secondPid, env, true), true, hostLabel() + routeOutput);
     assert.notStrictEqual(
       routeOutput.indexOf(
         'Rawi preview: http://127.0.0.1:' + port + '/?preview=storybook&storybookScreen=details&storybookItemId=bluey'
       ),
       -1,
-      routeOutput
+      hostLabel() + routeOutput
     );
 
     stopResult = runPreview(root, env, ['-Port', String(port), '-Stop']);
-    assert.strictEqual(stopResult.status, 0, joinOutput(stopResult));
-    assert.strictEqual(waitForProcessState(listenerPid, env, false), true, joinOutput(stopResult));
-    assert.strictEqual(getPreviewState(root, env), null, joinOutput(stopResult));
-    assert.deepStrictEqual(getOwnedPreviewProcessIds(root, env), [], joinOutput(stopResult));
+    assert.strictEqual(stopResult.status, 0, hostLabel() + joinOutput(stopResult));
+    assert.strictEqual(waitForProcessState(listenerPid, env, false), true, hostLabel() + joinOutput(stopResult));
+    assert.strictEqual(getPreviewState(root, env), null, hostLabel() + joinOutput(stopResult));
+    assert.deepStrictEqual(getOwnedPreviewProcessIds(root, env), [], hostLabel() + joinOutput(stopResult));
     listenerPid = null;
   } finally {
     forceStopOwnedPreviewProcesses(root, env);
     forceStopProcess(listenerPid, env);
     deleteTree(workspace);
   }
-}());
+}
 
-(function refusesDifferentAppPathOwnershipAndStopsOnlyOwnedPreview() {
+function testRefusesDifferentAppPathOwnershipAndStopsOnlyOwnedPreview() {
   var workspace = makeWorkspace();
   var sharedTemp = path.join(workspace, 'shared-temp');
   var rootA = createPreviewCopy(workspace, 'owner-a', 'Owner A');
@@ -317,7 +370,7 @@ function getFreePort() {
     var startB;
     var stopB;
 
-    assert.strictEqual(startA.status, 0, joinOutput(startA));
+    assert.strictEqual(startA.status, 0, hostLabel() + joinOutput(startA));
     ownerAPid = Number(getPreviewState(rootA, env).ProcessId);
     assert(ownerAPid, 'expected owner A to hold its preview port');
     assert.strictEqual(waitForProcessState(ownerAPid, env, true), true);
@@ -325,37 +378,37 @@ function getFreePort() {
     foreignStart = runPreview(rootB, env, ['-Port', String(portA), '-StorybookMock']);
     foreignStartOutput = joinOutput(foreignStart);
 
-    assert.notStrictEqual(foreignStart.status, 0, foreignStartOutput);
+    assert.notStrictEqual(foreignStart.status, 0, hostLabel() + foreignStartOutput);
     assert.notStrictEqual(
       /different AppPath|not owned|refus/i.test(foreignStartOutput),
       false,
-      foreignStartOutput
+      hostLabel() + foreignStartOutput
     );
-    assert.strictEqual(waitForProcessState(ownerAPid, env, true), true, foreignStartOutput);
+    assert.strictEqual(waitForProcessState(ownerAPid, env, true), true, hostLabel() + foreignStartOutput);
 
     foreignStop = runPreview(rootB, env, ['-Port', String(portA), '-Stop']);
     foreignStopOutput = joinOutput(foreignStop);
 
-    assert.notStrictEqual(foreignStop.status, 0, foreignStopOutput);
+    assert.notStrictEqual(foreignStop.status, 0, hostLabel() + foreignStopOutput);
     assert.notStrictEqual(
       /different AppPath|not owned|refus/i.test(foreignStopOutput),
       false,
-      foreignStopOutput
+      hostLabel() + foreignStopOutput
     );
-    assert.strictEqual(waitForProcessState(ownerAPid, env, true), true, foreignStopOutput);
+    assert.strictEqual(waitForProcessState(ownerAPid, env, true), true, hostLabel() + foreignStopOutput);
 
     startB = runPreview(rootB, env, ['-Port', String(portB), '-StorybookMock']);
-    assert.strictEqual(startB.status, 0, joinOutput(startB));
+    assert.strictEqual(startB.status, 0, hostLabel() + joinOutput(startB));
     ownerBPid = Number(getPreviewState(rootB, env).ProcessId);
     assert(ownerBPid, 'expected owner B to hold its own preview port');
     assert.notStrictEqual(ownerBPid, ownerAPid);
     assert.strictEqual(waitForProcessState(ownerBPid, env, true), true);
 
     stopB = runPreview(rootB, env, ['-Port', String(portB), '-Stop']);
-    assert.strictEqual(stopB.status, 0, joinOutput(stopB));
-    assert.strictEqual(waitForProcessState(ownerBPid, env, false), true, joinOutput(stopB));
-    assert.strictEqual(getPreviewState(rootB, env), null, joinOutput(stopB));
-    assert.deepStrictEqual(getOwnedPreviewProcessIds(rootB, env), [], joinOutput(stopB));
+    assert.strictEqual(stopB.status, 0, hostLabel() + joinOutput(stopB));
+    assert.strictEqual(waitForProcessState(ownerBPid, env, false), true, hostLabel() + joinOutput(stopB));
+    assert.strictEqual(getPreviewState(rootB, env), null, hostLabel() + joinOutput(stopB));
+    assert.deepStrictEqual(getOwnedPreviewProcessIds(rootB, env), [], hostLabel() + joinOutput(stopB));
     assert.strictEqual(waitForProcessState(ownerAPid, env, true), true);
 
     runPreview(rootA, env, ['-Port', String(portA), '-Stop']);
@@ -370,4 +423,9 @@ function getFreePort() {
     forceStopProcess(ownerBPid, env);
     deleteTree(workspace);
   }
-}());
+}
+
+powerShellHosts.forEach(function (host) {
+  withPowerShellHost(host, testReusesOwnedPreviewForNewStorybookRoutes);
+  withPowerShellHost(host, testRefusesDifferentAppPathOwnershipAndStopsOnlyOwnedPreview);
+});

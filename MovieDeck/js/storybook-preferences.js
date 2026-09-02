@@ -75,7 +75,7 @@
     var stored = storage.get(KEY);
     var parsed;
 
-    if (!stored) {
+    if (stored === null || stored === undefined) {
       restoreStatus({
         needsRecovery: false,
         type: 'ok'
