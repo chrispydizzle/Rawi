@@ -19,8 +19,11 @@
   var activeScreen = 'setup-screen';
   var storybookState = storybookPreferences.restore();
   var availableLibraries = [];
+  var availableLibrariesReady = false;
+  var availableLibrariesLoading = false;
   var defaultServer = 'http://192.168.1.2:8096';
   var previousScreen = 'browse-screen';
+  var storybookSettingsReturnFocusId = 'storybook-settings-button';
 
   // DOM and item helpers
   function byId(id) { return document.getElementById(id); }
@@ -42,7 +45,48 @@
     });
     activeScreen = id;
     animations.enterScreen(byId(id));
-    if (focusId) { setTimeout(function () { byId(focusId).focus(); }, 30); }
+    if (focusId) { focusScreenTarget(focusId); }
+  }
+
+  function storybookSettingsPanel() {
+    var screen = byId('storybook-settings-screen');
+    return screen ? screen.getElementsByClassName('settings-panel')[0] : null;
+  }
+
+  function ensureStorybookControlVisible(control) {
+    var panel = storybookSettingsPanel();
+    var panelRect;
+    var controlRect;
+    var maximum;
+    var nextTop;
+    var margin = 36;
+
+    if (!panel || !control || panel.scrollHeight <= panel.clientHeight) { return; }
+    panelRect = panel.getBoundingClientRect();
+    controlRect = control.getBoundingClientRect();
+    nextTop = panel.scrollTop;
+
+    if (controlRect.top < panelRect.top + margin) {
+      nextTop += controlRect.top - panelRect.top - margin;
+    } else if (controlRect.bottom > panelRect.bottom - margin) {
+      nextTop += controlRect.bottom - panelRect.bottom + margin;
+    }
+
+    maximum = Math.max(0, panel.scrollHeight - panel.clientHeight);
+    if (nextTop < 0) { nextTop = 0; }
+    if (nextTop > maximum) { nextTop = maximum; }
+    if (nextTop !== panel.scrollTop) { panel.scrollTop = nextTop; }
+  }
+
+  function focusScreenTarget(focusId) {
+    var target = byId(focusId);
+    if (!target) { return; }
+    setTimeout(function () {
+      target.focus();
+      if (activeScreen === 'storybook-settings-screen') {
+        ensureStorybookControlVisible(target);
+      }
+    }, 30);
   }
 
   function showToast(message) {
@@ -208,9 +252,15 @@
     byId('browse-loading').style.display = 'block';
     byId('browse-error').style.display = 'none';
     byId('shelves').innerHTML = '';
+    availableLibraries = [];
+    availableLibrariesReady = false;
+    availableLibrariesLoading = true;
 
     var libraryGroups = api.getLibraries().then(function (libraries) {
+      libraries = libraries || [];
       availableLibraries = libraries;
+      availableLibrariesLoading = false;
+      availableLibrariesReady = libraries.length > 0;
       return Promise.all(libraries.map(function (library) {
         return api.getVideos(itemId(library)).then(function (videos) {
           return { id: itemId(library), name: name(library), videos: videos };
@@ -221,6 +271,9 @@
     }).then(function (groups) {
       return groups.filter(function (group) { return group.videos.length > 0; });
     }).catch(function () {
+      availableLibraries = [];
+      availableLibrariesLoading = false;
+      availableLibrariesReady = false;
       return api.getVideos().then(function (videos) {
         return [{ name: copy.get('allVideos'), videos: videos }];
       });
@@ -271,11 +324,35 @@
     });
   }
 
-  function applyMode(mode) {
+  function storybookSettingsGateMessage() {
+    if (availableLibrariesLoading) { return copy.get('browseLoading'); }
+    if (!availableLibrariesReady || !availableLibraries.length) {
+      return copy.get('libraryLoadFailed');
+    }
+    return '';
+  }
+
+  function rememberStorybookSettingsFocus(controlId) {
+    var activeId = document.activeElement && document.activeElement.id ?
+      document.activeElement.id : '';
+
+    if (controlId && byId(controlId)) {
+      storybookSettingsReturnFocusId = controlId;
+      return;
+    }
+    if (activeId && byId(activeId)) {
+      storybookSettingsReturnFocusId = activeId;
+      return;
+    }
+    storybookSettingsReturnFocusId = previousScreen === 'details-screen' ?
+      'details-storybook-mode-button' : 'storybook-settings-button';
+  }
+
+  function applyMode(mode, controlId) {
     var nextMode = mode === 'storybook' ? 'storybook' : 'adult';
     if (nextMode === 'storybook' && !storybookState.libraryIds.length) {
+      if (!openStorybookSettings(controlId)) { return; }
       showToast(copy.get('storybookSetupRequired'));
-      openStorybookSettings();
       return;
     }
     storybookState.lastMode = nextMode;
@@ -285,19 +362,32 @@
     openLibrary();
   }
 
-  function openStorybookSettings() {
-    var resolution = storybookModel.resolveLibraries(
+  function openStorybookSettings(controlId) {
+    var message = storybookSettingsGateMessage();
+    var panel;
+    var resolution;
+
+    if (message) {
+      showToast(message);
+      return false;
+    }
+
+    resolution = storybookModel.resolveLibraries(
       availableLibraries,
       storybookState.libraryIds
     );
     previousScreen = activeScreen === 'storybook-settings-screen' ?
-      'browse-screen' : activeScreen;
+      previousScreen : activeScreen;
+    rememberStorybookSettingsFocus(controlId);
     storybookView.renderSettings(
       availableLibraries,
       storybookState,
       resolution.missingIds
     );
+    panel = storybookSettingsPanel();
+    if (panel) { panel.scrollTop = 0; }
     showScreen('storybook-settings-screen', 'storybook-child-name');
+    return true;
   }
 
   function saveStorybookSettings(nextPreferences) {
@@ -308,9 +398,7 @@
   }
 
   function cancelStorybookSettings() {
-    var focusId = previousScreen === 'details-screen' ?
-      'details-back' : 'storybook-settings-button';
-    showScreen(previousScreen, focusId);
+    showScreen(previousScreen, storybookSettingsReturnFocusId);
   }
 
   // Details and playback
@@ -392,8 +480,14 @@
       if (score < bestScore) { bestScore = score; best = node; }
     });
     if (best) {
-      if (direction === 'up' || direction === 'down') { animations.focusCard(best); }
-      else { best.focus(); }
+      if (activeScreen === 'browse-screen' && (direction === 'up' || direction === 'down')) {
+        animations.focusCard(best);
+        return;
+      }
+      best.focus();
+      if (activeScreen === 'storybook-settings-screen') {
+        ensureStorybookControlVisible(best);
+      }
     }
   }
 

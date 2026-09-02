@@ -75,10 +75,12 @@
     callbacks = options;
     Array.prototype.forEach.call(document.querySelectorAll('[data-mode]'), function (button) {
       button.addEventListener('click', function () {
-        callbacks.onModeChange(button.getAttribute('data-mode'));
+        callbacks.onModeChange(button.getAttribute('data-mode'), button.id);
       });
     });
-    byId('storybook-settings-button').addEventListener('click', callbacks.onOpenSettings);
+    byId('storybook-settings-button').addEventListener('click', function () {
+      callbacks.onOpenSettings('storybook-settings-button');
+    });
     byId('storybook-save').addEventListener('click', saveSettings);
     byId('storybook-cancel').addEventListener('click', callbacks.onCancelSettings);
   }

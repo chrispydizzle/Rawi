@@ -30,6 +30,7 @@ global.RawiTest = {
 
 [
   'storage.test.js',
+  'storybook-app.test.js',
   'storybook-preferences.test.js',
   'storybook-model.test.js',
   'copy.test.js'
