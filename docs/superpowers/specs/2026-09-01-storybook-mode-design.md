@@ -1,7 +1,7 @@
 # Rawi Storybook Mode Design
 
-**Date:** 2026-09-01  
-**Status:** Approved design  
+**Date:** 2026-09-01
+**Status:** Approved design
 **Primary audience:** A preschool child choosing content together with a parent
 
 ## Summary
