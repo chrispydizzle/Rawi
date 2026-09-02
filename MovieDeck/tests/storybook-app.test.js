@@ -653,9 +653,102 @@ function loadAppHarness(options) {
     harness.document.getElementById('storybook-greeting').textContent,
     'What should we watch tonight, Nova?'
   );
+  assert.strictEqual(
+    harness.document.getElementById('profile-name').textContent,
+    'Parent'
+  );
+  assert.strictEqual(
+    harness.document.getElementById('profile-initial').textContent,
+    'P'
+  );
   assert.deepStrictEqual(
     JSON.parse(JSON.stringify(harness.doorLibraryIds())),
     ['pixar', 'songs', 'lessons']
+  );
+  assert.deepStrictEqual(
+    harness.apiCalls(),
+    {
+      getLatest: 0,
+      getLibraries: 0,
+      getResume: 0,
+      getVideos: 0,
+      restore: 0
+    }
+  );
+}());
+
+(async function switchesPreviewAdultModeWithoutContactingJellyfin() {
+  var harness = loadAppHarness({
+    locationSearch: '?preview=storybook',
+    previewFixtures: {
+      storybook: {
+        user: { Id: 'preview-user', Name: 'Parent' },
+        libraries: [
+          { Id: 'pixar', Name: 'Disney Pixar' },
+          { Id: 'songs', Name: 'Sing & Dance' },
+          { Id: 'lessons', Name: 'Little Lessons' }
+        ],
+        groups: [
+          { id: 'pixar', name: 'Disney Pixar', videos: [{ Id: 'bluey', Name: "Bluey's Big Adventure" }] },
+          { id: 'songs', name: 'Sing & Dance', videos: [{ Id: 'dance', Name: 'Dance With Me' }] },
+          { id: 'lessons', name: 'Little Lessons', videos: [{ Id: 'colors', Name: 'The Color Garden' }] }
+        ]
+      }
+    },
+    restoreSession: true
+  });
+
+  harness.document.getElementById('storybook-home-adult-mode-button').click();
+  await flush(12);
+
+  assert.strictEqual(harness.screenActive('browse-screen'), true);
+  assert.deepStrictEqual(
+    JSON.parse(JSON.stringify(harness.shelfHeadings())),
+    ['Disney Pixar', 'Sing & Dance', 'Little Lessons']
+  );
+  assert.deepStrictEqual(
+    harness.apiCalls(),
+    {
+      getLatest: 0,
+      getLibraries: 0,
+      getResume: 0,
+      getVideos: 0,
+      restore: 0
+    }
+  );
+}());
+
+(async function savesPreviewStorybookSettingsWithoutLeavingMockMode() {
+  var harness = loadAppHarness({
+    locationSearch: '?preview=storybook',
+    previewFixtures: {
+      storybook: {
+        user: { Id: 'preview-user', Name: 'Parent' },
+        libraries: [
+          { Id: 'pixar', Name: 'Disney Pixar' },
+          { Id: 'songs', Name: 'Sing & Dance' },
+          { Id: 'lessons', Name: 'Little Lessons' }
+        ],
+        groups: [
+          { id: 'pixar', name: 'Disney Pixar', videos: [{ Id: 'bluey', Name: "Bluey's Big Adventure" }] },
+          { id: 'songs', name: 'Sing & Dance', videos: [{ Id: 'dance', Name: 'Dance With Me' }] },
+          { id: 'lessons', name: 'Little Lessons', videos: [{ Id: 'colors', Name: 'The Color Garden' }] }
+        ]
+      }
+    },
+    restoreSession: true
+  });
+
+  harness.document.getElementById('storybook-edit-libraries').click();
+  harness.document.getElementById('storybook-reduced-motion').checked = true;
+  harness.document.getElementById('storybook-save').click();
+  await flush(12);
+
+  assert.strictEqual(harness.screenActive('storybook-screen'), true);
+  assert.strictEqual(harness.document.body.classList.contains('storybook-reduced-motion'), true);
+  assert.deepStrictEqual(
+    JSON.parse(JSON.stringify(harness.storybookMotionCalls())),
+    [false, true]
   );
   assert.deepStrictEqual(
     harness.apiCalls(),

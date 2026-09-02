@@ -100,11 +100,13 @@ function loadAnimationsHarness(matchMediaMatches, doors) {
   );
   assert.strictEqual(harness.gsap.fromToCalls.length, 1);
   assert.strictEqual(harness.gsap.fromToCalls[0].target.length, 5);
+  assert.strictEqual(harness.gsap.toCalls.length, 0);
+  harness.gsap.fromToCalls[0].toVars.onComplete();
   assert.strictEqual(harness.gsap.toCalls.length, 3);
   assert.strictEqual(harness.gsap.toCalls[0].target, doors[0]);
   assert.strictEqual(harness.gsap.toCalls[2].target, doors[2]);
-  assert.strictEqual(harness.gsap.toCalls[0].vars.delay, 0.45);
-  assert.strictEqual(harness.gsap.toCalls[1].vars.delay, 0.53);
+  assert.strictEqual(harness.gsap.toCalls[0].vars.delay, 0.05);
+  assert.strictEqual(harness.gsap.toCalls[1].vars.delay, 0.13);
   assert.strictEqual(harness.gsap.toCalls[0].vars.repeat, -1);
   assert.strictEqual(harness.gsap.toCalls[0].vars.overwrite, true);
 }());

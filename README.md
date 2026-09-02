@@ -12,6 +12,8 @@ The JavaScript intentionally remains ES5-compatible for older Samsung firmware.
 - Jellyfin Quick Connect authentication.
 - Persistent TV sessions using the Tizen Preference API with a `localStorage`
   fallback.
+- Parent-guided Storybook Mode with a persisted Adult/Storybook toggle,
+  parent-selected libraries, and an optional reduced-motion home.
 - Continue Watching and Recently Added shelves.
 - One shelf per top-level Jellyfin library.
 - Recursive video discovery within each library.
@@ -24,6 +26,33 @@ The JavaScript intentionally remains ES5-compatible for older Samsung firmware.
 - HLS transcoding fallback through Jellyfin.
 - Playback progress reporting to Jellyfin.
 - HTML video fallback for local browser previews.
+- Deterministic Storybook mock preview for browser validation without Jellyfin.
+
+## Storybook Mode
+
+Storybook Mode is a parent-guided preschool interface over selected Jellyfin
+libraries. Adult Mode remains available through the visible top-bar toggle.
+
+### Configure Storybook Mode
+
+1. Open Adult Mode.
+2. Select **Storybook settings**.
+3. Enter the child's display name.
+4. Select one or more visible Jellyfin libraries.
+5. Optionally enable reduced motion.
+6. Save, then select **Storybook** in the mode toggle.
+
+Storybook selection is curation, not access control. Configure the Jellyfin
+user's library permissions to enforce actual content restrictions.
+
+### Preview without Jellyfin
+
+```powershell
+.\tools\Start-RawiPreview.ps1 -StorybookMock
+```
+
+The deterministic preview opens directly into Whimsical Watercolor Storybook
+Mode with local fixture data. It does not authenticate or contact Jellyfin.
 
 ## Repository layout
 
@@ -37,13 +66,24 @@ Rawi/
 |   |-- index.html          Application screens and UI structure
 |   |-- icon.png            Packaged application icon
 |   |-- css/
-|   |   `-- app.css         1920x1080 TV layout and visual styling
+|   |   |-- app.css         1920x1080 TV layout and visual styling
+|   |   `-- storybook.css   Storybook Mode home layout and styling
+|   |-- tests/              Node-based regression tests for browser scripts
 |   `-- js/
 |       |-- animations.js   Screen and shelf motion
 |       |-- api.js          Jellyfin API, authentication, and persistence
 |       |-- app.js          UI state, rendering, and remote navigation
 |       |-- copy.js         Default copy and override resolution
+|       |-- preview-fixtures.js
+|       |                     Deterministic browser preview data
 |       |-- player.js       AVPlay and browser playback
+|       |-- storage.js      Tizen Preference and localStorage wrapper
+|       |-- storybook-model.js
+|       |                     Storybook library filtering and motion helpers
+|       |-- storybook-preferences.js
+|       |                     Storybook preference persistence and validation
+|       |-- storybook-view.js
+|       |                     Storybook DOM rendering and settings wiring
 |       `-- vendor/
 |           `-- gsap.min.js Animation dependency
 |-- tools/

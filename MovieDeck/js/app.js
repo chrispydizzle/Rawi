@@ -26,6 +26,7 @@
   var currentResume = [];
   var defaultServer = 'http://192.168.1.2:8096';
   var previousScreen = 'browse-screen';
+  var previewStorybookFixture = null;
   var storybookLibraryOpen = false;
   var storybookSettingsReturnFocusId = 'storybook-settings-button';
 
@@ -46,6 +47,20 @@
   function userData(item) { return value(item, 'UserData', 'userData') || {}; }
   function resumeTicks(item) { return value(userData(item), 'PlaybackPositionTicks', 'playbackPositionTicks') || 0; }
   function playbackPercent(item) { return value(userData(item), 'PlayedPercentage', 'playedPercentage') || 0; }
+  function previewGroups() {
+    return ((previewStorybookFixture && previewStorybookFixture.groups) || []).map(function (group) {
+      return {
+        id: group.id,
+        name: group.name,
+        videos: group.videos || []
+      };
+    });
+  }
+  function previewLibraryIds() {
+    return ((previewStorybookFixture && previewStorybookFixture.libraries) || []).map(function (library) {
+      return itemId(library);
+    });
+  }
 
   // Screens and feedback
   function showScreen(id, focusId) {
@@ -317,7 +332,9 @@
   function startStorybookPreview() {
     var fixture = global.RawiPreviewFixtures.storybook;
 
+    previewStorybookFixture = fixture;
     api.user = fixture.user;
+    updateProfile();
     availableLibraries = fixture.libraries;
     availableLibrariesReady = fixture.libraries.length > 0;
     availableLibrariesLoading = false;
@@ -328,13 +345,11 @@
     storybookState.enabled = true;
     storybookState.lastMode = 'storybook';
     storybookState.childName = 'Nova';
-    storybookState.libraryIds = fixture.libraries.map(function (library) {
-      return library.Id;
-    });
+    storybookState.libraryIds = previewLibraryIds();
     storybookView.setMode('storybook');
     storybookView.renderHome({
       childName: storybookState.childName,
-      libraries: fixture.groups,
+      libraries: previewGroups(),
       reducedMotion: false
     });
     showScreen('storybook-screen');
@@ -358,36 +373,50 @@
     currentGroups = [];
     currentLatest = [];
     currentResume = [];
-    availableLibraries = [];
-    availableLibrariesReady = false;
-    availableLibrariesLoading = true;
+    var libraryGroups;
+    var latestPromise;
+    var resumePromise;
 
-    var libraryGroups = api.getLibraries().then(function (libraries) {
-      libraries = libraries || [];
-      availableLibraries = libraries;
+    if (previewStorybookFixture) {
+      availableLibraries = previewStorybookFixture.libraries || [];
+      availableLibrariesReady = availableLibraries.length > 0;
       availableLibrariesLoading = false;
-      availableLibrariesReady = libraries.length > 0;
-      return Promise.all(libraries.map(function (library) {
-        return api.getVideos(itemId(library)).then(function (videos) {
-          return { id: itemId(library), name: name(library), videos: videos };
-        }).catch(function () {
-          return { id: itemId(library), name: name(library), videos: [] };
-        });
-      }));
-    }).then(function (groups) {
-      return groups.filter(function (group) { return group.videos.length > 0; });
-    }).catch(function () {
+      latestPromise = Promise.resolve(previewStorybookFixture.latest || []);
+      resumePromise = Promise.resolve(previewStorybookFixture.resume || []);
+      libraryGroups = Promise.resolve(previewGroups());
+    } else {
       availableLibraries = [];
-      availableLibrariesLoading = false;
       availableLibrariesReady = false;
-      return api.getVideos().then(function (videos) {
-        return [{ name: copy.get('allVideos'), videos: videos }];
+      availableLibrariesLoading = true;
+      latestPromise = api.getLatest().catch(function () { return []; });
+      resumePromise = api.getResume().catch(function () { return []; });
+      libraryGroups = api.getLibraries().then(function (libraries) {
+        libraries = libraries || [];
+        availableLibraries = libraries;
+        availableLibrariesLoading = false;
+        availableLibrariesReady = libraries.length > 0;
+        return Promise.all(libraries.map(function (library) {
+          return api.getVideos(itemId(library)).then(function (videos) {
+            return { id: itemId(library), name: name(library), videos: videos };
+          }).catch(function () {
+            return { id: itemId(library), name: name(library), videos: [] };
+          });
+        }));
+      }).then(function (groups) {
+        return groups.filter(function (group) { return group.videos.length > 0; });
+      }).catch(function () {
+        availableLibraries = [];
+        availableLibrariesLoading = false;
+        availableLibrariesReady = false;
+        return api.getVideos().then(function (videos) {
+          return [{ name: copy.get('allVideos'), videos: videos }];
+        });
       });
-    });
+    }
 
     Promise.all([
-      api.getResume().catch(function () { return []; }),
-      api.getLatest().catch(function () { return []; }),
+      resumePromise,
+      latestPromise,
       libraryGroups
     ]).then(function (groups) {
       currentResume = groups[0];

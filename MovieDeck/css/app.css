@@ -321,6 +321,25 @@ button { color: inherit; }
   padding: 14px 18px;
 }
 .library-option input { height: 24px; margin-right: 12px; width: 24px; }
-.settings-check { align-items: center; display: flex !important; }
+.library-option:focus-within,
+.settings-check:focus-within {
+  box-shadow: 0 0 0 5px #ffc477, 0 18px 45px rgba(0, 0, 0, .48);
+}
+.library-option:focus-within { background: rgba(255,255,255,.14); }
+.settings-check {
+  align-items: center;
+  border-radius: 6px;
+  display: flex !important;
+  padding: 8px 10px;
+  width: fit-content;
+}
+.settings-check:focus-within { background: rgba(255,255,255,.08); }
 .settings-check input { height: 24px; margin-right: 12px; width: 24px; }
 .settings-actions { display: flex; gap: 16px; margin-top: 30px; }
+.settings-actions .button:focus {
+  box-shadow:
+    0 0 0 3px #09131d,
+    0 0 0 8px #fff8df,
+    0 18px 45px rgba(0, 0, 0, .48);
+  transform: translateY(-3px);
+}
