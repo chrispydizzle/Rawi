@@ -637,6 +637,8 @@ git add MovieDeck\index.html MovieDeck\js\storybook-preferences.js MovieDeck\js\
 git commit -m "feat: add storybook catalogue foundation" -m "Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
 ```
 
+**Validation evidence for the remaining prune-safety finding:** the added `storybook-catalogue.test.js` regression now proves that a missing selected library forces `canPruneFavorites === false` and leaves `favoriteIdsToPrune` empty even when the remaining libraries report successful `/Views` and video-request completion. The full suite and `git diff --check` both passed after the fix.
+
 ---
 
 ### Task 2: Storybook Home Resume and Favorites

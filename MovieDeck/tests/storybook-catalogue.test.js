@@ -144,3 +144,39 @@ function clone(value) {
   assert.strictEqual(result.canPruneFavorites, false);
   assert.deepStrictEqual(clone(result.favoriteIdsToPrune), []);
 }());
+
+(function missingSelectedLibrariesBlockFavoritePruningEvenWhenRemainingLoadsSucceed() {
+  var result = catalogue.resolve({
+    accessibleLibraries: [
+      { Id: 'kids', Name: 'Kids' },
+      { Id: 'songs', Name: 'Songs' }
+    ],
+    groups: [
+      {
+        id: 'kids',
+        name: 'Kids',
+        videos: [{ Id: 'story-1', Name: 'First Story' }]
+      }
+    ],
+    preferences: {
+      libraryIds: ['kids', 'missing-library'],
+      favoriteItemIds: ['missing-favorite', 'story-1']
+    },
+    resumeItems: [],
+    libraryLoadState: {
+      viewsSucceeded: true,
+      requestedLibraryIds: ['kids', 'songs'],
+      videoRequests: {
+        kids: { complete: true, succeeded: true },
+        songs: { complete: true, succeeded: true }
+      }
+    }
+  });
+
+  assert.deepStrictEqual(clone(result.missingLibraryIds), ['missing-library']);
+  assert.strictEqual(result.canPruneFavorites, false);
+  assert.deepStrictEqual(clone(result.favoriteIdsToPrune), []);
+  assert.deepStrictEqual(clone(result.favoriteItems.map(function (item) {
+    return item.Id;
+  })), ['story-1']);
+}());

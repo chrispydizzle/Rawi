@@ -117,7 +117,8 @@
     var resumeItems = input.resumeItems || [];
     var favoriteIds = preferences.favoriteItemIds || [];
     var groups = input.groups || [];
-    var canPruneFavorites = requestedLibrariesSucceeded(input.libraryLoadState);
+    var canPruneFavorites = requestedLibrariesSucceeded(input.libraryLoadState) &&
+      resolution.missingIds.length === 0;
     var i;
     var key;
     var libraryId;
