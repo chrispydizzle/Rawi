@@ -30,6 +30,9 @@ The JavaScript intentionally remains ES5-compatible for older Samsung firmware.
 ```text
 Rawi/
 |-- MovieDeck/
+|   |-- config/
+|   |   `-- copy-overrides.js
+|   |                        Optional custom interface copy
 |   |-- config.xml          Tizen package metadata and privileges
 |   |-- index.html          Application screens and UI structure
 |   |-- icon.png            Packaged application icon
@@ -39,6 +42,7 @@ Rawi/
 |       |-- animations.js   Screen and shelf motion
 |       |-- api.js          Jellyfin API, authentication, and persistence
 |       |-- app.js          UI state, rendering, and remote navigation
+|       |-- copy.js         Default copy and override resolution
 |       |-- player.js       AVPlay and browser playback
 |       `-- vendor/
 |           `-- gsap.min.js Animation dependency
@@ -123,6 +127,55 @@ Use a different port when necessary:
   that AVPlay will accept the same stream, and the reverse can also be true.
 - Final navigation, overscan, performance, and playback testing should be done
   on the physical TV.
+
+  ## Customizing interface copy
+
+  Rawi keeps its complete default copy catalogue in `MovieDeck\js\copy.js`.
+  Personalized text belongs in:
+
+  ```text
+  MovieDeck\config\copy-overrides.js
+  ```
+
+  The override file only needs to contain values that differ from the defaults.
+  For example:
+
+  ```javascript
+  (function (global) {
+    'use strict';
+
+    global.RawiCopyOverrides = {
+      playerPreparing: "Preparing Nova's movie…",
+      heroTitle: "Nova's movies are ready.",
+      continueWatchingCaption: 'Keep the movie night going'
+    };
+  }(window));
+  ```
+
+  Delete an entry from `RawiCopyOverrides` to restore its built-in default. An
+  override may be an empty string when a piece of copy should intentionally be
+  hidden.
+
+  Some messages accept placeholders:
+
+  | Key | Placeholder |
+  |---|---|
+  | `runtimeMinutes` | `{minutes}` |
+  | `shelfItemCount` | `{count}` |
+  | `libraryCaption` | `{count}` |
+  | `posterAlt` | `{title}` |
+  | `resumeButton` | `{time}` |
+  | `finishedToast` | `{title}` |
+  | `samsungPlayerError` | `{error}` |
+  | `jellyfinHttpError` | `{status}` |
+
+  Keep required placeholders in customized values so dynamic information is not
+  lost. `quickTitle` and `quickInstructions` support trusted HTML because their
+  defaults contain line breaks and emphasis; all other overrides are inserted as
+  plain text.
+
+  Changes appear after refreshing the browser preview. A TV installation must be
+  repackaged before the new copy is available there.
 
 ## Connecting to Jellyfin
 

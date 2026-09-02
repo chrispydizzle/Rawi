@@ -1,0 +1,113 @@
+(function (global) {
+  'use strict';
+
+  var defaults = {
+    documentTitle: 'Rawi',
+    appName: 'Rawi',
+    setupKicker: 'La Casita de Posada',
+    setupNote: 'This TV will display a Quick Connect code.',
+    serverLabel: 'Host',
+    serverPlaceholder: 'http://192.168.1.10:8096',
+    connectButton: 'Connect',
+    quickKicker: 'Authorize this screen',
+    quickTitle: 'Enter this code<br>in Jellyfin',
+    quickInstructions: 'Open Jellyfin on another device, then go to<br><strong>Settings → Quick Connect</strong>.',
+    quickWaiting: 'Waiting for approval',
+    changeServerButton: 'Change server',
+    browseAriaLabel: 'Movie library',
+    selectedLabel: 'Selected',
+    chooseVideo: 'Choose a video',
+    refreshAriaLabel: 'Refresh library',
+    heroEyebrow: 'Tonight’s selection',
+    heroTitle: 'Your movies are ready.',
+    heroOverview: 'Choose a poster below to see it on the big screen.',
+    heroOpenButton: 'View film',
+    selectedIndexLabel: 'SELECTED',
+    browseLoading: 'Opening the library',
+    detailsAriaLabel: 'Movie details',
+    detailsBackButton: '← Library',
+    detailsKicker: 'Feature presentation',
+    playButton: '▶ Play',
+    restartButton: 'Start from beginning',
+    playerAriaLabel: 'Video player',
+    playerPreparing: 'Preparing the film…',
+    playerHints: '◀◀ 30s  •  OK Pause  •  30s ▶▶',
+    untitled: 'Untitled',
+    runtimeMinutes: '{minutes} min',
+    noSynopsis: 'No synopsis is available for this film.',
+    quickConnectDisabled: 'Quick Connect is disabled or this session has expired.',
+    quickConnectUnavailable: 'That Jellyfin address does not expose Quick Connect.',
+    quickConnectMissingCode: 'Jellyfin did not return a Quick Connect code.',
+    connectionFailed: 'Could not reach that Jellyfin server.',
+    quickApproved: 'Approved. Opening your library…',
+    quickConnectStopped: 'Quick Connect stopped. Try again.',
+    defaultProfileName: 'Jellyfin',
+    shelfItemCount: '{count} films',
+    allVideos: 'All videos',
+    continueWatchingTitle: 'Continue watching',
+    continueWatchingCaption: 'Pick up where you left off',
+    recentlyAddedTitle: 'Recently added',
+    recentlyAddedCaption: 'Fresh from your library',
+    libraryCaption: '{count} titles, A–Z',
+    noVideos: 'No videos are visible to this Jellyfin user.',
+    sessionExpired: 'Your saved session expired. Connect again to authorize this TV.',
+    libraryLoadFailed: 'The library could not be loaded.',
+    posterAlt: '{title} poster',
+    resumeButton: '▶ Resume at {time}',
+    finishedToast: 'Finished {title}',
+    signOutConfirm: 'Press the profile button again to sign out.',
+    signedOut: 'Signed out. Connect again when you are ready.',
+    playbackFailed: 'This film could not be played.',
+    playbackError: 'Playback error',
+    buffering: 'Buffering…',
+    playing: 'Playing',
+    paused: 'Paused',
+    seekBack: 'Back 30 seconds',
+    seekForward: 'Forward 30 seconds',
+    samsungPlayerError: 'Samsung player error: {error}',
+    browserPlaybackError: 'This browser could not play the selected stream.',
+    jellyfinHttpError: 'Jellyfin returned {status}',
+    jellyfinSessionError: 'Jellyfin did not return a user session.',
+    noMediaSource: 'No playable media source was returned.',
+    noCompatibleStream: 'Jellyfin could not build a compatible stream.'
+  };
+
+  var overrides = global.RawiCopyOverrides || {};
+
+  function replace(template, values) {
+    var result = template;
+    Object.keys(values || {}).forEach(function (key) {
+      result = result.replace(new RegExp('\\{' + key + '\\}', 'g'), String(values[key]));
+    });
+    return result;
+  }
+
+  function get(key, values) {
+    var template = Object.prototype.hasOwnProperty.call(overrides, key) &&
+      typeof overrides[key] === 'string' ? overrides[key] : defaults[key];
+    return replace(template !== undefined ? template : key, values);
+  }
+
+  function apply(root) {
+    var scope = root || document;
+    Array.prototype.forEach.call(scope.querySelectorAll('[data-copy]'), function (node) {
+      node.textContent = get(node.getAttribute('data-copy'));
+    });
+    Array.prototype.forEach.call(scope.querySelectorAll('[data-copy-html]'), function (node) {
+      node.innerHTML = get(node.getAttribute('data-copy-html'));
+    });
+    Array.prototype.forEach.call(scope.querySelectorAll('[data-copy-placeholder]'), function (node) {
+      node.setAttribute('placeholder', get(node.getAttribute('data-copy-placeholder')));
+    });
+    Array.prototype.forEach.call(scope.querySelectorAll('[data-copy-aria-label]'), function (node) {
+      node.setAttribute('aria-label', get(node.getAttribute('data-copy-aria-label')));
+    });
+    document.title = get('documentTitle');
+  }
+
+  global.RawiCopy = {
+    apply: apply,
+    defaults: defaults,
+    get: get
+  };
+}(window));

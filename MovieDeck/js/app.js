@@ -3,6 +3,7 @@
 
   var api = global.MovieDeckApi;
   var animations = global.MovieDeckAnimations;
+  var copy = global.RawiCopy;
   var player = global.MovieDeckPlayer;
   var value = global.MovieDeckValue;
 
@@ -18,11 +19,11 @@
   // DOM and item helpers
   function byId(id) { return document.getElementById(id); }
   function text(id, content) { byId(id).textContent = content || ''; }
-  function name(item) { return value(item, 'Name', 'name') || 'Untitled'; }
+  function name(item) { return value(item, 'Name', 'name') || copy.get('untitled'); }
   function itemId(item) { return value(item, 'Id', 'id'); }
   function runtime(item) {
     var ticks = value(item, 'RunTimeTicks', 'runTimeTicks') || 0;
-    return ticks ? Math.round(ticks / 600000000) + ' min' : '';
+    return ticks ? copy.get('runtimeMinutes', { minutes: Math.round(ticks / 600000000) }) : '';
   }
   function userData(item) { return value(item, 'UserData', 'userData') || {}; }
   function resumeTicks(item) { return value(userData(item), 'PlaybackPositionTicks', 'playbackPositionTicks') || 0; }
@@ -46,8 +47,8 @@
   }
 
   function describeError(error, fallback) {
-    if (error && error.status === 401) { return 'Quick Connect is disabled or this session has expired.'; }
-    if (error && error.status === 404) { return 'That Jellyfin address does not expose Quick Connect.'; }
+    if (error && error.status === 401) { return copy.get('quickConnectDisabled'); }
+    if (error && error.status === 404) { return copy.get('quickConnectUnavailable'); }
     return (error && error.message) || fallback;
   }
 
@@ -62,13 +63,13 @@
     }).then(function (result) {
       var code = value(result, 'Code', 'code');
       var secret = value(result, 'Secret', 'secret');
-      if (!code || !secret) { throw new Error('Jellyfin did not return a Quick Connect code.'); }
+      if (!code || !secret) { throw new Error(copy.get('quickConnectMissingCode')); }
       text('quick-code', code.split('').join(' '));
       text('quick-error', '');
       showScreen('quick-screen', 'change-server-button');
       pollQuickConnect(secret);
     }).catch(function (error) {
-      text('setup-error', describeError(error, 'Could not reach that Jellyfin server.'));
+      text('setup-error', describeError(error, copy.get('connectionFailed')));
       byId('connect-button').disabled = false;
       byId('server-url').focus();
     });
@@ -80,17 +81,17 @@
       api.getQuickConnectState(secret).then(function (state) {
         if (!value(state, 'Authenticated', 'authenticated')) { return; }
         clearInterval(quickTimer);
-        text('quick-error', 'Approved. Opening your library…');
+        text('quick-error', copy.get('quickApproved'));
         return api.authenticateQuickConnect(secret).then(openLibrary);
       }).catch(function (error) {
         clearInterval(quickTimer);
-        text('quick-error', describeError(error, 'Quick Connect stopped. Try again.'));
+        text('quick-error', describeError(error, copy.get('quickConnectStopped')));
       });
     }, 3000);
   }
 
   function updateProfile() {
-    var username = value(api.user, 'Name', 'name') || 'Jellyfin';
+    var username = value(api.user, 'Name', 'name') || copy.get('defaultProfileName');
     text('profile-name', username);
     text('profile-initial', username.charAt(0).toUpperCase());
   }
@@ -109,7 +110,7 @@
   function selectItem(item, card) {
     selectedItem = item;
     selectedCard = card || selectedCard;
-    var overview = value(item, 'Overview', 'overview') || 'No synopsis is available for this film.';
+    var overview = value(item, 'Overview', 'overview') || copy.get('noSynopsis');
     var backdrop = api.imageUrl(item, 'Backdrop', 1920, 1080);
     text('hero-title', name(item));
     text('selection-title', name(item));
@@ -123,6 +124,7 @@
 
   function cardFor(item, index) {
     var card = document.createElement('button');
+    var itemRuntime = runtime(item);
     var span = document.createElement("span");
     span.className = 'card-title';
     span.textContent = name(item);
@@ -131,7 +133,7 @@
     card.className = 'movie-card focusable';
     card.setAttribute('data-focusable', '');
     card.setAttribute('data-index', String(index + 1));
-    card.setAttribute('aria-label', name(item));
+    card.setAttribute('aria-label', name(item) + (itemRuntime ? ', ' + itemRuntime : ''));
     if (poster) {
       var image = document.createElement('img');
       image.src = poster;
@@ -140,6 +142,12 @@
       card.appendChild(image);
     } else {
       card.appendChild(fallbackFor(item));
+    }
+    if (itemRuntime) {
+      var runtimeBadge = document.createElement('span');
+      runtimeBadge.className = 'card-runtime';
+      runtimeBadge.textContent = itemRuntime;
+      card.appendChild(runtimeBadge);
     }
     if (playbackPercent(item) > 0 && playbackPercent(item) < 100) {
       var progress = document.createElement('div');
@@ -178,7 +186,7 @@
     shelf.className = 'shelf';
     header.className = 'shelf-header';
     heading.textContent = title;
-    count.textContent = caption || (items.length + ' films');
+    count.textContent = caption || copy.get('shelfItemCount', { count: items.length });
     rail.className = 'shelf-rail';
     header.appendChild(heading);
     header.appendChild(count);
@@ -207,7 +215,7 @@
       return groups.filter(function (group) { return group.videos.length > 0; });
     }).catch(function () {
       return api.getVideos().then(function (videos) {
-        return [{ name: 'All videos', videos: videos }];
+        return [{ name: copy.get('allVideos'), videos: videos }];
       });
     });
 
@@ -217,11 +225,11 @@
       libraryGroups
     ]).then(function (groups) {
       var definitions = [
-        ['Continue watching', 'Pick up where you left off', groups[0]],
-        ['Recently added', 'Fresh from your library', groups[1]]
+        [copy.get('continueWatchingTitle'), copy.get('continueWatchingCaption'), groups[0]],
+        [copy.get('recentlyAddedTitle'), copy.get('recentlyAddedCaption'), groups[1]]
       ];
       groups[2].forEach(function (group) {
-        definitions.push([group.name, group.videos.length + ' titles, A–Z', group.videos]);
+        definitions.push([group.name, copy.get('libraryCaption', { count: group.videos.length }), group.videos]);
       });
       var firstCard = null;
       definitions.forEach(function (definition) {
@@ -234,7 +242,7 @@
       byId('browse-loading').style.display = 'none';
       animations.animateShelves();
       if (!firstCard) {
-        byId('browse-error').textContent = 'No videos are visible to this Jellyfin user.';
+        byId('browse-error').textContent = copy.get('noVideos');
         byId('browse-error').style.display = 'block';
         byId('refresh-button').focus();
         return;
@@ -245,12 +253,12 @@
         api.signOut();
         byId('browse-loading').style.display = 'none';
         byId('server-url').value = api.server || defaultServer;
-        text('setup-error', 'Your saved session expired. Connect again to authorize this TV.');
+        text('setup-error', copy.get('sessionExpired'));
         showScreen('setup-screen', 'connect-button');
         return;
       }
       byId('browse-loading').style.display = 'none';
-      byId('browse-error').textContent = describeError(error, 'The library could not be loaded.');
+      byId('browse-error').textContent = describeError(error, copy.get('libraryLoadFailed'));
       byId('browse-error').style.display = 'block';
       byId('refresh-button').focus();
     });
@@ -263,18 +271,20 @@
     var backdrop = api.imageUrl(item, 'Backdrop', 1920, 1080);
     var genres = value(item, 'Genres', 'genres') || [];
     byId('details-poster').src = poster;
-    byId('details-poster').alt = name(item) + ' poster';
+    byId('details-poster').alt = copy.get('posterAlt', { title: name(item) });
     byId('details-backdrop').style.backgroundImage = backdrop ? 'url("' + backdrop.replace(/"/g, '%22') + '")' : 'none';
     text('details-title', name(item));
     text('details-meta', meta(item));
-    text('details-overview', value(item, 'Overview', 'overview') || 'No synopsis is available for this film.');
+    text('details-overview', value(item, 'Overview', 'overview') || copy.get('noSynopsis'));
     byId('details-genres').innerHTML = '';
     genres.slice(0, 4).forEach(function (genre) {
       var pill = document.createElement('span');
       pill.textContent = genre;
       byId('details-genres').appendChild(pill);
     });
-    byId('play-button').textContent = resumeTicks(item) > 0 ? '▶ Resume at ' + runtimeFromTicks(resumeTicks(item)) : '▶ Play';
+    byId('play-button').textContent = resumeTicks(item) > 0 ?
+      copy.get('resumeButton', { time: runtimeFromTicks(resumeTicks(item)) }) :
+      copy.get('playButton');
     byId('restart-button').style.display = resumeTicks(item) > 0 ? 'inline-block' : 'none';
     showScreen('details-screen', 'play-button');
   }
@@ -294,12 +304,12 @@
 
   function playerStopped(completed) {
     showScreen('details-screen', 'play-button');
-    if (completed) { showToast('Finished ' + name(selectedItem)); }
+    if (completed) { showToast(copy.get('finishedToast', { title: name(selectedItem) })); }
   }
 
   function signOut() {
     if (!signOutTimer) {
-      showToast('Press the profile button again to sign out.');
+      showToast(copy.get('signOutConfirm'));
       signOutTimer = setTimeout(function () { signOutTimer = null; }, 3000);
       return;
     }
@@ -308,7 +318,7 @@
     api.signOut();
     selectedItem = null;
     showScreen('setup-screen', 'server-url');
-    text('setup-error', 'Signed out. Connect again when you are ready.');
+    text('setup-error', copy.get('signedOut'));
   }
 
   // Remote navigation
@@ -376,13 +386,14 @@
   }
 
   function init() {
+    copy.apply(document);
     registerEvents();
     player.init({
       onStop: playerStopped,
       onError: function (error) {
         if (player.isPlaying()) { player.stop(false); }
         else { showScreen('details-screen', 'play-button'); }
-        showToast(describeError(error, 'This film could not be played.'));
+        showToast(describeError(error, copy.get('playbackFailed')));
       }
     });
     updateClock();

@@ -2,6 +2,7 @@
   'use strict';
 
   var api = global.MovieDeckApi;
+  var copy = global.RawiCopy;
   var value = global.MovieDeckValue;
   var avplay = global.webapis && global.webapis.avplay;
   var htmlPlayer;
@@ -63,7 +64,7 @@
 
   function fail(error) {
     setText('player-message', error && error.message ? error.message : String(error));
-    showControls('Playback error');
+    showControls(copy.get('playbackError'));
     if (callbacks.onError) { callbacks.onError(error); }
   }
 
@@ -73,11 +74,11 @@
     avplay.setDisplayMethod('PLAYER_DISPLAY_MODE_LETTER_BOX');
     try { avplay.setStreamingProperty('SET_MODE_4K', 'TRUE'); } catch (ignored) { /* Older firmware may choose the decoder automatically. */ }
     avplay.setListener({
-      onbufferingstart: function () { setText('player-message', 'Buffering…'); },
+      onbufferingstart: function () { setText('player-message', copy.get('buffering')); },
       onbufferingcomplete: function () { setText('player-message', ''); },
       oncurrentplaytime: onTime,
       onstreamcompleted: function () { stop(true); },
-      onerror: function (eventType) { fail(new Error('Samsung player error: ' + eventType)); },
+      onerror: function (eventType) { fail(new Error(copy.get('samsungPlayerError', { error: eventType }))); },
       onevent: function () { },
       onsubtitlechange: function () { },
       ondrmevent: function () { }
@@ -90,7 +91,7 @@
       avplay.play();
       setText('player-message', '');
       report('', false);
-      showControls('Playing');
+      showControls(copy.get('playing'));
     }, fail);
   }
 
@@ -103,11 +104,11 @@
       htmlPlayer.play();
       setText('player-message', '');
       report('', false);
-      showControls('Playing');
+      showControls(copy.get('playing'));
     };
     htmlPlayer.ontimeupdate = function () { onTime(htmlPlayer.currentTime * 1000); };
     htmlPlayer.onended = function () { stop(true); };
-    htmlPlayer.onerror = function () { fail(new Error('This browser could not play the selected stream.')); };
+    htmlPlayer.onerror = function () { fail(new Error(copy.get('browserPlaybackError'))); };
   }
 
   function play(item, fromBeginning) {
@@ -116,7 +117,7 @@
     positionMs = resumeTicks / 10000;
     durationMs = value(item, 'RunTimeTicks', 'runTimeTicks') / 10000 || 0;
     setText('player-title', value(item, 'Name', 'name'));
-    setText('player-message', 'Preparing the film…');
+    setText('player-message', copy.get('playerPreparing'));
     updateControls();
 
     return api.getPlaybackInfo(item, resumeTicks).then(function (playbackInfo) {
@@ -135,7 +136,7 @@
     else if (!avplay && !htmlPlayer.paused) { htmlPlayer.pause(); }
     else { return; }
     report('/Progress', true);
-    showControls('Paused');
+    showControls(copy.get('paused'));
   }
 
   function resume() {
@@ -144,7 +145,7 @@
     else if (!avplay && htmlPlayer.paused) { htmlPlayer.play(); }
     else { return; }
     report('/Progress', false);
-    showControls('Playing');
+    showControls(copy.get('playing'));
   }
 
   function togglePause() {
@@ -160,7 +161,7 @@
     else { htmlPlayer.currentTime = target / 1000; }
     positionMs = target;
     updateControls();
-    showControls(deltaMs < 0 ? 'Back 30 seconds' : 'Forward 30 seconds');
+    showControls(copy.get(deltaMs < 0 ? 'seekBack' : 'seekForward'));
   }
 
   function stop(completed) {

@@ -2,7 +2,8 @@
   'use strict';
 
   var CLIENT_NAME = 'Rawi';
-  var CLIENT_VERSION = '0.1.9';
+  var CLIENT_VERSION = '0.1.10';
+  var copy = global.RawiCopy;
   var STORAGE_KEY = 'moviedeck.session';
   var DEVICE_ID_KEY = 'moviedeck.deviceId';
 
@@ -116,7 +117,7 @@
     return fetch(this.server + path, options).then(function (response) {
       if (!response.ok) {
         return response.text().then(function (message) {
-          var error = new Error(message || ('Jellyfin returned ' + response.status));
+          var error = new Error(message || copy.get('jellyfinHttpError', { status: response.status }));
           error.status = response.status;
           throw error;
         });
@@ -149,7 +150,7 @@
     }).then(function (result) {
       self.token = value(result, 'AccessToken', 'accessToken');
       self.user = value(result, 'User', 'user');
-      if (!self.token || !self.user) { throw new Error('Jellyfin did not return a user session.'); }
+      if (!self.token || !self.user) { throw new Error(copy.get('jellyfinSessionError')); }
       self.save();
       return self.user;
     });
@@ -271,7 +272,7 @@
   ApiClient.prototype.streamUrl = function (item, playbackInfo) {
     var sources = value(playbackInfo, 'MediaSources', 'mediaSources') || [];
     var source = sources[0];
-    if (!source) { throw new Error('No playable media source was returned.'); }
+    if (!source) { throw new Error(copy.get('noMediaSource')); }
     var itemId = value(item, 'Id', 'id');
     var mediaSourceId = value(source, 'Id', 'id');
     var playSessionId = value(playbackInfo, 'PlaySessionId', 'playSessionId');
@@ -283,7 +284,7 @@
     } else {
       relative = value(source, 'TranscodingUrl', 'transcodingUrl') || value(source, 'DirectStreamUrl', 'directStreamUrl');
     }
-    if (!relative) { throw new Error('Jellyfin could not build a compatible stream.'); }
+    if (!relative) { throw new Error(copy.get('noCompatibleStream')); }
     var url = /^https?:\/\//i.test(relative) ? relative : this.server + relative;
     var separator = url.indexOf('?') === -1 ? '?' : '&';
     if (!/[?&](api_key|apiKey)=/i.test(url)) { url += separator + 'api_key=' + encodeURIComponent(this.token); }

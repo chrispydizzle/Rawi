@@ -1,5 +1,7 @@
 dist/
+.worktrees/
 *.wgt
 MovieDeck/.manifest.tmp
 MovieDeck/author-signature.xml
 MovieDeck/signature1.xml
+copy-overrides.js
