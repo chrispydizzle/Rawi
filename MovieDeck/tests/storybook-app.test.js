@@ -889,6 +889,106 @@ function positionStoryDoors(harness) {
   );
 }());
 
+asyncTest('previewRoutesCanOpenHomeLibraryDetailsAndEndingWithoutJellyfin', function () {
+  var fixture = {
+    storybook: {
+      user: { Id: 'preview-user', Name: 'Parent' },
+      preferences: {
+        version: 2,
+        enabled: true,
+        lastMode: 'storybook',
+        childName: 'Nova',
+        libraryIds: ['pixar', 'songs', 'lessons'],
+        favoriteItemIds: ['dance', 'colors'],
+        reducedMotion: false
+      },
+      libraries: [
+        { Id: 'pixar', Name: 'Disney Pixar' },
+        { Id: 'songs', Name: 'Sing & Dance' },
+        { Id: 'lessons', Name: 'Little Lessons' },
+        { Id: 'grownups', Name: 'Grownups' }
+      ],
+      resume: [
+        {
+          Id: 'bluey',
+          Name: "Bluey's Big Adventure",
+          RunTimeTicks: 16800000000,
+          UserData: { PlaybackPositionTicks: 3600000000, PlayedPercentage: 21 }
+        }
+      ],
+      groups: [
+        {
+          id: 'pixar',
+          name: 'Disney Pixar',
+          videos: [{ Id: 'bluey', Name: "Bluey's Big Adventure", RunTimeTicks: 16800000000, UserData: { PlaybackPositionTicks: 3600000000, PlayedPercentage: 21 } }]
+        },
+        {
+          id: 'songs',
+          name: 'Sing & Dance',
+          videos: [{ Id: 'dance', Name: 'Dance With Me', RunTimeTicks: 7200000000 }]
+        },
+        {
+          id: 'lessons',
+          name: 'Little Lessons',
+          videos: [{ Id: 'colors', Name: 'The Color Garden', RunTimeTicks: 5400000000 }]
+        },
+        {
+          id: 'grownups',
+          name: 'Grownups',
+          videos: [{ Id: 'late', Name: 'Late Night Movie', RunTimeTicks: 9600000000 }]
+        }
+      ]
+    }
+  };
+  var homeHarness = loadAppHarness({
+    locationSearch: '?preview=storybook',
+    previewFixtures: fixture,
+    restoreSession: true
+  });
+  var libraryHarness = loadAppHarness({
+    locationSearch: '?preview=storybook&storybookScreen=library&storybookLibraryId=songs',
+    previewFixtures: fixture,
+    restoreSession: true
+  });
+  var detailsHarness = loadAppHarness({
+    locationSearch: '?preview=storybook&storybookScreen=details&storybookItemId=bluey',
+    previewFixtures: fixture,
+    restoreSession: true
+  });
+  var endingHarness = loadAppHarness({
+    locationSearch: '?preview=storybook&storybookScreen=ending&storybookItemId=bluey',
+    previewFixtures: fixture,
+    restoreSession: true
+  });
+
+  return flush(12).then(function () {
+    assert.strictEqual(homeHarness.screenActive('storybook-screen'), true);
+    assert.strictEqual(homeHarness.document.getElementById('storybook-resume-card').getAttribute('data-item-id'), 'bluey');
+    assert.strictEqual(homeHarness.document.getElementById('storybook-favorites').children.length, 2);
+    assert.strictEqual(homeHarness.document.activeElement.id, 'storybook-resume-card');
+
+    assert.strictEqual(libraryHarness.screenActive('storybook-library-screen'), true);
+    assert.strictEqual(libraryHarness.document.getElementById('storybook-library-title').textContent, 'Sing & Dance');
+    assert.strictEqual(libraryHarness.document.activeElement.id, 'storybook-library-card-dance');
+
+    assert.strictEqual(detailsHarness.screenActive('storybook-details-screen'), true);
+    assert.strictEqual(detailsHarness.document.getElementById('storybook-details-title').textContent, "Bluey's Big Adventure");
+    assert.strictEqual(detailsHarness.document.activeElement.id, 'storybook-details-play');
+
+    assert.strictEqual(endingHarness.screenActive('storybook-ending-screen'), true);
+    assert.strictEqual(endingHarness.document.getElementById('storybook-ending-title').textContent, 'All done, Nova.');
+    assert.strictEqual(endingHarness.document.activeElement.id, 'storybook-ending-all-done');
+
+    assert.deepStrictEqual(homeHarness.apiCalls(), {
+      getLatest: 0,
+      getLibraries: 0,
+      getResume: 0,
+      getVideos: 0,
+      restore: 0
+    });
+  });
+});
+
 asyncTest('switchesPreviewAdultModeWithoutContactingJellyfin', function () {
   var harness = loadAppHarness({
     locationSearch: '?preview=storybook',
@@ -1940,16 +2040,20 @@ asyncTest('reducedMotionSkipsGeneralScreenEntryAnimationOnAllStorybookPresentati
 
     harness.document.getElementById('storybook-door-kids').click();
     assert.strictEqual(harness.screenActive('storybook-library-screen'), true);
+    assert.strictEqual(harness.screenEntries().indexOf('storybook-library-screen'), -1);
 
     harness.document.getElementById('storybook-library-card-story-1').click();
     assert.strictEqual(harness.screenActive('storybook-details-screen'), true);
+    assert.strictEqual(harness.screenEntries().indexOf('storybook-details-screen'), -1);
 
     harness.document.getElementById('storybook-details-play').click();
     harness.playerCallbacks().onStop(true);
     assert.strictEqual(harness.screenActive('storybook-ending-screen'), true);
+    assert.strictEqual(harness.screenEntries().indexOf('storybook-ending-screen'), -1);
 
     harness.document.getElementById('storybook-ending-pick-another').click();
     assert.strictEqual(harness.screenActive('storybook-screen'), true);
+    assert.strictEqual(harness.screenEntries().lastIndexOf('storybook-screen'), -1);
 
     harness.document.getElementById('storybook-edit-libraries').click();
     assert.strictEqual(harness.screenActive('storybook-settings-screen'), true);
@@ -2236,6 +2340,31 @@ asyncTest('keepsReducedMotionStorybookHomeStatic', function () {
 
   return flush(12).then(function () {
     assert.strictEqual(harness.screenEntries().indexOf('storybook-screen'), -1);
+  });
+});
+
+asyncTest('animatesStorybookHomeWhenReducedMotionIsDisabled', function () {
+  var harness = loadAppHarness({
+    libraries: [
+      { Id: 'kids', Name: 'Kids' }
+    ],
+    preferences: {
+      version: 2,
+      enabled: true,
+      lastMode: 'storybook',
+      childName: 'Nova',
+      libraryIds: ['kids'],
+      favoriteItemIds: [],
+      reducedMotion: false
+    },
+    restoreSession: true,
+    videosByLibrary: {
+      kids: [{ Id: 'video-1', Name: 'First video' }]
+    }
+  });
+
+  return flush(12).then(function () {
+    assert.notStrictEqual(harness.screenEntries().indexOf('storybook-screen'), -1);
   });
 });
 

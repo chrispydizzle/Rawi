@@ -54,6 +54,19 @@ user's library permissions to enforce actual content restrictions.
 The deterministic preview opens directly into Whimsical Watercolor Storybook
 Mode with local fixture data. It does not authenticate or contact Jellyfin.
 
+### Storybook Phase 2 preview routes
+
+```powershell
+.\tools\Start-RawiPreview.ps1 -StorybookMock
+.\tools\Start-RawiPreview.ps1 -StorybookMock -StorybookScreen library -StorybookLibraryId songs
+.\tools\Start-RawiPreview.ps1 -StorybookMock -StorybookScreen details -StorybookItemId bluey
+.\tools\Start-RawiPreview.ps1 -StorybookMock -StorybookScreen ending -StorybookItemId bluey
+```
+
+Use Adult Mode details to add or remove Storybook favorites. In a browser preview,
+**All done** returns to Storybook home because the browser does not expose the
+Tizen app-exit API. On TV, **All done** exits the app.
+
 ## Repository layout
 
 ```text

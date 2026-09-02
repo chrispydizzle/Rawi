@@ -533,6 +533,42 @@
     };
   }
 
+  function previewItemById(id) {
+    var catalogue = buildStorybookCatalogue();
+    return catalogue.itemById[id] || catalogue.resumeItem || null;
+  }
+
+  function storybookPreviewScreen() {
+    var value = queryValue('storybookScreen');
+    if (value === 'library' || value === 'details' || value === 'ending') {
+      return value;
+    }
+    return 'home';
+  }
+
+  function applyStorybookPreviewRoute() {
+    var screen = storybookPreviewScreen();
+    var libraryId = queryValue('storybookLibraryId') || storybookState.libraryIds[0] || '';
+    var item = previewItemById(queryValue('storybookItemId'));
+
+    if (screen === 'library') {
+      openStorybookLibrary(libraryId);
+      return;
+    }
+    if (screen === 'details' && item) {
+      openStorybookDetails(item, 'resume');
+      return;
+    }
+    if (screen === 'ending' && item) {
+      selectedItem = item;
+      showStorybookEnding();
+      return;
+    }
+
+    showScreen('storybook-screen');
+    renderStorybookHome();
+  }
+
   function renderStorybookHome(preferredFocusId) {
     var catalogue = buildStorybookCatalogue();
 
@@ -621,8 +657,7 @@
     storybookResetConfirming = false;
     storybookState = previewStorybookState(fixture);
     storybookView.setMode('storybook');
-    showScreen('storybook-screen');
-    renderStorybookHome();
+    applyStorybookPreviewRoute();
   }
 
   function openStorybookLibrary(libraryId, preferredFocusId) {

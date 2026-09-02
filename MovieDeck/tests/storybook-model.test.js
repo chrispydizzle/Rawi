@@ -7,21 +7,19 @@ var previewFixtures = load('js/preview-fixtures.js', { window: {} }).RawiPreview
 
 (function exposesDeterministicStorybookPreviewFixture() {
   assert.deepStrictEqual(
-    JSON.parse(JSON.stringify(previewFixtures.storybook.user)),
-    { Id: 'preview-user', Name: 'Parent' }
+    JSON.parse(JSON.stringify(previewFixtures.storybook.preferences)),
+    {
+      version: 2,
+      enabled: true,
+      lastMode: 'storybook',
+      childName: 'Nova',
+      libraryIds: ['pixar', 'songs', 'lessons'],
+      favoriteItemIds: ['dance', 'colors'],
+      reducedMotion: false
+    }
   );
-  assert.deepStrictEqual(
-    JSON.parse(JSON.stringify(previewFixtures.storybook.libraries.map(function (library) {
-      return library.Id;
-    }))),
-    ['pixar', 'songs', 'lessons']
-  );
-  assert.deepStrictEqual(
-    JSON.parse(JSON.stringify(previewFixtures.storybook.groups.map(function (group) {
-      return group.id;
-    }))),
-    ['pixar', 'songs', 'lessons']
-  );
+  assert.strictEqual(previewFixtures.storybook.resume[0].Id, 'bluey');
+  assert.strictEqual(previewFixtures.storybook.groups.length, 4);
 }());
 
 (function resolvesSelectedLibrariesInServerOrder() {

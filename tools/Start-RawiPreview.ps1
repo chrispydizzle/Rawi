@@ -6,6 +6,16 @@ param(
     [switch]$StorybookMock,
 
     [Parameter(Mandatory = $false)]
+    [ValidateSet('home', 'library', 'details', 'ending')]
+    [string]$StorybookScreen = 'home',
+
+    [Parameter(Mandatory = $false)]
+    [string]$StorybookLibraryId,
+
+    [Parameter(Mandatory = $false)]
+    [string]$StorybookItemId,
+
+    [Parameter(Mandatory = $false)]
     [switch]$Stop
 )
 
@@ -96,7 +106,17 @@ if (!$existing) {
 
 $url = "http://127.0.0.1:$Port/"
 if ($StorybookMock) {
-    $url += '?preview=storybook'
+    $query = @('preview=storybook')
+    if ($StorybookScreen -and $StorybookScreen -ne 'home') {
+        $query += 'storybookScreen=' + [uri]::EscapeDataString($StorybookScreen)
+    }
+    if ($StorybookLibraryId) {
+        $query += 'storybookLibraryId=' + [uri]::EscapeDataString($StorybookLibraryId)
+    }
+    if ($StorybookItemId) {
+        $query += 'storybookItemId=' + [uri]::EscapeDataString($StorybookItemId)
+    }
+    $url += '?' + ($query -join '&')
 }
 $ready = $false
 for ($attempt = 0; $attempt -lt 20; $attempt++) {
