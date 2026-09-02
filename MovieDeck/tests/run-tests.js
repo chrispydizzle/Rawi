@@ -3,6 +3,8 @@
 var fs = require('fs');
 var path = require('path');
 var vm = require('vm');
+var pendingTests = [];
+var failureReported = false;
 
 function loadBrowserScript(relativePath, additions) {
   var values = additions || {};
@@ -23,22 +25,61 @@ function loadBrowserScript(relativePath, additions) {
   return context.window;
 }
 
+function registerAsync(name, executor) {
+  pendingTests.push(Promise.resolve().then(function () {
+    return typeof executor === 'function' ? executor() : executor;
+  }).catch(function (error) {
+    if (error && error.message && error.message.indexOf(name + ':') !== 0) {
+      error.message = name + ': ' + error.message;
+    }
+    throw error;
+  }));
+}
+
+function reportFailure(error) {
+  if (failureReported) { return; }
+  failureReported = true;
+  console.error(error && error.stack ? error.stack : error);
+  process.exitCode = 1;
+}
+
+function testFiles() {
+  var requested = process.argv.slice(2);
+  if (requested.length) { return requested; }
+  return [
+    'animations.test.js',
+    'storage.test.js',
+    'run-tests-runner.test.js',
+    'storybook-app.test.js',
+    'storybook-preferences.test.js',
+    'storybook-model.test.js',
+    'storybook-view.test.js',
+    'copy.test.js'
+  ];
+}
+
+function loadTests(files) {
+  files.forEach(function (file) {
+    var fullPath = path.join(__dirname, file);
+    if (fs.existsSync(fullPath)) { require(fullPath); }
+  });
+}
+
 global.RawiTest = {
   assert: require('assert'),
-  loadBrowserScript: loadBrowserScript
+  loadBrowserScript: loadBrowserScript,
+  registerAsync: registerAsync
 };
 
-[
-  'animations.test.js',
-  'storage.test.js',
-  'storybook-app.test.js',
-  'storybook-preferences.test.js',
-  'storybook-model.test.js',
-  'storybook-view.test.js',
-  'copy.test.js'
-].forEach(function (file) {
-  var fullPath = path.join(__dirname, file);
-  if (fs.existsSync(fullPath)) { require(fullPath); }
-});
+process.on('unhandledRejection', reportFailure);
 
-console.log('All Rawi tests passed.');
+Promise.resolve().then(function () {
+  loadTests(testFiles());
+  return Promise.all(pendingTests);
+}).then(function () {
+  if (!failureReported) {
+    console.log('All Rawi tests passed.');
+  }
+}).catch(function (error) {
+  reportFailure(error);
+});

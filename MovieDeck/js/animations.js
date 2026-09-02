@@ -115,6 +115,10 @@
     });
   }
 
+  function stopStorybookHome() {
+    resetStorybookDoors();
+  }
+
   function completeScroll(motion) {
     if (scrollMotion !== motion) { return; }
     motion.content.style.transform = 'none';
@@ -179,6 +183,7 @@
     animateSelection: animateSelection,
     animateShelves: animateShelves,
     enterScreen: enterScreen,
-    focusCard: focusCard
+    focusCard: focusCard,
+    stopStorybookHome: stopStorybookHome
   };
 }(window));

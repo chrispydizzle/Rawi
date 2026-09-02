@@ -20,6 +20,7 @@
   var storybookState = storybookPreferences.restore();
   var availableLibraries = [];
   var availableLibrariesReady = false;
+  var availableLibrariesFailed = false;
   var availableLibrariesLoading = false;
   var currentGroups = [];
   var currentLatest = [];
@@ -29,6 +30,10 @@
   var previewStorybookFixture = null;
   var storybookLibraryOpen = false;
   var storybookSettingsReturnFocusId = 'storybook-settings-button';
+  var storybookSettingsIntent = {
+    activateStorybookOnSave: false,
+    modeOnOpen: storybookState.lastMode
+  };
 
   // DOM and item helpers
   function byId(id) { return document.getElementById(id); }
@@ -64,6 +69,11 @@
 
   // Screens and feedback
   function showScreen(id, focusId) {
+    if (activeScreen === 'storybook-screen' &&
+        id !== 'storybook-screen' &&
+        animations.stopStorybookHome) {
+      animations.stopStorybookHome();
+    }
     Array.prototype.forEach.call(document.querySelectorAll('.screen'), function (screen) {
       screen.classList.toggle('is-active', screen.id === id);
     });
@@ -336,7 +346,8 @@
     api.user = fixture.user;
     updateProfile();
     availableLibraries = fixture.libraries;
-    availableLibrariesReady = fixture.libraries.length > 0;
+    availableLibrariesReady = true;
+    availableLibrariesFailed = false;
     availableLibrariesLoading = false;
     currentGroups = fixture.groups;
     currentLatest = [];
@@ -347,20 +358,20 @@
     storybookState.childName = 'Nova';
     storybookState.libraryIds = previewLibraryIds();
     storybookView.setMode('storybook');
+    showScreen('storybook-screen');
     storybookView.renderHome({
       childName: storybookState.childName,
       libraries: previewGroups(),
       reducedMotion: false
     });
-    showScreen('storybook-screen');
   }
 
   function openStorybookLibrary(libraryId) {
     storybookLibraryOpen = true;
+    showScreen('browse-screen');
     renderAdultGroups(currentGroups.filter(function (group) {
       return group.id === libraryId;
     }), false);
-    showScreen('browse-screen');
   }
 
   function openLibrary() {
@@ -379,7 +390,8 @@
 
     if (previewStorybookFixture) {
       availableLibraries = previewStorybookFixture.libraries || [];
-      availableLibrariesReady = availableLibraries.length > 0;
+      availableLibrariesReady = true;
+      availableLibrariesFailed = false;
       availableLibrariesLoading = false;
       latestPromise = Promise.resolve(previewStorybookFixture.latest || []);
       resumePromise = Promise.resolve(previewStorybookFixture.resume || []);
@@ -387,6 +399,7 @@
     } else {
       availableLibraries = [];
       availableLibrariesReady = false;
+      availableLibrariesFailed = false;
       availableLibrariesLoading = true;
       latestPromise = api.getLatest().catch(function () { return []; });
       resumePromise = api.getResume().catch(function () { return []; });
@@ -394,7 +407,8 @@
         libraries = libraries || [];
         availableLibraries = libraries;
         availableLibrariesLoading = false;
-        availableLibrariesReady = libraries.length > 0;
+        availableLibrariesReady = true;
+        availableLibrariesFailed = false;
         return Promise.all(libraries.map(function (library) {
           return api.getVideos(itemId(library)).then(function (videos) {
             return { id: itemId(library), name: name(library), videos: videos };
@@ -408,6 +422,7 @@
         availableLibraries = [];
         availableLibrariesLoading = false;
         availableLibrariesReady = false;
+        availableLibrariesFailed = true;
         return api.getVideos().then(function (videos) {
           return [{ name: copy.get('allVideos'), videos: videos }];
         });
@@ -425,8 +440,14 @@
 
       if (storybookState.lastMode === 'storybook') {
         byId('browse-loading').style.display = 'none';
-        renderStorybookHome();
+        if (availableLibrariesFailed) {
+          byId('browse-error').textContent = copy.get('libraryLoadFailed');
+          byId('browse-error').style.display = 'block';
+          focusScreenTarget('refresh-button');
+          return;
+        }
         showScreen('storybook-screen');
+        renderStorybookHome();
         return;
       }
       renderAdultGroups(currentGroups);
@@ -448,7 +469,7 @@
 
   function storybookSettingsGateMessage() {
     if (availableLibrariesLoading) { return copy.get('browseLoading'); }
-    if (!availableLibrariesReady || !availableLibraries.length) {
+    if (availableLibrariesFailed || !availableLibrariesReady) {
       return copy.get('libraryLoadFailed');
     }
     return '';
@@ -470,10 +491,17 @@
       'details-storybook-mode-button' : 'storybook-settings-button';
   }
 
+  function setStorybookSettingsIntent(options) {
+    storybookSettingsIntent = {
+      activateStorybookOnSave: !!(options && options.activateStorybookOnSave),
+      modeOnOpen: storybookState.lastMode
+    };
+  }
+
   function applyMode(mode, controlId) {
     var nextMode = mode === 'storybook' ? 'storybook' : 'adult';
     if (nextMode === 'storybook' && !storybookState.libraryIds.length) {
-      if (!openStorybookSettings(controlId)) { return; }
+      if (!openStorybookSettings(controlId, { activateStorybookOnSave: true })) { return; }
       showToast(copy.get('storybookSetupRequired'));
       return;
     }
@@ -484,7 +512,7 @@
     openLibrary();
   }
 
-  function openStorybookSettings(controlId) {
+  function openStorybookSettings(controlId, options) {
     var message = storybookSettingsGateMessage();
     var panel;
     var resolution;
@@ -494,6 +522,7 @@
       return false;
     }
 
+    setStorybookSettingsIntent(options);
     resolution = storybookModel.resolveLibraries(
       availableLibraries,
       storybookState.libraryIds
@@ -513,13 +542,21 @@
   }
 
   function saveStorybookSettings(nextPreferences) {
-    storybookState = storybookPreferences.save(nextPreferences);
+    storybookState = storybookPreferences.save({
+      enabled: true,
+      lastMode: storybookSettingsIntent.activateStorybookOnSave ? 'storybook' : storybookSettingsIntent.modeOnOpen,
+      childName: nextPreferences.childName,
+      libraryIds: nextPreferences.libraryIds,
+      reducedMotion: nextPreferences.reducedMotion
+    });
+    setStorybookSettingsIntent();
     storybookView.setMode(storybookState.lastMode);
     showToast(copy.get('storybookSettingsSaved'));
     openLibrary();
   }
 
   function cancelStorybookSettings() {
+    setStorybookSettingsIntent();
     showScreen(previousScreen, storybookSettingsReturnFocusId);
   }
 
@@ -623,8 +660,8 @@
     if (activeScreen === 'quick-screen') { clearInterval(quickTimer); showScreen('setup-screen', 'server-url'); return; }
     if (activeScreen === 'browse-screen' && storybookLibraryOpen) {
       storybookLibraryOpen = false;
-      renderStorybookHome();
       showScreen('storybook-screen');
+      renderStorybookHome();
       return;
     }
     if (activeScreen === 'browse-screen' && global.tizen && global.tizen.application) { global.tizen.application.getCurrentApplication().exit(); }

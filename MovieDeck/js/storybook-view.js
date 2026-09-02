@@ -106,7 +106,6 @@
   function saveSettings() {
     var preferences = {
       enabled: true,
-      lastMode: 'storybook',
       childName: byId('storybook-child-name').value,
       libraryIds: selectedLibraryIds(),
       reducedMotion: byId('storybook-reduced-motion').checked

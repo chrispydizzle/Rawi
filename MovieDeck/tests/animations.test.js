@@ -136,6 +136,23 @@ function loadAnimationsHarness(matchMediaMatches, doors) {
   assert.strictEqual(doors[1].style.transform, '');
 }());
 
+(function stopsStorybookDoorTweensWhenLeavingStorybookHome() {
+  var doors = [createDoor(), createDoor()];
+  var harness = loadAnimationsHarness(false, doors);
+
+  harness.animations.animateStorybookHome(false);
+  harness.animations.stopStorybookHome();
+
+  assert.strictEqual(harness.gsap.killTargets.length, 1);
+  assert.strictEqual(harness.gsap.killTargets[0].length, 2);
+  assert.strictEqual(harness.gsap.setCalls.length, 2);
+  assert.strictEqual(harness.gsap.setCalls[1].target.length, 2);
+  assert.strictEqual(
+    harness.gsap.setCalls[1].vars.clearProps,
+    'opacity,visibility,transform'
+  );
+}());
+
 (function clearsPreviousDoorTweensBeforeAnimatingNewDoorSet() {
   var firstDoors = [createDoor(), createDoor(), createDoor()];
   var secondDoors = [createDoor(), createDoor()];
