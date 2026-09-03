@@ -80,6 +80,32 @@ Tizen app-exit API. On TV, **All done** exits the app.
 
 `Tonight's Little Menu` is stable for the app session, category shortcuts are tag-backed browse shortcuts rather than access control, and Magic Pick always opens a confirmation screen before playback. In preview mode, none of the routes above contact Jellyfin: opening a browser DevTools network tab while running them must show zero requests to `moviedeck.server`, even when it points at a configured Jellyfin origin.
 
+### Storybook sound cues
+
+Storybook Mode can play four gentle local cues for successful remote focus
+movement, opening or confirming a choice, returning to the previous Storybook
+screen, and revealing a Magic Pick. Parents can disable them with **Play gentle
+Storybook sounds** in Storybook Settings.
+
+Sounds are never used in Adult Mode or while video playback is active. Play and
+Restart stop any active cue before the shared player opens. The four original
+WAV assets are reproducible with the same Node build through
+`tools\Generate-StorybookSounds.js`.
+
+Regenerate the packaged assets in place with:
+
+```powershell
+node .\tools\Generate-StorybookSounds.js --output .\MovieDeck\audio
+```
+
+The generator is deterministic: the same Node build rewrites byte-identical
+files, so an unchanged `git status` confirms the packaged assets still match
+their source.
+
+Quiet-time filters, additional watercolor presentation settings, and
+physical-TV acoustic validation such as speaker-volume tuning and room-level
+listening checks remain deferred.
+
 ## Repository layout
 
 ```text
@@ -91,6 +117,7 @@ Rawi/
 |   |-- config.xml          Tizen package metadata and privileges
 |   |-- index.html          Application screens and UI structure
 |   |-- icon.png            Packaged application icon
+|   |-- audio/              Generated Storybook sound cues (WAV)
 |   |-- css/
 |   |   |-- app.css         1920x1080 TV layout and visual styling
 |   |   `-- storybook.css   Storybook Mode home layout and styling
@@ -104,16 +131,24 @@ Rawi/
 |       |                     Deterministic browser preview data
 |       |-- player.js       AVPlay and browser playback
 |       |-- storage.js      Tizen Preference and localStorage wrapper
+|       |-- storybook-catalogue.js
+|       |                     Storybook catalogue assembly
+|       |-- storybook-discovery.js
+|       |                     Storybook resume, menu, and Magic Pick selection
 |       |-- storybook-model.js
 |       |                     Storybook library filtering and motion helpers
 |       |-- storybook-preferences.js
 |       |                     Storybook preference persistence and validation
+|       |-- storybook-sound.js
+|       |                     Storybook sound cue preload and playback
 |       |-- storybook-view.js
 |       |                     Storybook DOM rendering and settings wiring
 |       `-- vendor/
 |           `-- gsap.min.js Animation dependency
 |-- tools/
 |   |-- Deploy-Rawi.ps1     Package, sign, install, and launch
+|   |-- Generate-StorybookSounds.js
+|   |                        Rebuild the Storybook sound cue WAV assets
 |   |-- New-RawiIcon.ps1    Rebuild the application icon
 |   `-- Start-RawiPreview.ps1
 |                            Run a local browser preview

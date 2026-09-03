@@ -6,6 +6,8 @@ var model = load('js/storybook-model.js', { window: {} }).RawiStorybookModel;
 var previewFixtures = load('js/preview-fixtures.js', { window: {} }).RawiPreviewFixtures;
 
 (function exposesDeterministicStorybookPreviewFixture() {
+  assert.strictEqual(previewFixtures.storybook.preferences.version, 4);
+  assert.strictEqual(previewFixtures.storybook.preferences.soundsEnabled, true);
   assert.deepStrictEqual(
     JSON.parse(JSON.stringify(previewFixtures.storybook.preferences)),
     {

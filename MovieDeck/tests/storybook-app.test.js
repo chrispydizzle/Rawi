@@ -1182,6 +1182,10 @@ asyncTest('previewRoutesCanOpenHomeCategoryMagicSettingsDetailsAndEndingWithoutJ
     assert.strictEqual(settingsHarness.screenActive('storybook-settings-screen'), true);
     assert.strictEqual(settingsHarness.document.activeElement.id, 'storybook-child-name');
     assert.strictEqual(settingsHarness.document.getElementById('storybook-recent-history-days').value, '14');
+    assert.strictEqual(
+      settingsHarness.document.getElementById('storybook-sounds-enabled').checked,
+      true
+    );
 
     assert.strictEqual(detailsHarness.screenActive('storybook-details-screen'), true);
     assert.strictEqual(detailsHarness.document.activeElement.id, 'storybook-details-play');
@@ -1208,7 +1212,7 @@ asyncTest('previewRoutesCanOpenHomeCategoryMagicSettingsDetailsAndEndingWithoutJ
   });
 });
 
-asyncTest('previewSettingsSavePreservesNonDefaultPhase3State', function () {
+asyncTest('previewSettingsSavePreservesNonDefaultStorybookState', function () {
   var fixture = load('js/preview-fixtures.js', { window: {} }).RawiPreviewFixtures;
   var customFixture = JSON.parse(JSON.stringify(fixture));
   var harness;
@@ -1229,7 +1233,8 @@ asyncTest('previewSettingsSavePreservesNonDefaultPhase3State', function () {
       quickMaxMinutes: 8,
       cozyMaxMinutes: 18
     },
-    recentHistoryDays: 21
+    recentHistoryDays: 21,
+    soundsEnabled: false
   });
   harness = loadAppHarness({
     locationSearch: '?preview=storybook&storybookScreen=settings',
@@ -1239,6 +1244,7 @@ asyncTest('previewSettingsSavePreservesNonDefaultPhase3State', function () {
 
   return flush(12).then(function () {
     assert.strictEqual(harness.document.getElementById('storybook-recent-history-days').value, '21');
+    assert.strictEqual(harness.document.getElementById('storybook-sounds-enabled').checked, false);
     harness.document.getElementById('storybook-child-name').value = 'Nora';
     harness.document.getElementById('storybook-save').click();
     return flush(12);
@@ -1257,6 +1263,7 @@ asyncTest('previewSettingsSavePreservesNonDefaultPhase3State', function () {
       cozyMaxMinutes: 18
     });
     assert.strictEqual(harness.savedState().recentHistoryDays, 21);
+    assert.strictEqual(harness.savedState().soundsEnabled, false);
     assert.deepStrictEqual(harness.apiCalls(), {
       getLatest: 0,
       getLibraries: 0,
