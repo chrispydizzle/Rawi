@@ -1257,6 +1257,14 @@
           focusScreenTarget('refresh-button');
           return;
         }
+        // Sign-out disables the engine outright, and re-authentication comes
+        // back through here rather than through a mode toggle or a settings
+        // save, so this is the only re-entry point that can restore the engine
+        // from the stored mode, preference, and player state. Syncing before
+        // the home renders keeps an already-started cue -- such as the settings
+        // save confirmation -- running, because an enabling sync never stops
+        // audio, and it cannot activate Adult mode because it only reads state.
+        syncStorybookSoundPreference();
         showScreen('storybook-screen');
         renderStorybookHome();
         return;

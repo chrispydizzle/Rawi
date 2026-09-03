@@ -677,6 +677,8 @@ function loadAppHarness(options) {
     JSON.stringify(currentPreferences);
   var librariesDeferred = options.librariesDeferred || null;
   var restoreValue = options.restoreSession !== false;
+  var quickConnectApproved = false;
+  var quickConnectAuthentications = 0;
 
   function shouldDeferStorybookHomeReady(callIndex, reducedMotion) {
     if (reducedMotion) { return false; }
@@ -823,7 +825,10 @@ function loadAppHarness(options) {
   var api = {
     user: { Name: 'Jellyfin' },
     server: 'http://example',
-    authenticateQuickConnect: function () { return Promise.resolve(); },
+    authenticateQuickConnect: function () {
+      quickConnectAuthentications += 1;
+      return Promise.resolve();
+    },
     connect: function () { return Promise.resolve(); },
     getLatest: function () {
       apiCalls.getLatest += 1;
@@ -835,7 +840,9 @@ function loadAppHarness(options) {
       if (options.getLibrariesError) { return Promise.reject(options.getLibrariesError); }
       return Promise.resolve(options.libraries || []);
     },
-    getQuickConnectState: function () { return Promise.resolve({ Authenticated: false }); },
+    getQuickConnectState: function () {
+      return Promise.resolve({ Authenticated: quickConnectApproved });
+    },
     getResume: function () {
       apiCalls.getResume += 1;
       return Promise.resolve(options.resume || []);
@@ -1029,6 +1036,7 @@ function loadAppHarness(options) {
   document.dispatchEvent('DOMContentLoaded', {});
 
   return {
+    approveQuickConnect: function () { quickConnectApproved = true; },
     apiCalls: function () {
       return {
         getLatest: apiCalls.getLatest,
@@ -1062,11 +1070,19 @@ function loadAppHarness(options) {
     playerPlaying: function () {
       return isPlayingState;
     },
+    quickConnectAuthentications: function () { return quickConnectAuthentications; },
     rawStorybookStorage: function () {
       return rawStorybookStorage;
     },
     releaseStorybookHomeReady: function () {
       return releaseStorybookHomeReady();
+    },
+    // The Quick Connect poll runs on a real interval, so a test that wants the
+    // production re-authentication path has to tick it rather than reach into
+    // the app.
+    runIntervals: function () {
+      intervals.slice().forEach(function (fn) { fn(); });
+      return intervals.length;
     },
     savedState: function () { return savedState; },
     screenActive: function (id) {
@@ -4323,7 +4339,9 @@ asyncTest('storybookSoundPreferenceDisabledSuppressesEveryCue', function () {
   });
 
   return flush(12).then(function () {
-    assert.deepStrictEqual(harness.soundEnabledChanges(), [false]);
+    // Two entries: the init sync and the sync on the Storybook branch of the
+    // openLibrary that init triggers.
+    assert.deepStrictEqual(harness.soundEnabledChanges(), [false, false]);
 
     harness.document.getElementById('storybook-door-kids').click();
     harness.document.getElementById('storybook-library-card-story-1').click();
@@ -4356,7 +4374,9 @@ asyncTest('storybookSettingsSaveTogglesSoundEngineEnablementBothWays', function 
   });
 
   return flush(12).then(function () {
-    assert.deepStrictEqual(harness.soundEnabledChanges(), [true]);
+    // Each save syncs once directly and once more when its openLibrary lands
+    // back on Storybook home.
+    assert.deepStrictEqual(harness.soundEnabledChanges(), [true, true]);
 
     harness.document.getElementById('storybook-settings-button').click();
     harness.document.getElementById('storybook-sounds-enabled').checked = false;
@@ -4374,7 +4394,10 @@ asyncTest('storybookSettingsSaveTogglesSoundEngineEnablementBothWays', function 
   }).then(function () {
     assert.strictEqual(harness.currentPreferences().soundsEnabled, true);
     assert.strictEqual(harness.soundEnabledChanges().slice(-1)[0], true);
-    assert.deepStrictEqual(harness.soundEnabledChanges(), [true, false, true]);
+    assert.deepStrictEqual(
+      harness.soundEnabledChanges(),
+      [true, true, false, false, true, true]
+    );
     assert.deepStrictEqual(harness.soundCalls(), ['confirm']);
   });
 });
@@ -4536,6 +4559,66 @@ asyncTest('signOutStopsStorybookAudioWithoutPlayingACue', function () {
     // Setup mode gets the same defense in depth as playback: the engine is
     // disabled outright, not merely stopped.
     assert.strictEqual(harness.soundEnabledChanges().slice(-1)[0], false);
+  });
+});
+
+asyncTest('reauthenticatingAfterSignOutRestoresAudibleStorybookCues', function () {
+  var harness = loadAppHarness({
+    libraries: [{ Id: 'kids', Name: 'Kids' }],
+    preferences: basePreferences({
+      enabled: true,
+      lastMode: 'storybook',
+      libraryIds: ['kids']
+    }),
+    realSound: true,
+    restoreSession: true,
+    videosByLibrary: {
+      kids: [{ Id: 'story-1', Name: 'First Story', RunTimeTicks: 7200000000 }]
+    }
+  });
+  var cues;
+
+  return flush(12).then(function () {
+    cues = harness.soundAudioByCue();
+    assert.strictEqual(harness.screenActive('storybook-screen'), true);
+
+    harness.document.getElementById('storybook-door-kids').click();
+    assert.deepStrictEqual(harness.soundCalls(), ['confirm']);
+    assert.strictEqual(cues.confirm.playCalls, 1);
+
+    harness.document.getElementById('profile-button').click();
+    harness.document.getElementById('profile-button').click();
+    assert.strictEqual(harness.screenActive('setup-screen'), true);
+    assert.strictEqual(harness.soundEnabledChanges().slice(-1)[0], false);
+
+    harness.document.getElementById('connect-button').click();
+    return flush(12);
+  }).then(function () {
+    assert.strictEqual(harness.screenActive('quick-screen'), true);
+
+    harness.approveQuickConnect();
+    harness.runIntervals();
+    return flush(12);
+  }).then(function () {
+    // The whole point is the production re-entry path: Quick Connect approval
+    // authenticates and calls openLibrary directly, with no mode toggle and no
+    // settings save in between.
+    assert.strictEqual(harness.quickConnectAuthentications(), 1);
+    assert.strictEqual(harness.screenActive('storybook-screen'), true);
+    assert.strictEqual(harness.currentPreferences().lastMode, 'storybook');
+    assert.strictEqual(harness.currentPreferences().soundsEnabled, true);
+
+    harness.document.getElementById('storybook-door-kids').click();
+    assert.strictEqual(harness.screenActive('storybook-library-screen'), true);
+    // The routing call is recorded even while the engine is off, so the audible
+    // proof is the real element starting a second time.
+    assert.strictEqual(cues.confirm.playCalls, 2);
+    assert.strictEqual(cues.confirm.paused, false);
+    assert.deepStrictEqual(harness.soundUnpausedSrcs(), ['audio/storybook-confirm.wav']);
+    assert.deepStrictEqual(harness.soundCalls(), ['confirm', 'confirm']);
+    assert.strictEqual(harness.soundEnabledChanges().indexOf(false) !== -1, true);
+    assert.strictEqual(harness.soundEnabledChanges().slice(-1)[0], true);
+    assert.deepStrictEqual(harness.soundWarnings(), []);
   });
 });
 
@@ -4718,7 +4801,7 @@ asyncTest('storybookSoundEngineEnableStateFollowsModeAndPlaybackTransitions', fu
   });
 
   return flush(12).then(function () {
-    assert.deepStrictEqual(harness.soundEnabledChanges(), [true]);
+    assert.deepStrictEqual(harness.soundEnabledChanges(), [true, true]);
 
     harness.document.getElementById('storybook-resume-card').click();
     harness.document.getElementById('storybook-details-play').click();
@@ -4727,28 +4810,32 @@ asyncTest('storybookSoundEngineEnableStateFollowsModeAndPlaybackTransitions', fu
     // reported itself as playing, so the engine must not have been synced yet.
     assert.deepStrictEqual(harness.playCalls(), [{ id: 'story-1', fromBeginning: false }]);
     assert.strictEqual(harness.playerPlaying(), false);
-    assert.deepStrictEqual(harness.soundEnabledChanges(), [true]);
+    assert.deepStrictEqual(harness.soundEnabledChanges(), [true, true]);
     return flush(4);
   }).then(function () {
     assert.strictEqual(harness.playerPlaying(), true);
-    assert.deepStrictEqual(harness.soundEnabledChanges(), [true, false]);
+    assert.deepStrictEqual(harness.soundEnabledChanges(), [true, true, false]);
 
     harness.setPlayerPlaying(false);
     harness.playerCallbacks().onStop(false);
     assert.strictEqual(harness.screenActive('storybook-details-screen'), true);
-    assert.deepStrictEqual(harness.soundEnabledChanges(), [true, false, true]);
+    assert.deepStrictEqual(harness.soundEnabledChanges(), [true, true, false, true]);
 
     harness.document.getElementById('storybook-details-adult-mode-button').click();
     return flush(12);
   }).then(function () {
     assert.strictEqual(harness.screenActive('browse-screen'), true);
-    assert.deepStrictEqual(harness.soundEnabledChanges(), [true, false, true, false]);
+    // The Adult openLibrary adds no entry: only the Storybook branch syncs.
+    assert.deepStrictEqual(harness.soundEnabledChanges(), [true, true, false, true, false]);
 
     harness.document.getElementById('storybook-mode-button').click();
     return flush(12);
   }).then(function () {
     assert.strictEqual(harness.screenActive('storybook-screen'), true);
-    assert.deepStrictEqual(harness.soundEnabledChanges(), [true, false, true, false, true]);
+    assert.deepStrictEqual(
+      harness.soundEnabledChanges(),
+      [true, true, false, true, false, true, true]
+    );
     assert.deepStrictEqual(harness.soundCalls(), ['confirm']);
 
     harness.document.getElementById('storybook-door-kids').click();
@@ -4780,20 +4867,20 @@ asyncTest('storybookSoundEngineIsResyncedAfterAFailedPlaybackStart', function ()
   });
 
   return flush(12).then(function () {
-    assert.deepStrictEqual(harness.soundEnabledChanges(), [true]);
+    assert.deepStrictEqual(harness.soundEnabledChanges(), [true, true]);
 
     harness.document.getElementById('storybook-resume-card').click();
     harness.document.getElementById('storybook-details-play').click();
     assert.strictEqual(harness.screenActive('player-screen'), true);
     assert.deepStrictEqual(harness.playCalls(), [{ id: 'story-1', fromBeginning: false }]);
-    assert.deepStrictEqual(harness.soundEnabledChanges(), [true]);
+    assert.deepStrictEqual(harness.soundEnabledChanges(), [true, true]);
     return flush(12);
   }).then(function () {
     // The start failed, so playback never began and the sync must leave the
     // engine enabled. The suite runner fails on any unhandled rejection, so
     // this also pins that the rejected start promise is handled.
     assert.strictEqual(harness.playerPlaying(), false);
-    assert.deepStrictEqual(harness.soundEnabledChanges(), [true, true]);
+    assert.deepStrictEqual(harness.soundEnabledChanges(), [true, true, true]);
   });
 });
 
@@ -4822,7 +4909,7 @@ asyncTest('realSoundEngineStopsARerolledMagicCueBeforePlayback', function () {
   return flush(12).then(function () {
     cues = harness.soundAudioByCue();
     assert.deepStrictEqual(Object.keys(cues).sort(), ['back', 'confirm', 'focus', 'magic']);
-    assert.deepStrictEqual(harness.soundEnabledChanges(), [true]);
+    assert.deepStrictEqual(harness.soundEnabledChanges(), [true, true]);
 
     harness.document.getElementById('storybook-magic-pick-button').click();
     assert.strictEqual(harness.screenActive('storybook-magic-pick-screen'), true);
@@ -4846,7 +4933,7 @@ asyncTest('realSoundEngineStopsARerolledMagicCueBeforePlayback', function () {
     harness.document.getElementById('storybook-details-play').click();
     assert.strictEqual(harness.screenActive('player-screen'), true);
     assert.strictEqual(harness.playerPlaying(), false);
-    assert.deepStrictEqual(harness.soundEnabledChanges(), [true]);
+    assert.deepStrictEqual(harness.soundEnabledChanges(), [true, true]);
     return flush(12);
   }).then(function () {
     assert.strictEqual(harness.playerPlaying(), true);
@@ -4855,12 +4942,12 @@ asyncTest('realSoundEngineStopsARerolledMagicCueBeforePlayback', function () {
     assert.strictEqual(cues.confirm.currentTime, 0);
     assert.deepStrictEqual(harness.soundWarnings(), []);
     assert.deepStrictEqual(harness.soundCalls(), ['magic', 'magic', 'confirm']);
-    assert.deepStrictEqual(harness.soundEnabledChanges(), [true, false]);
+    assert.deepStrictEqual(harness.soundEnabledChanges(), [true, true, false]);
 
     harness.setPlayerPlaying(false);
     harness.playerCallbacks().onStop(false);
     assert.strictEqual(harness.screenActive('storybook-details-screen'), true);
-    assert.deepStrictEqual(harness.soundEnabledChanges(), [true, false, true]);
+    assert.deepStrictEqual(harness.soundEnabledChanges(), [true, true, false, true]);
 
     harness.document.getElementById('storybook-details-back').click();
     assert.deepStrictEqual(harness.soundCalls(), ['magic', 'magic', 'confirm', 'back']);
@@ -4903,7 +4990,7 @@ asyncTest('realSoundEngineKeepsTheSettingsSaveConfirmThroughTheBrowseTransition'
     assert.strictEqual(harness.screenActive('storybook-screen'), true);
     assert.strictEqual(cues.confirm.pauseCalls, 0);
     assert.strictEqual(cues.confirm.paused, false);
-    assert.deepStrictEqual(harness.soundEnabledChanges(), [true, true]);
+    assert.deepStrictEqual(harness.soundEnabledChanges(), [true, true, true, true]);
     assert.deepStrictEqual(harness.soundWarnings(), []);
 
     harness.document.getElementById('storybook-home-adult-mode-button').click();
@@ -4913,7 +5000,10 @@ asyncTest('realSoundEngineKeepsTheSettingsSaveConfirmThroughTheBrowseTransition'
     assert.strictEqual(cues.confirm.pauseCalls, 1);
     assert.strictEqual(cues.confirm.paused, true);
     assert.strictEqual(cues.confirm.currentTime, 0);
-    assert.deepStrictEqual(harness.soundEnabledChanges(), [true, true, false]);
+    assert.deepStrictEqual(
+      harness.soundEnabledChanges(),
+      [true, true, true, true, false]
+    );
     assert.deepStrictEqual(harness.soundCalls(), ['confirm']);
     assert.deepStrictEqual(harness.soundUnpausedSrcs(), []);
   });
