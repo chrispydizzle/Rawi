@@ -609,6 +609,9 @@ function loadAppHarness(options) {
   var storybookHomeAnimationCalls = 0;
   var storybookMotionCalls = [];
   var storybookStopCalls = 0;
+  var soundCalls = [];
+  var soundEnabledChanges = [];
+  var soundStopCalls = 0;
   var storybookBootstrap = defaultStorybookBootstrap(options.storybookBootstrap);
   var currentPreferences = JSON.parse(JSON.stringify(basePreferences(options.preferences || {})));
   var rawStorybookStorage = Object.prototype.hasOwnProperty.call(options, 'rawStorybookStorage') ?
@@ -865,6 +868,19 @@ function loadAppHarness(options) {
         return template;
       }
     },
+    RawiStorybookSound: {
+      init: function () {},
+      play: function (cueName) {
+        soundCalls.push(cueName);
+        return true;
+      },
+      setEnabled: function (enabled) {
+        soundEnabledChanges.push(enabled === true);
+      },
+      stop: function () {
+        soundStopCalls += 1;
+      }
+    },
     RawiStorybookModel: modelWindow.RawiStorybookModel,
     RawiStorybookCatalogue: catalogueWindow.RawiStorybookCatalogue,
     RawiStorybookDiscovery: discoveryWindow.RawiStorybookDiscovery,
@@ -984,6 +1000,9 @@ function loadAppHarness(options) {
     setPlayerPlaying: function (value) {
       isPlayingState = value === true;
     },
+    soundCalls: function () { return soundCalls.slice(); },
+    soundEnabledChanges: function () { return soundEnabledChanges.slice(); },
+    soundStopCalls: function () { return soundStopCalls; },
     shelfHeadings: function () {
       return document.querySelectorAll('#shelves .shelf').map(function (shelf) {
         return shelf.children[0].children[0].textContent;
@@ -3938,5 +3957,633 @@ asyncTest('magicPickModeToggleIsWiredLikeOtherStorybookScreens', function () {
     return flush(12);
   }).then(function () {
     assert.strictEqual(harness.screenActive('browse-screen'), true);
+  });
+});
+
+asyncTest('successfulStorybookDpadMovementPlaysFocusButBlockedMovementDoesNot', function () {
+  var harness = loadAppHarness({
+    libraries: [{ Id: 'kids', Name: 'Kids' }],
+    preferences: basePreferences({
+      enabled: true,
+      lastMode: 'storybook',
+      libraryIds: ['kids']
+    }),
+    restoreSession: true,
+    videosByLibrary: {
+      kids: [{ Id: 'story-1', Name: 'First Story', RunTimeTicks: 7200000000 }]
+    }
+  });
+
+  return flush(12).then(function () {
+    harness.document.getElementById('storybook-settings-button').click();
+    var before = harness.soundCalls().length;
+    harness.document.dispatchEvent('keydown', {
+      keyCode: 40,
+      preventDefault: function () {}
+    });
+    assert.strictEqual(harness.soundCalls().slice(before).join(','), 'focus');
+    assert.strictEqual(
+      harness.document.activeElement.id,
+      'storybook-library-input-kids'
+    );
+
+    before = harness.soundCalls().length;
+    harness.document.getElementById('storybook-cancel').focus();
+    harness.document.dispatchEvent('keydown', {
+      keyCode: 40,
+      preventDefault: function () {}
+    });
+    assert.deepStrictEqual(harness.soundCalls().slice(before), []);
+    assert.strictEqual(harness.document.activeElement.id, 'storybook-cancel');
+  });
+});
+
+asyncTest('storybookHomeDpadMovementPlaysOneFocusCueAndProgrammaticFocusStaysSilent', function () {
+  var harness = loadAppHarness({
+    libraries: [
+      { Id: 'kids', Name: 'Kids' },
+      { Id: 'songs', Name: 'Songs' }
+    ],
+    preferences: basePreferences({
+      enabled: true,
+      lastMode: 'storybook',
+      libraryIds: ['kids', 'songs'],
+      reducedMotion: false
+    }),
+    restoreSession: true,
+    videosByLibrary: {
+      kids: [{ Id: 'story-1', Name: 'First Story', RunTimeTicks: 7200000000 }],
+      songs: [{ Id: 'story-2', Name: 'Second Story', RunTimeTicks: 7200000000 }]
+    }
+  });
+
+  return flush(12).then(function () {
+    positionStoryDoors(harness);
+    harness.document.getElementById('storybook-door-kids').focus();
+
+    assert.strictEqual(harness.document.activeElement.id, 'storybook-door-kids');
+    assert.deepStrictEqual(harness.soundCalls(), []);
+
+    harness.document.dispatchEvent('keydown', {
+      keyCode: 39,
+      preventDefault: function () {}
+    });
+
+    assert.strictEqual(harness.document.activeElement.id, 'storybook-door-songs');
+    assert.deepStrictEqual(harness.soundCalls(), ['focus']);
+
+    harness.document.dispatchEvent('keydown', {
+      keyCode: 39,
+      preventDefault: function () {}
+    });
+
+    assert.strictEqual(harness.document.activeElement.id, 'storybook-door-songs');
+    assert.deepStrictEqual(harness.soundCalls(), ['focus']);
+  });
+});
+
+asyncTest('storybookNavigationEmitsExactlyOneSemanticCuePerAction', function () {
+  var harness = loadAppHarness({
+    libraries: [{ Id: 'kids', Name: 'Kids' }],
+    preferences: basePreferences({
+      enabled: true,
+      lastMode: 'storybook',
+      childName: 'Nova',
+      libraryIds: ['kids']
+    }),
+    restoreSession: true,
+    storybookBootstrap: defaultStorybookBootstrap({
+      nowMs: Date.parse('2026-09-02T02:00:00.000Z'),
+      storybookSessionSeed: 'storybook-sound-cue-seed'
+    }),
+    videosByLibrary: {
+      kids: [{ Id: 'story-1', Name: 'First Story', RunTimeTicks: 7200000000, Tags: ['animals'] }]
+    }
+  });
+
+  return flush(12).then(function () {
+    assert.strictEqual(harness.screenActive('storybook-screen'), true);
+    assert.deepStrictEqual(harness.soundCalls(), []);
+
+    harness.document.getElementById('storybook-door-kids').click();
+    assert.strictEqual(harness.screenActive('storybook-library-screen'), true);
+    assert.deepStrictEqual(harness.soundCalls(), ['confirm']);
+
+    harness.document.getElementById('storybook-library-card-story-1').click();
+    assert.strictEqual(harness.screenActive('storybook-details-screen'), true);
+    assert.deepStrictEqual(harness.soundCalls(), ['confirm', 'confirm']);
+
+    harness.document.getElementById('storybook-details-back').click();
+    assert.strictEqual(harness.screenActive('storybook-library-screen'), true);
+    assert.deepStrictEqual(harness.soundCalls(), ['confirm', 'confirm', 'back']);
+
+    harness.document.getElementById('storybook-library-back').click();
+    assert.strictEqual(harness.screenActive('storybook-screen'), true);
+    assert.deepStrictEqual(harness.soundCalls(), ['confirm', 'confirm', 'back', 'back']);
+
+    harness.document.getElementById('storybook-category-animals').click();
+    assert.strictEqual(harness.screenActive('storybook-library-screen'), true);
+    assert.deepStrictEqual(
+      harness.soundCalls(),
+      ['confirm', 'confirm', 'back', 'back', 'confirm']
+    );
+
+    harness.document.getElementById('storybook-library-back').click();
+    assert.deepStrictEqual(
+      harness.soundCalls(),
+      ['confirm', 'confirm', 'back', 'back', 'confirm', 'back']
+    );
+
+    harness.document.getElementById('storybook-magic-pick-button').click();
+    assert.strictEqual(harness.screenActive('storybook-magic-pick-screen'), true);
+    assert.deepStrictEqual(
+      harness.soundCalls(),
+      ['confirm', 'confirm', 'back', 'back', 'confirm', 'back', 'magic']
+    );
+
+    harness.document.getElementById('storybook-magic-pick-secondary').click();
+    assert.strictEqual(harness.screenActive('storybook-magic-pick-screen'), true);
+    assert.deepStrictEqual(
+      harness.soundCalls(),
+      ['confirm', 'confirm', 'back', 'back', 'confirm', 'back', 'magic', 'magic']
+    );
+
+    harness.document.getElementById('storybook-magic-pick-primary').click();
+    assert.strictEqual(harness.screenActive('storybook-details-screen'), true);
+    assert.deepStrictEqual(
+      harness.soundCalls(),
+      ['confirm', 'confirm', 'back', 'back', 'confirm', 'back', 'magic', 'magic', 'confirm']
+    );
+
+    harness.document.getElementById('storybook-details-back').click();
+    assert.strictEqual(harness.screenActive('storybook-magic-pick-screen'), true);
+    assert.deepStrictEqual(
+      harness.soundCalls(),
+      ['confirm', 'confirm', 'back', 'back', 'confirm', 'back', 'magic', 'magic', 'confirm', 'back']
+    );
+
+    harness.document.getElementById('storybook-magic-pick-back').click();
+    assert.strictEqual(harness.screenActive('storybook-screen'), true);
+    assert.deepStrictEqual(
+      harness.soundCalls(),
+      [
+        'confirm', 'confirm', 'back', 'back', 'confirm', 'back',
+        'magic', 'magic', 'confirm', 'back', 'back'
+      ]
+    );
+    assert.deepStrictEqual(harness.playCalls(), []);
+  });
+});
+
+asyncTest('remoteBackEmitsTheSameSingleCueAsVisibleStorybookControls', function () {
+  var harness = loadAppHarness({
+    libraries: [{ Id: 'kids', Name: 'Kids' }],
+    preferences: basePreferences({
+      enabled: true,
+      lastMode: 'storybook',
+      childName: 'Nova',
+      libraryIds: ['kids']
+    }),
+    restoreSession: true,
+    videosByLibrary: {
+      kids: [{ Id: 'story-1', Name: 'First Story', RunTimeTicks: 7200000000 }]
+    }
+  });
+
+  function back() {
+    harness.document.dispatchEvent('keydown', {
+      keyCode: 8,
+      preventDefault: function () {}
+    });
+  }
+
+  return flush(12).then(function () {
+    harness.document.getElementById('storybook-door-kids').click();
+    back();
+    assert.strictEqual(harness.screenActive('storybook-screen'), true);
+    assert.deepStrictEqual(harness.soundCalls(), ['confirm', 'back']);
+
+    harness.document.getElementById('storybook-door-kids').click();
+    harness.document.getElementById('storybook-library-card-story-1').click();
+    back();
+    assert.strictEqual(harness.screenActive('storybook-library-screen'), true);
+    back();
+    assert.strictEqual(harness.screenActive('storybook-screen'), true);
+    assert.deepStrictEqual(
+      harness.soundCalls(),
+      ['confirm', 'back', 'confirm', 'confirm', 'back', 'back']
+    );
+
+    harness.document.getElementById('storybook-magic-pick-button').click();
+    back();
+    assert.strictEqual(harness.screenActive('storybook-screen'), true);
+    assert.deepStrictEqual(
+      harness.soundCalls(),
+      ['confirm', 'back', 'confirm', 'confirm', 'back', 'back', 'magic', 'back']
+    );
+
+    harness.document.getElementById('storybook-settings-button').click();
+    assert.strictEqual(harness.screenActive('storybook-settings-screen'), true);
+    assert.deepStrictEqual(
+      harness.soundCalls(),
+      ['confirm', 'back', 'confirm', 'confirm', 'back', 'back', 'magic', 'back']
+    );
+
+    back();
+    assert.strictEqual(harness.screenActive('storybook-screen'), true);
+    assert.deepStrictEqual(
+      harness.soundCalls(),
+      ['confirm', 'back', 'confirm', 'confirm', 'back', 'back', 'magic', 'back', 'back']
+    );
+
+    harness.document.getElementById('storybook-settings-button').click();
+    harness.document.getElementById('storybook-cancel').click();
+    assert.strictEqual(harness.screenActive('storybook-screen'), true);
+    assert.deepStrictEqual(
+      harness.soundCalls(),
+      [
+        'confirm', 'back', 'confirm', 'confirm', 'back', 'back',
+        'magic', 'back', 'back', 'back'
+      ]
+    );
+  });
+});
+
+asyncTest('storybookSoundPreferenceDisabledSuppressesEveryCue', function () {
+  var harness = loadAppHarness({
+    libraries: [{ Id: 'kids', Name: 'Kids' }],
+    preferences: basePreferences({
+      enabled: true,
+      lastMode: 'storybook',
+      libraryIds: ['kids'],
+      soundsEnabled: false
+    }),
+    restoreSession: true,
+    videosByLibrary: {
+      kids: [{ Id: 'story-1', Name: 'First Story', RunTimeTicks: 7200000000, Tags: ['animals'] }]
+    }
+  });
+
+  return flush(12).then(function () {
+    assert.deepStrictEqual(harness.soundEnabledChanges(), [false]);
+
+    harness.document.getElementById('storybook-door-kids').click();
+    harness.document.getElementById('storybook-library-card-story-1').click();
+    harness.document.getElementById('storybook-details-back').click();
+    harness.document.getElementById('storybook-library-back').click();
+    harness.document.getElementById('storybook-magic-pick-button').click();
+    harness.document.getElementById('storybook-magic-pick-back').click();
+    harness.document.dispatchEvent('keydown', {
+      keyCode: 39,
+      preventDefault: function () {}
+    });
+
+    assert.strictEqual(harness.screenActive('storybook-screen'), true);
+    assert.deepStrictEqual(harness.soundCalls(), []);
+  });
+});
+
+asyncTest('storybookSettingsSaveTogglesSoundEngineEnablementBothWays', function () {
+  var harness = loadAppHarness({
+    libraries: [{ Id: 'kids', Name: 'Kids' }],
+    preferences: basePreferences({
+      enabled: true,
+      lastMode: 'storybook',
+      libraryIds: ['kids']
+    }),
+    restoreSession: true,
+    videosByLibrary: {
+      kids: [{ Id: 'story-1', Name: 'First Story', RunTimeTicks: 7200000000 }]
+    }
+  });
+
+  return flush(12).then(function () {
+    assert.deepStrictEqual(harness.soundEnabledChanges(), [true]);
+
+    harness.document.getElementById('storybook-settings-button').click();
+    harness.document.getElementById('storybook-sounds-enabled').checked = false;
+    harness.document.getElementById('storybook-save').click();
+    return flush(12);
+  }).then(function () {
+    assert.strictEqual(harness.currentPreferences().soundsEnabled, false);
+    assert.strictEqual(harness.soundEnabledChanges().slice(-1)[0], false);
+    assert.deepStrictEqual(harness.soundCalls(), []);
+
+    harness.document.getElementById('storybook-settings-button').click();
+    harness.document.getElementById('storybook-sounds-enabled').checked = true;
+    harness.document.getElementById('storybook-save').click();
+    return flush(12);
+  }).then(function () {
+    assert.strictEqual(harness.currentPreferences().soundsEnabled, true);
+    assert.strictEqual(harness.soundEnabledChanges().slice(-1)[0], true);
+    assert.deepStrictEqual(harness.soundEnabledChanges(), [true, false, true]);
+    assert.deepStrictEqual(harness.soundCalls(), ['confirm']);
+  });
+});
+
+asyncTest('adultModeActivityStaysSilentAndSwitchingToAdultStopsStorybookAudio', function () {
+  var harness = loadAppHarness({
+    libraries: [{ Id: 'kids', Name: 'Kids' }],
+    preferences: basePreferences({
+      enabled: true,
+      lastMode: 'adult',
+      libraryIds: ['kids']
+    }),
+    restoreSession: true,
+    videosByLibrary: {
+      kids: [{ Id: 'story-1', Name: 'First Story', RunTimeTicks: 7200000000 }]
+    }
+  });
+  var stopsBeforeAdultSwitch;
+
+  return flush(12).then(function () {
+    assert.strictEqual(harness.screenActive('browse-screen'), true);
+
+    harness.document.dispatchEvent('keydown', {
+      keyCode: 40,
+      preventDefault: function () {}
+    });
+    harness.document.dispatchEvent('keydown', {
+      keyCode: 39,
+      preventDefault: function () {}
+    });
+    harness.document.getElementById('hero-open').click();
+    assert.deepStrictEqual(harness.soundCalls(), []);
+
+    harness.document.getElementById('details-back').click();
+    harness.document.getElementById('storybook-settings-button').click();
+    assert.strictEqual(harness.screenActive('storybook-settings-screen'), true);
+    harness.document.dispatchEvent('keydown', {
+      keyCode: 40,
+      preventDefault: function () {}
+    });
+    assert.strictEqual(
+      harness.document.activeElement.id,
+      'storybook-library-input-kids'
+    );
+    harness.document.getElementById('storybook-save').click();
+    return flush(12);
+  }).then(function () {
+    assert.strictEqual(harness.currentPreferences().lastMode, 'adult');
+    assert.deepStrictEqual(harness.soundCalls(), []);
+
+    harness.document.getElementById('storybook-mode-button').click();
+    return flush(12);
+  }).then(function () {
+    assert.strictEqual(harness.screenActive('storybook-screen'), true);
+    assert.deepStrictEqual(harness.soundCalls(), []);
+
+    harness.document.getElementById('storybook-door-kids').click();
+    assert.deepStrictEqual(harness.soundCalls(), ['confirm']);
+
+    stopsBeforeAdultSwitch = harness.soundStopCalls();
+    harness.document.getElementById('storybook-library-adult-mode-button').click();
+    return flush(12);
+  }).then(function () {
+    assert.strictEqual(harness.screenActive('browse-screen'), true);
+    assert.deepStrictEqual(harness.soundCalls(), ['confirm']);
+    assert(harness.soundStopCalls() > stopsBeforeAdultSwitch);
+  });
+});
+
+asyncTest('playbackEntryAndActivePlaybackSilenceStorybookCues', function () {
+  var harness = loadAppHarness({
+    libraries: [{ Id: 'kids', Name: 'Kids' }],
+    preferences: basePreferences({
+      enabled: true,
+      lastMode: 'storybook',
+      libraryIds: ['kids']
+    }),
+    restoreSession: true,
+    resume: [
+      { Id: 'story-1', Name: 'First Story', UserData: { PlaybackPositionTicks: 600000000, PlayedPercentage: 14 } }
+    ],
+    videosByLibrary: {
+      kids: [{
+        Id: 'story-1',
+        Name: 'First Story',
+        RunTimeTicks: 7200000000,
+        UserData: { PlaybackPositionTicks: 600000000, PlayedPercentage: 14 }
+      }]
+    }
+  });
+  var stopsBeforePlay;
+  var stopsBeforeRestart;
+
+  return flush(12).then(function () {
+    harness.setPlayerPlaying(true);
+    harness.document.getElementById('storybook-resume-card').click();
+    assert.strictEqual(harness.screenActive('storybook-details-screen'), true);
+    assert.deepStrictEqual(harness.soundCalls(), []);
+
+    harness.document.getElementById('storybook-details-back').click();
+    assert.strictEqual(harness.screenActive('storybook-screen'), true);
+    assert.deepStrictEqual(harness.soundCalls(), []);
+
+    harness.setPlayerPlaying(false);
+    harness.document.getElementById('storybook-resume-card').click();
+    assert.deepStrictEqual(harness.soundCalls(), ['confirm']);
+
+    stopsBeforePlay = harness.soundStopCalls();
+    harness.document.getElementById('storybook-details-play').click();
+    assert.strictEqual(harness.screenActive('player-screen'), true);
+    assert.deepStrictEqual(harness.soundCalls(), ['confirm']);
+    assert(harness.soundStopCalls() > stopsBeforePlay);
+    assert.deepStrictEqual(harness.playCalls(), [{ id: 'story-1', fromBeginning: false }]);
+
+    harness.setPlayerPlaying(false);
+    harness.playerCallbacks().onStop(false);
+    assert.strictEqual(harness.screenActive('storybook-details-screen'), true);
+    assert.deepStrictEqual(harness.soundCalls(), ['confirm']);
+
+    stopsBeforeRestart = harness.soundStopCalls();
+    harness.document.getElementById('storybook-details-restart').click();
+    assert.deepStrictEqual(harness.soundCalls(), ['confirm']);
+    assert(harness.soundStopCalls() > stopsBeforeRestart);
+  });
+});
+
+asyncTest('signOutStopsStorybookAudioWithoutPlayingACue', function () {
+  var harness = loadAppHarness({
+    libraries: [{ Id: 'kids', Name: 'Kids' }],
+    preferences: basePreferences({
+      enabled: true,
+      lastMode: 'storybook',
+      libraryIds: ['kids']
+    }),
+    restoreSession: true,
+    videosByLibrary: {
+      kids: [{ Id: 'story-1', Name: 'First Story', RunTimeTicks: 7200000000 }]
+    }
+  });
+  var stopsBeforeSignOut;
+
+  return flush(12).then(function () {
+    harness.document.getElementById('storybook-door-kids').click();
+    assert.deepStrictEqual(harness.soundCalls(), ['confirm']);
+
+    stopsBeforeSignOut = harness.soundStopCalls();
+    harness.document.getElementById('profile-button').click();
+    assert.strictEqual(harness.soundStopCalls(), stopsBeforeSignOut);
+
+    harness.document.getElementById('profile-button').click();
+    assert.strictEqual(harness.screenActive('setup-screen'), true);
+    assert(harness.soundStopCalls() > stopsBeforeSignOut);
+    assert.deepStrictEqual(harness.soundCalls(), ['confirm']);
+  });
+});
+
+asyncTest('storybookEndingCuesPickAnotherAndRemoteBackButStaysSilentOnEntryAndAllDone', function () {
+  var harness = loadAppHarness({
+    libraries: [{ Id: 'kids', Name: 'Kids' }],
+    preferences: basePreferences({
+      enabled: true,
+      lastMode: 'storybook',
+      childName: 'Nova',
+      libraryIds: ['kids']
+    }),
+    restoreSession: true,
+    resume: [
+      { Id: 'story-1', Name: 'First Story', UserData: { PlaybackPositionTicks: 600000000, PlayedPercentage: 14 } }
+    ],
+    videosByLibrary: {
+      kids: [{
+        Id: 'story-1',
+        Name: 'First Story',
+        RunTimeTicks: 7200000000,
+        UserData: { PlaybackPositionTicks: 600000000, PlayedPercentage: 14 }
+      }]
+    }
+  });
+
+  function finishAStory() {
+    harness.document.getElementById('storybook-resume-card').click();
+    harness.document.getElementById('storybook-details-play').click();
+    harness.setPlayerPlaying(false);
+    harness.playerCallbacks().onStop(true);
+  }
+
+  return flush(12).then(function () {
+    finishAStory();
+    assert.strictEqual(harness.screenActive('storybook-ending-screen'), true);
+    assert.deepStrictEqual(harness.soundCalls(), ['confirm']);
+
+    harness.document.getElementById('storybook-ending-pick-another').click();
+    assert.strictEqual(harness.screenActive('storybook-screen'), true);
+    assert.deepStrictEqual(harness.soundCalls(), ['confirm', 'confirm']);
+
+    finishAStory();
+    assert.strictEqual(harness.screenActive('storybook-ending-screen'), true);
+    assert.deepStrictEqual(harness.soundCalls(), ['confirm', 'confirm', 'confirm']);
+
+    harness.document.dispatchEvent('keydown', {
+      keyCode: 10009,
+      preventDefault: function () {}
+    });
+    assert.strictEqual(harness.screenActive('storybook-screen'), true);
+    assert.deepStrictEqual(
+      harness.soundCalls(),
+      ['confirm', 'confirm', 'confirm', 'back']
+    );
+
+    finishAStory();
+    assert.strictEqual(harness.screenActive('storybook-ending-screen'), true);
+    assert.deepStrictEqual(
+      harness.soundCalls(),
+      ['confirm', 'confirm', 'confirm', 'back', 'confirm']
+    );
+
+    harness.document.getElementById('storybook-ending-all-done').click();
+    assert.strictEqual(harness.screenActive('storybook-screen'), true);
+    assert.deepStrictEqual(
+      harness.soundCalls(),
+      ['confirm', 'confirm', 'confirm', 'back', 'confirm']
+    );
+  });
+});
+
+asyncTest('storybookSpatialFallbackFocusFromAnInvalidCurrentTargetStaysSilent', function () {
+  var harness = loadAppHarness({
+    libraries: [
+      { Id: 'kids', Name: 'Kids' },
+      { Id: 'songs', Name: 'Songs' }
+    ],
+    preferences: basePreferences({
+      enabled: true,
+      lastMode: 'storybook',
+      libraryIds: ['kids', 'songs']
+    }),
+    restoreSession: true,
+    videosByLibrary: {
+      kids: [{ Id: 'story-1', Name: 'First Story', RunTimeTicks: 7200000000 }],
+      songs: [{ Id: 'story-2', Name: 'Second Story', RunTimeTicks: 7200000000 }]
+    }
+  });
+
+  return flush(12).then(function () {
+    positionStoryDoors(harness);
+    harness.document.activeElement = null;
+
+    harness.document.dispatchEvent('keydown', {
+      keyCode: 39,
+      preventDefault: function () {}
+    });
+
+    assert.notStrictEqual(harness.document.activeElement, null);
+    assert.deepStrictEqual(harness.soundCalls(), []);
+
+    harness.document.dispatchEvent('keydown', {
+      keyCode: 39,
+      preventDefault: function () {}
+    });
+
+    assert.deepStrictEqual(harness.soundCalls(), ['focus']);
+  });
+});
+
+asyncTest('storybookPlaybackWithoutASelectedItemNeitherCuesNorStopsAudio', function () {
+  var harness = loadAppHarness({
+    libraries: [{ Id: 'kids', Name: 'Kids' }],
+    preferences: basePreferences({
+      enabled: true,
+      lastMode: 'storybook',
+      childName: 'Nova',
+      libraryIds: ['kids']
+    }),
+    restoreSession: true,
+    resume: [
+      { Id: 'story-1', Name: 'First Story', UserData: { PlaybackPositionTicks: 600000000, PlayedPercentage: 14 } }
+    ],
+    videosByLibrary: {
+      kids: [{
+        Id: 'story-1',
+        Name: 'First Story',
+        RunTimeTicks: 7200000000,
+        UserData: { PlaybackPositionTicks: 600000000, PlayedPercentage: 14 }
+      }]
+    }
+  });
+  var stopsBeforeNoOpPlayback;
+
+  return flush(12).then(function () {
+    harness.document.getElementById('storybook-resume-card').click();
+    harness.document.getElementById('storybook-details-play').click();
+    harness.setPlayerPlaying(false);
+    harness.playerCallbacks().onStop(true);
+    harness.document.getElementById('storybook-ending-pick-another').click();
+
+    assert.strictEqual(harness.screenActive('storybook-screen'), true);
+    assert.deepStrictEqual(harness.soundCalls(), ['confirm', 'confirm']);
+
+    stopsBeforeNoOpPlayback = harness.soundStopCalls();
+    harness.document.getElementById('storybook-details-play').click();
+    harness.document.getElementById('storybook-details-restart').click();
+    harness.document.getElementById('play-button').click();
+    harness.document.getElementById('restart-button').click();
+
+    assert.strictEqual(harness.screenActive('storybook-screen'), true);
+    assert.deepStrictEqual(harness.playCalls(), [{ id: 'story-1', fromBeginning: false }]);
+    assert.strictEqual(harness.soundStopCalls(), stopsBeforeNoOpPlayback);
+    assert.deepStrictEqual(harness.soundCalls(), ['confirm', 'confirm']);
   });
 });

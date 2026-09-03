@@ -9,6 +9,7 @@
   var storybookDiscovery = global.RawiStorybookDiscovery;
   var storybookModel = global.RawiStorybookModel;
   var storybookPreferences = global.RawiStorybookPreferences;
+  var storybookSound = global.RawiStorybookSound;
   var storybookView = global.RawiStorybookView;
   var value = global.MovieDeckValue;
 
@@ -68,6 +69,14 @@
     'storybook-details-screen': true,
     'storybook-magic-pick-screen': true,
     'storybook-ending-screen': true
+  };
+  var STORYBOOK_SOUND_SCREENS = {
+    'storybook-screen': true,
+    'storybook-library-screen': true,
+    'storybook-details-screen': true,
+    'storybook-magic-pick-screen': true,
+    'storybook-ending-screen': true,
+    'storybook-settings-screen': true
   };
   var playerReturnState = {
     focusId: 'play-button',
@@ -213,6 +222,38 @@
         ensureStorybookControlVisible(target);
       }
     }, 30);
+  }
+
+  // Storybook sound gating
+  function storybookSoundAllowed() {
+    return !!(
+      storybookState &&
+      storybookState.enabled &&
+      storybookState.lastMode === 'storybook' &&
+      storybookState.soundsEnabled &&
+      STORYBOOK_SOUND_SCREENS[activeScreen] &&
+      !(player.isPlaying && player.isPlaying())
+    );
+  }
+
+  function playStorybookCue(cueName) {
+    if (!storybookSoundAllowed()) { return false; }
+    return storybookSound.play(cueName);
+  }
+
+  function syncStorybookSoundPreference() {
+    storybookSound.setEnabled(!!(storybookState && storybookState.soundsEnabled));
+    if (!storybookSoundAllowed()) {
+      storybookSound.stop();
+    }
+  }
+
+  function focusSpatialTarget(target) {
+    var previous = document.activeElement;
+    target.focus();
+    if (document.activeElement === target && previous !== target) {
+      playStorybookCue('focus');
+    }
   }
 
   function showToast(message) {
@@ -644,17 +685,21 @@
     if (!storybookMagicPickState.result || !storybookMagicPickState.result.item) {
       showScreen('storybook-screen');
       renderStorybookHome(firstStoryDoorFocusId());
+      playStorybookCue('confirm');
       return;
     }
     openStorybookDetails(storybookMagicPickState.result.item, 'magic');
+    playStorybookCue('confirm');
   }
 
   function handleStorybookMagicPickSecondary() {
     if (!storybookMagicPickState.result || !storybookMagicPickState.result.item) {
       closeStorybookMagicPick();
+      playStorybookCue('back');
       return;
     }
     openStorybookMagicPick();
+    playStorybookCue('magic');
   }
 
   function favoriteIds() {
@@ -945,6 +990,7 @@
     storybookResetConfirming = false;
     storybookState = previewStorybookState(fixture);
     storybookView.setMode('storybook');
+    syncStorybookSoundPreference();
     applyStorybookPreviewRoute();
   }
 
@@ -963,7 +1009,7 @@
   function openStorybookLibrary(libraryId, preferredFocusId) {
     var library = selectedStorybookLibrary(libraryId);
 
-    if (!library) { return; }
+    if (!library) { return false; }
     openStorybookCollection({
       items: library.videos,
       kind: 'library',
@@ -972,12 +1018,13 @@
       returnFocusId: 'storybook-door-' + libraryId,
       title: library.name
     }, preferredFocusId);
+    return true;
   }
 
   function openStorybookCategory(categoryKey, preferredFocusId) {
     var category = selectedStorybookCategory(categoryKey);
 
-    if (!category) { return; }
+    if (!category) { return false; }
     openStorybookCollection({
       items: category.items,
       kind: 'category',
@@ -986,6 +1033,7 @@
       returnFocusId: 'storybook-category-' + categoryKey,
       title: copy.get(category.copyKey)
     }, preferredFocusId);
+    return true;
   }
 
   function closeStorybookLibrary() {
@@ -1065,6 +1113,46 @@
     selectedItem = null;
     showScreen('storybook-screen');
     renderStorybookHome();
+  }
+
+  // Storybook cue-routing handlers
+  function handleOpenStorybookLibrary(libraryId, preferredFocusId) {
+    if (openStorybookLibrary(libraryId, preferredFocusId)) { playStorybookCue('confirm'); }
+  }
+
+  function handleOpenStorybookCategory(categoryKey, preferredFocusId) {
+    if (openStorybookCategory(categoryKey, preferredFocusId)) { playStorybookCue('confirm'); }
+  }
+
+  function handleOpenStorybookItemById(id, source) {
+    if (!currentStorybookCatalogue || !currentStorybookCatalogue.itemById[id]) { return; }
+    openStorybookDetails(currentStorybookCatalogue.itemById[id], source);
+    playStorybookCue('confirm');
+  }
+
+  function handleCloseStorybookLibrary() {
+    closeStorybookLibrary();
+    playStorybookCue('back');
+  }
+
+  function handleCloseStorybookDetails() {
+    closeStorybookDetails();
+    playStorybookCue('back');
+  }
+
+  function handleOpenStorybookMagicPick() {
+    openStorybookMagicPick();
+    playStorybookCue('magic');
+  }
+
+  function handleCloseStorybookMagicPick() {
+    closeStorybookMagicPick();
+    playStorybookCue('back');
+  }
+
+  function handleStorybookEndingButtonAction(action) {
+    handleStorybookEndingAction(action);
+    if (action === 'pick') { playStorybookCue('confirm'); }
   }
 
   function openLibrary() {
@@ -1286,7 +1374,9 @@
     }
 
     storybookResetConfirming = false;
+    if (nextMode === 'adult') { storybookSound.stop(); }
     storybookView.setMode(nextMode);
+    syncStorybookSoundPreference();
     openLibrary();
   }
 
@@ -1334,6 +1424,8 @@
     storybookResetConfirming = false;
     setStorybookSettingsIntent();
     storybookView.setMode(storybookState.lastMode);
+    syncStorybookSoundPreference();
+    playStorybookCue('confirm');
     showToast(copy.get('storybookSettingsSaved'));
     openLibrary();
   }
@@ -1356,6 +1448,7 @@
       { needsRecovery: false, type: 'ok' };
     storybookResetConfirming = false;
     storybookView.setMode(storybookState.lastMode);
+    syncStorybookSoundPreference();
     renderStorybookSettings();
     focusScreenTarget('storybook-child-name');
   }
@@ -1444,6 +1537,7 @@
 
   function startPlayback(fromBeginning) {
     if (!selectedItem) { return; }
+    storybookSound.stop();
     capturePlayerReturnState();
     pendingPlaybackError = null;
     showScreen('player-screen');
@@ -1464,6 +1558,7 @@
     }
     clearTimeout(signOutTimer);
     signOutTimer = null;
+    storybookSound.stop();
     api.signOut();
     selectedItem = null;
     showScreen('setup-screen', 'server-url');
@@ -1482,7 +1577,7 @@
       settingsIndex = nodes.indexOf(current);
       settingsNextIndex = direction === 'down' ? settingsIndex + 1 : settingsIndex - 1;
       if (settingsNextIndex < 0 || settingsNextIndex >= nodes.length) { return; }
-      nodes[settingsNextIndex].focus();
+      focusSpatialTarget(nodes[settingsNextIndex]);
       ensureStorybookControlVisible(nodes[settingsNextIndex]);
       return;
     }
@@ -1508,7 +1603,7 @@
         animations.focusCard(best);
         return;
       }
-      best.focus();
+      focusSpatialTarget(best);
     }
   }
 
@@ -1516,19 +1611,24 @@
     if (activeScreen === 'player-screen') { returnFromPlayback(false, null); return; }
     if (activeScreen === 'storybook-settings-screen') {
       cancelStorybookSettings();
+      playStorybookCue('back');
       return;
     }
     if (activeScreen === 'storybook-ending-screen') {
       handleStorybookEndingAction('pick');
+      playStorybookCue('back');
       return;
     }
-    if (activeScreen === 'storybook-details-screen') { closeStorybookDetails(); return; }
+    if (activeScreen === 'storybook-details-screen') {
+      handleCloseStorybookDetails();
+      return;
+    }
     if (activeScreen === 'storybook-magic-pick-screen') {
-      closeStorybookMagicPick();
+      handleCloseStorybookMagicPick();
       return;
     }
     if (activeScreen === 'storybook-library-screen') {
-      closeStorybookLibrary();
+      handleCloseStorybookLibrary();
       return;
     }
     if (activeScreen === 'details-screen') { showScreen('browse-screen'); if (selectedCard) { selectedCard.focus(); } return; }
@@ -1572,23 +1672,25 @@
   }
 
   function init() {
+    storybookSound.init();
+    syncStorybookSoundPreference();
     storybookView.init({
-      onCancelSettings: cancelStorybookSettings,
-      onCloseStorybookDetails: closeStorybookDetails,
-      onCloseStorybookLibrary: closeStorybookLibrary,
-      onModeChange: applyMode,
-      onOpenCategory: openStorybookCategory,
-      onOpenLibrary: openStorybookLibrary,
-      onOpenSettings: openStorybookSettings,
-      onOpenStorybookItem: function (itemId, source) {
-        if (!currentStorybookCatalogue || !currentStorybookCatalogue.itemById[itemId]) { return; }
-        openStorybookDetails(currentStorybookCatalogue.itemById[itemId], source);
+      onCancelSettings: function () {
+        cancelStorybookSettings();
+        playStorybookCue('back');
       },
-      onOpenMagicPick: openStorybookMagicPick,
-      onCloseMagicPick: closeStorybookMagicPick,
+      onCloseStorybookDetails: handleCloseStorybookDetails,
+      onCloseStorybookLibrary: handleCloseStorybookLibrary,
+      onModeChange: applyMode,
+      onOpenCategory: handleOpenStorybookCategory,
+      onOpenLibrary: handleOpenStorybookLibrary,
+      onOpenSettings: openStorybookSettings,
+      onOpenStorybookItem: handleOpenStorybookItemById,
+      onOpenMagicPick: handleOpenStorybookMagicPick,
+      onCloseMagicPick: handleCloseStorybookMagicPick,
       onMagicPickPrimary: handleStorybookMagicPickPrimary,
       onMagicPickSecondary: handleStorybookMagicPickSecondary,
-      onStorybookEndingAction: handleStorybookEndingAction,
+      onStorybookEndingAction: handleStorybookEndingButtonAction,
       onStartStorybookPlayback: startPlayback,
       onResetSettingsRecovery: resetStorybookSettingsRecovery,
       onPreferencesChange: saveStorybookSettings
