@@ -10,6 +10,8 @@ var DEFAULT_TEST_FILES = [
   'animations.test.js',
   'storage.test.js',
   'run-tests-runner.test.js',
+  'storybook-sound-assets.test.js',
+  'storybook-sound.test.js',
   'storybook-app.test.js',
   'storybook-preferences.test.js',
   'storybook-model.test.js',
