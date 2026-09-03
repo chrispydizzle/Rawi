@@ -9,7 +9,7 @@ function clone(value) {
 
 function defaultPreferences() {
   return {
-    version: 3,
+    version: 4,
     enabled: false,
     lastMode: 'adult',
     childName: '',
@@ -28,7 +28,8 @@ function defaultPreferences() {
       cozyMaxMinutes: 30
     },
     recentHistoryDays: 14,
-    reducedMotion: false
+    reducedMotion: false,
+    soundsEnabled: true
   };
 }
 
@@ -89,7 +90,8 @@ function assertRecoveryWriteBarrier(stored) {
       cozyMaxMinutes: 20
     },
     recentHistoryDays: 5,
-    reducedMotion: true
+    reducedMotion: true,
+    soundsEnabled: true
   });
 
   assert.strictEqual(result, null);
@@ -124,7 +126,7 @@ function assertRecoveryWriteBarrier(stored) {
   var result = harness.api.restore();
 
   assert.deepStrictEqual(clone(result), {
-    version: 3,
+    version: 4,
     enabled: true,
     lastMode: 'storybook',
     childName: 'Nova',
@@ -143,7 +145,8 @@ function assertRecoveryWriteBarrier(stored) {
       cozyMaxMinutes: 30
     },
     recentHistoryDays: 14,
-    reducedMotion: true
+    reducedMotion: true,
+    soundsEnabled: true
   });
   assert.deepStrictEqual(clone(harness.api.getRestoreStatus()), {
     needsRecovery: false,
@@ -165,7 +168,7 @@ function assertRecoveryWriteBarrier(stored) {
   var result = harness.api.restore();
 
   assert.deepStrictEqual(clone(result), {
-    version: 3,
+    version: 4,
     enabled: true,
     lastMode: 'storybook',
     childName: 'Nova',
@@ -184,13 +187,62 @@ function assertRecoveryWriteBarrier(stored) {
       cozyMaxMinutes: 30
     },
     recentHistoryDays: 14,
-    reducedMotion: true
+    reducedMotion: true,
+    soundsEnabled: true
   });
   assert.deepStrictEqual(clone(harness.api.getRestoreStatus()), {
     needsRecovery: false,
     type: 'ok'
   });
   assert.strictEqual(harness.saved(), null);
+}());
+
+(function migratesVersion3PreferencesWithoutRecoveryOrImmediateRewrite() {
+  var harness = loadPreferences(JSON.stringify({
+    version: 3,
+    enabled: true,
+    lastMode: 'storybook',
+    childName: ' Nova ',
+    libraryIds: ['kids'],
+    favoriteItemIds: ['story-1'],
+    categoryTags: {
+      singDance: 'songs',
+      bedtime: 'sleep',
+      animals: 'zoo',
+      learning: 'school',
+      movement: 'move'
+    },
+    durationLabels: {
+      enabled: false,
+      quickMaxMinutes: 9,
+      cozyMaxMinutes: 19
+    },
+    recentHistoryDays: 21,
+    reducedMotion: true
+  }));
+  var result = harness.api.restore();
+
+  assert.strictEqual(result.version, 4);
+  assert.strictEqual(result.soundsEnabled, true);
+  assert.deepStrictEqual(clone(result.categoryTags), {
+    singDance: 'songs',
+    bedtime: 'sleep',
+    animals: 'zoo',
+    learning: 'school',
+    movement: 'move'
+  });
+  assert.deepStrictEqual(clone(result.durationLabels), {
+    enabled: false,
+    quickMaxMinutes: 9,
+    cozyMaxMinutes: 19
+  });
+  assert.strictEqual(result.recentHistoryDays, 21);
+  assert.strictEqual(result.reducedMotion, true);
+  assert.strictEqual(harness.saved(), null);
+  assert.deepStrictEqual(clone(harness.api.getRestoreStatus()), {
+    needsRecovery: false,
+    type: 'ok'
+  });
 }());
 
 (function migratesLegacyFavoritesFieldIntoFavoriteItemIds() {
@@ -209,13 +261,13 @@ function assertRecoveryWriteBarrier(stored) {
 
 (function supportedVersionNormalizesMissingOptionalFieldsWithoutRecovery() {
   var harness = loadPreferences(JSON.stringify({
-    version: 3,
+    version: 4,
     enabled: true
   }));
   var result = harness.api.restore();
 
   assert.deepStrictEqual(clone(result), {
-    version: 3,
+    version: 4,
     enabled: true,
     lastMode: 'adult',
     childName: '',
@@ -234,7 +286,8 @@ function assertRecoveryWriteBarrier(stored) {
       cozyMaxMinutes: 30
     },
     recentHistoryDays: 14,
-    reducedMotion: false
+    reducedMotion: false,
+    soundsEnabled: true
   });
   assert.deepStrictEqual(clone(harness.api.getRestoreStatus()), {
     needsRecovery: false,
@@ -245,7 +298,7 @@ function assertRecoveryWriteBarrier(stored) {
 
 (function validPreferencesAreNormalized() {
   var harness = loadPreferences(JSON.stringify({
-    version: 3,
+    version: 4,
     enabled: true,
     lastMode: 'storybook',
     childName: ' Nova ',
@@ -265,12 +318,13 @@ function assertRecoveryWriteBarrier(stored) {
     },
     recentHistoryDays: '3',
     reducedMotion: true,
+    soundsEnabled: false,
     ignored: 'value'
   }));
   var result = harness.api.restore();
 
   assert.deepStrictEqual(clone(result), {
-    version: 3,
+    version: 4,
     enabled: true,
     lastMode: 'storybook',
     childName: 'Nova',
@@ -289,7 +343,8 @@ function assertRecoveryWriteBarrier(stored) {
       cozyMaxMinutes: 25
     },
     recentHistoryDays: 3,
-    reducedMotion: true
+    reducedMotion: true,
+    soundsEnabled: false
   });
   assert.deepStrictEqual(clone(harness.api.getRestoreStatus()), {
     needsRecovery: false,
@@ -352,7 +407,8 @@ function assertRecoveryWriteBarrier(stored) {
       cozyMaxMinutes: 20
     },
     recentHistoryDays: 5,
-    reducedMotion: true
+    reducedMotion: true,
+    soundsEnabled: true
   });
 
   assert.strictEqual(result, null);
@@ -417,11 +473,12 @@ function assertRecoveryWriteBarrier(stored) {
       cozyMaxMinutes: 20
     },
     recentHistoryDays: 5,
-    reducedMotion: false
+    reducedMotion: false,
+    soundsEnabled: false
   });
 
   assert.deepStrictEqual(clone(result), {
-    version: 3,
+    version: 4,
     enabled: true,
     lastMode: 'storybook',
     childName: 'Nova',
@@ -440,7 +497,8 @@ function assertRecoveryWriteBarrier(stored) {
       cozyMaxMinutes: 20
     },
     recentHistoryDays: 5,
-    reducedMotion: false
+    reducedMotion: false,
+    soundsEnabled: false
   });
   assert.deepStrictEqual(
     JSON.parse(harness.rawStored()),
@@ -477,7 +535,7 @@ function assertRecoveryWriteBarrier(stored) {
   });
 
   assert.deepStrictEqual(clone(result), {
-    version: 3,
+    version: 4,
     enabled: true,
     lastMode: 'storybook',
     childName: 'Nova',
@@ -496,7 +554,8 @@ function assertRecoveryWriteBarrier(stored) {
       cozyMaxMinutes: 20
     },
     recentHistoryDays: 5,
-    reducedMotion: false
+    reducedMotion: false,
+    soundsEnabled: true
   });
   assert.strictEqual(harness.saved().key, 'rawi.storybook.preferences');
   assert.deepStrictEqual(JSON.parse(harness.saved().value), clone(result));

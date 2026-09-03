@@ -9,7 +9,7 @@ var previewFixtures = load('js/preview-fixtures.js', { window: {} }).RawiPreview
   assert.deepStrictEqual(
     JSON.parse(JSON.stringify(previewFixtures.storybook.preferences)),
     {
-      version: 3,
+      version: 4,
       enabled: true,
       lastMode: 'storybook',
       childName: 'Nova',
@@ -28,7 +28,8 @@ var previewFixtures = load('js/preview-fixtures.js', { window: {} }).RawiPreview
         cozyMaxMinutes: 30
       },
       recentHistoryDays: 14,
-      reducedMotion: false
+      reducedMotion: false,
+      soundsEnabled: true
     }
   );
   assert.strictEqual(previewFixtures.storybook.sessionSeed, 'storybook-phase-3-preview');

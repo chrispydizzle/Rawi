@@ -33,7 +33,7 @@ function asyncTest(name, run) {
 
 function basePreferences(overrides) {
   var result = {
-    version: 3,
+    version: 4,
     enabled: false,
     lastMode: 'adult',
     childName: '',
@@ -52,7 +52,8 @@ function basePreferences(overrides) {
       cozyMaxMinutes: 30
     },
     recentHistoryDays: 14,
-    reducedMotion: false
+    reducedMotion: false,
+    soundsEnabled: true
   };
   var source = overrides || {};
 
@@ -646,7 +647,8 @@ function loadAppHarness(options) {
       categoryTags: source.categoryTags || null,
       durationLabels: source.durationLabels || null,
       recentHistoryDays: source.recentHistoryDays,
-      reducedMotion: source.reducedMotion === true
+      reducedMotion: source.reducedMotion === true,
+      soundsEnabled: source.soundsEnabled !== undefined ? source.soundsEnabled === true : true
     });
   }
   var copyMap = {

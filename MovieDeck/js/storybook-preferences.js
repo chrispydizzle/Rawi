@@ -2,7 +2,7 @@
   'use strict';
 
   var KEY = 'rawi.storybook.preferences';
-  var VERSION = 3;
+  var VERSION = 4;
   var storage = global.RawiStorage;
   var DEFAULT_CATEGORY_TAGS = {
     singDance: 'sing-along',
@@ -101,7 +101,8 @@
       categoryTags: normalizeCategoryTags(),
       durationLabels: normalizeDurationLabels(),
       recentHistoryDays: 14,
-      reducedMotion: false
+      reducedMotion: false,
+      soundsEnabled: true
     };
   }
 
@@ -137,7 +138,8 @@
       categoryTags: normalizeCategoryTags(source.categoryTags),
       durationLabels: normalizeDurationLabels(source.durationLabels),
       recentHistoryDays: normalizeNonNegativeInt(source.recentHistoryDays, 14),
-      reducedMotion: source.reducedMotion === true
+      reducedMotion: source.reducedMotion === true,
+      soundsEnabled: source.soundsEnabled !== undefined ? source.soundsEnabled === true : true
     };
   }
 
@@ -171,7 +173,10 @@
       return defaults();
     }
 
-    if (parsed.version === 1 || parsed.version === 2 || parsed.version === VERSION) {
+    if (parsed.version === 1 ||
+        parsed.version === 2 ||
+        parsed.version === 3 ||
+        parsed.version === VERSION) {
       restoreStatus({
         needsRecovery: false,
         type: 'ok'

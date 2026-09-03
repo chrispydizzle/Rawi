@@ -8,7 +8,7 @@
       magicRandom: 0,
       user: { Id: 'preview-user', Name: 'Parent' },
       preferences: {
-        version: 3,
+        version: 4,
         enabled: true,
         lastMode: 'storybook',
         childName: 'Nova',
@@ -27,7 +27,8 @@
           cozyMaxMinutes: 30
         },
         recentHistoryDays: 14,
-        reducedMotion: false
+        reducedMotion: false,
+        soundsEnabled: true
       },
       libraries: [
         { Id: 'pixar', Name: 'Disney Pixar' },

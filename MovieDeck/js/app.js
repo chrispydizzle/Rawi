@@ -476,7 +476,10 @@
       categoryTags: copyCategoryTags(state && state.categoryTags),
       durationLabels: copyDurationLabels(state && state.durationLabels),
       recentHistoryDays: copyRecentHistoryDays(state && state.recentHistoryDays),
-      reducedMotion: !!(state && state.reducedMotion)
+      reducedMotion: !!(state && state.reducedMotion),
+      soundsEnabled: state && state.soundsEnabled !== undefined ?
+        state.soundsEnabled === true :
+        true
     };
   }
 
@@ -501,6 +504,9 @@
     nextState.durationLabels = overrides.durationLabels !== undefined ? copyDurationLabels(overrides.durationLabels) : nextState.durationLabels;
     nextState.recentHistoryDays = overrides.recentHistoryDays !== undefined ? copyRecentHistoryDays(overrides.recentHistoryDays) : nextState.recentHistoryDays;
     nextState.reducedMotion = overrides.reducedMotion !== undefined ? overrides.reducedMotion : nextState.reducedMotion;
+    nextState.soundsEnabled = overrides.soundsEnabled !== undefined ?
+      overrides.soundsEnabled === true :
+      nextState.soundsEnabled;
     saved = storybookPreferences.save(nextState, options);
     storybookRestoreStatus = storybookPreferences.getRestoreStatus ?
       storybookPreferences.getRestoreStatus() :
@@ -766,7 +772,7 @@
     var defaults = storybookPreferences.defaults();
     var preferences = fixture && fixture.preferences ? fixture.preferences : {};
     return {
-      version: 3,
+      version: 4,
       enabled: true,
       lastMode: 'storybook',
       childName: typeof preferences.childName === 'string' ? preferences.childName : 'Nova',
@@ -775,7 +781,8 @@
       categoryTags: copyCategoryTags(preferences.categoryTags || defaults.categoryTags),
       durationLabels: copyDurationLabels(preferences.durationLabels || defaults.durationLabels),
       recentHistoryDays: copyRecentHistoryDays(preferences.recentHistoryDays),
-      reducedMotion: preferences.reducedMotion === true
+      reducedMotion: preferences.reducedMotion === true,
+      soundsEnabled: preferences.soundsEnabled !== false
     };
   }
 
