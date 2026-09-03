@@ -138,6 +138,14 @@ A cue may play only when all of these conditions are true:
 Switching to Adult Mode, starting playback, signing out, or disabling sounds
 calls `RawiStorybookSound.stop()` immediately.
 
+The engine's own enabled state follows the stored Storybook mode, the sound
+preference, and player activity, so it is disabled in Adult Mode and during
+playback rather than relying on caller gating alone. It deliberately excludes
+the screen allowlist, which stays in `playStorybookCue`, so the transient
+browse screen between a successful Storybook settings save and the Storybook
+home cannot clip the confirmation cue. Returning from playback re-enables the
+engine before the next user cue.
+
 Sound failure never blocks navigation, saving, or playback. The first failure
 for a cue reports a concise warning and disables only that cue for the current
 app session. Repeated failures do not generate repeated warnings.
@@ -256,13 +264,20 @@ headless unless a user explicitly requests a visible browser.
 
 - Missing or undecodable assets disable the affected cue for the session and
   report one warning.
-- A rejected `Audio.play()` promise is handled without an unhandled rejection,
-  reports one warning, and disables the affected cue.
+- A rejected `Audio.play()` promise is handled without an unhandled rejection.
+  An `AbortError` is the expected result of pausing or restarting a cue and is
+  ignored silently; a `NotAllowedError` may report one warning but leaves the
+  cue retryable; every other rejection, including `NotSupportedError`, reports
+  one warning and disables the affected cue.
+- Each play attempt carries a generation token, so a rejection belonging to a
+  superseded attempt never clears or disables the attempt that replaced it.
 - Runtimes where `Audio.play()` returns no promise remain supported.
 - `currentTime = 0`, `pause()`, or `load()` failures are reported for the
   affected cue without blocking the user action.
 - An unavailable `window.Audio` disables Storybook sounds for the session while
   leaving the stored parent preference unchanged.
+- Re-initializing the module stops any active cue and resets the disabled,
+  warned, and focus-throttle state.
 
 No user-facing toast is shown for optional sound failures; navigation remains
 the authoritative success signal.
@@ -290,8 +305,12 @@ Using a fake Audio implementation:
 - a later focus cue can play after the throttle window;
 - disabling sounds stops active audio;
 - missing Audio support disables the module safely;
-- synchronous play failures and rejected play promises warn once and disable
-  only the affected cue; and
+- synchronous play failures and fatal rejected play promises warn once and
+  disable only the affected cue;
+- an `AbortError` from a cue restart neither warns nor disables, and a
+  `NotAllowedError` warns once while leaving the cue retryable;
+- a stale rejection from a superseded attempt never clears the active attempt;
+- re-initializing stops the active cue and resets session state; and
 - `stop()` pauses and rewinds the active cue.
 
 ### App Integration Tests
@@ -304,6 +323,12 @@ Using a fake Audio implementation:
 - Magic Pick does not also emit confirm;
 - Play/Restart emits no cue and stops active Storybook audio;
 - Adult Mode and player-screen keys emit no Storybook cues;
+- the engine's enabled state follows Storybook, Adult Mode, and playback
+  transitions when driven through the real sound module;
+- a same-cue Magic reroll whose first play promise rejects still leaves the
+  newer attempt stoppable, so no cue bleeds into the player;
+- a successful Storybook settings save keeps its confirmation cue audible
+  through the transient browse screen;
 - disabling sounds prevents later cue calls; and
 - optional sound failure does not change navigation or persistence outcomes.
 

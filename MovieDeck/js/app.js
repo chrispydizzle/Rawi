@@ -225,15 +225,18 @@
   }
 
   // Storybook sound gating
-  function storybookSoundAllowed() {
+  function storybookSoundModeActive() {
     return !!(
       storybookState &&
       storybookState.enabled &&
       storybookState.lastMode === 'storybook' &&
       storybookState.soundsEnabled &&
-      STORYBOOK_SOUND_SCREENS[activeScreen] &&
       !(player.isPlaying && player.isPlaying())
     );
+  }
+
+  function storybookSoundAllowed() {
+    return !!(storybookSoundModeActive() && STORYBOOK_SOUND_SCREENS[activeScreen]);
   }
 
   function playStorybookCue(cueName) {
@@ -241,11 +244,12 @@
     return storybookSound.play(cueName);
   }
 
+  // The engine follows stored mode, preference, and player state only, so a
+  // transient browse screen between a Storybook save and the Storybook home
+  // cannot clip the confirmation cue that was already started. Disabling the
+  // engine stops and rewinds any active cue on its own.
   function syncStorybookSoundPreference() {
-    storybookSound.setEnabled(!!(storybookState && storybookState.soundsEnabled));
-    if (!storybookSoundAllowed()) {
-      storybookSound.stop();
-    }
+    storybookSound.setEnabled(storybookSoundModeActive());
   }
 
   function focusSpatialTarget(target) {
@@ -1510,6 +1514,11 @@
   }
 
   function returnFromPlayback(completed, error) {
+    restoreScreenAfterPlayback(completed, error);
+    syncStorybookSoundPreference();
+  }
+
+  function restoreScreenAfterPlayback(completed, error) {
     if (error) {
       if (playerReturnState.mode === 'storybook') {
         showScreen('storybook-details-screen');
@@ -1542,6 +1551,7 @@
     pendingPlaybackError = null;
     showScreen('player-screen');
     player.play(selectedItem, fromBeginning);
+    syncStorybookSoundPreference();
   }
 
   function playerStopped(completed) {
