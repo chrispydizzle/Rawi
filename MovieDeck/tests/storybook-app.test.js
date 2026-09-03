@@ -521,6 +521,7 @@ function buildDom(document) {
   focusable(append(panel, 'input', 'storybook-duration-cozy-max', '')).setAttribute('type', 'number');
   focusable(append(panel, 'input', 'storybook-recent-history-days', '')).setAttribute('type', 'number');
   focusable(append(panel, 'input', 'storybook-reduced-motion', '')).setAttribute('type', 'checkbox');
+  focusable(append(panel, 'input', 'storybook-sounds-enabled', '')).setAttribute('type', 'checkbox');
   append(panel, 'p', 'storybook-settings-warning', '');
   append(panel, 'p', 'storybook-settings-error', '');
   focusable(append(panel, 'button', 'storybook-reset', ''));
@@ -540,6 +541,14 @@ function buildDom(document) {
   document.getElementById('storybook-duration-cozy-max').rect = { left: 140, top: 570, right: 300, bottom: 602, width: 160, height: 32 };
   document.getElementById('storybook-recent-history-days').rect = { left: 140, top: 620, right: 300, bottom: 652, width: 160, height: 32 };
   document.getElementById('storybook-reduced-motion').rect = { left: 140, top: 360, right: 180, bottom: 390, width: 40, height: 30 };
+  document.getElementById('storybook-sounds-enabled').rect = {
+    left: 140,
+    top: 410,
+    right: 180,
+    bottom: 440,
+    width: 40,
+    height: 30
+  };
   document.getElementById('storybook-reset').rect = { left: 140, top: 470, right: 350, bottom: 510, width: 210, height: 40 };
   document.getElementById('storybook-save').rect = { left: 380, top: 470, right: 500, bottom: 510, width: 120, height: 40 };
   document.getElementById('storybook-cancel').rect = { left: 540, top: 470, right: 660, bottom: 510, width: 120, height: 40 };
@@ -688,6 +697,7 @@ function loadAppHarness(options) {
     storybookDurationQuickMaxLabel: 'Quick story up to this many minutes',
     storybookDurationCozyMaxLabel: 'Cozy episode up to this many minutes',
     storybookRecentHistoryDaysLabel: 'Hide completed stories for this many days',
+    storybookSoundsEnabledLabel: 'Play gentle Storybook sounds',
     storybookDurationThresholdError: 'Quick story minutes must be 1 to 240, and Cozy episode minutes must be between Quick story minutes and 240.',
     storybookRecentHistoryDaysError: 'Recent history days must be between 0 and 365.',
     storybookLittleMenuTitle: "Tonight's Little Menu",
@@ -1494,6 +1504,48 @@ asyncTest('savingStorybookSettingsWritesAndReloadsAllPhase3Fields', function () 
   });
 });
 
+asyncTest('savingStorybookSoundSettingWritesAndReloadsUnchecked', function () {
+  var savedState;
+  var reloadHarness;
+  var harness = loadAppHarness({
+    libraries: [{ Id: 'kids', Name: 'Kids' }],
+    preferences: basePreferences({
+      enabled: true,
+      lastMode: 'adult',
+      libraryIds: ['kids'],
+      soundsEnabled: true
+    }),
+    restoreSession: true,
+    videosByLibrary: {
+      kids: [{ Id: 'story-1', Name: 'First Story', RunTimeTicks: 7200000000, Tags: ['animals'] }]
+    }
+  });
+
+  return flush(12).then(function () {
+    harness.document.getElementById('storybook-settings-button').click();
+    assert.strictEqual(harness.document.getElementById('storybook-sounds-enabled').checked, true);
+    harness.document.getElementById('storybook-sounds-enabled').checked = false;
+    harness.document.getElementById('storybook-save').click();
+    return flush(12);
+  }).then(function () {
+    savedState = JSON.parse(JSON.stringify(harness.savedState()));
+    assert.strictEqual(savedState.soundsEnabled, false);
+
+    reloadHarness = loadAppHarness({
+      libraries: [{ Id: 'kids', Name: 'Kids' }],
+      preferences: savedState,
+      restoreSession: true,
+      videosByLibrary: {
+        kids: [{ Id: 'story-1', Name: 'First Story', RunTimeTicks: 7200000000, Tags: ['animals'] }]
+      }
+    });
+    return flush(12);
+  }).then(function () {
+    reloadHarness.document.getElementById('storybook-settings-button').click();
+    assert.strictEqual(reloadHarness.document.getElementById('storybook-sounds-enabled').checked, false);
+  });
+});
+
 asyncTest('modeSwitchAndFavoriteTogglePreserveExistingPhase3Settings', function () {
   var harness = loadAppHarness({
     libraries: [{ Id: 'kids', Name: 'Kids' }],
@@ -1787,7 +1839,7 @@ asyncTest('restoresInitiatingFocusAndScrollsSettingsControls', function () {
   });
 });
 
-asyncTest('remoteNavigationMovesThroughEveryPhase3SettingsControlAndScrollsThePanel', function () {
+asyncTest('remoteNavigationMovesThroughEveryStorybookSettingsControlAndScrollsThePanel', function () {
   var harness = loadAppHarness({
     libraries: [{ Id: 'kids', Name: 'Kids' }],
     restoreSession: true,
@@ -1809,6 +1861,7 @@ asyncTest('remoteNavigationMovesThroughEveryPhase3SettingsControlAndScrollsThePa
     'storybook-duration-cozy-max',
     'storybook-recent-history-days',
     'storybook-reduced-motion',
+    'storybook-sounds-enabled',
     'storybook-save'
   ];
 

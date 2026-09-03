@@ -454,6 +454,7 @@
     var container = byId('storybook-library-options');
     var childName = byId('storybook-child-name');
     var reducedMotion = byId('storybook-reduced-motion');
+    var soundsEnabled = byId('storybook-sounds-enabled');
     var resetButton = byId('storybook-reset');
     var saveButton = byId('storybook-save');
     var settingsError = byId('storybook-settings-error');
@@ -484,6 +485,7 @@
 
     childName.value = preferences.childName;
     reducedMotion.checked = preferences.reducedMotion;
+    soundsEnabled.checked = preferences.soundsEnabled === true;
     byId('storybook-category-tag-singDance').value = preferences.categoryTags.singDance;
     byId('storybook-category-tag-bedtime').value = preferences.categoryTags.bedtime;
     byId('storybook-category-tag-animals').value = preferences.categoryTags.animals;
@@ -496,6 +498,7 @@
 
     toggleDisabled(childName, locked);
     toggleDisabled(reducedMotion, locked);
+    toggleDisabled(soundsEnabled, locked);
     toggleDisabled(byId('storybook-category-tag-singDance'), locked);
     toggleDisabled(byId('storybook-category-tag-bedtime'), locked);
     toggleDisabled(byId('storybook-category-tag-animals'), locked);
@@ -571,7 +574,8 @@
         cozyMaxMinutes: cozyMaxMinutes
       },
       recentHistoryDays: recentHistoryDays,
-      reducedMotion: byId('storybook-reduced-motion').checked
+      reducedMotion: byId('storybook-reduced-motion').checked,
+      soundsEnabled: byId('storybook-sounds-enabled').checked
     };
     if (!preferences.libraryIds.length) {
       byId('storybook-settings-error').textContent = copy.get('storybookNoLibraries');

@@ -218,7 +218,8 @@ function settingsPreferences(overrides) {
       cozyMaxMinutes: 30
     },
     recentHistoryDays: 14,
-    reducedMotion: false
+    reducedMotion: false,
+    soundsEnabled: true
   };
   var source = overrides || {};
 
@@ -317,6 +318,7 @@ function loadViewHarness(options) {
     settingsLibraries: append(document, document.body, 'div', 'storybook-library-options'),
     settingsWarning: append(document, document.body, 'p', 'storybook-settings-warning'),
     reducedMotion: append(document, document.body, 'input', 'storybook-reduced-motion'),
+    soundsEnabled: append(document, document.body, 'input', 'storybook-sounds-enabled'),
     save: append(document, document.body, 'button', 'storybook-save'),
     storybook: append(document, document.body, 'button', 'storybook-home-storybook-mode-button')
   };
@@ -447,6 +449,7 @@ function loadViewHarness(options) {
           if (key === 'storybookDurationQuickMaxLabel') { return 'Quick story up to this many minutes'; }
           if (key === 'storybookDurationCozyMaxLabel') { return 'Cozy episode up to this many minutes'; }
           if (key === 'storybookRecentHistoryDaysLabel') { return 'Hide completed stories for this many days'; }
+          if (key === 'storybookSoundsEnabledLabel') { return 'Play gentle Storybook sounds'; }
           if (key === 'storybookDurationThresholdError') { return 'Quick story minutes must be 1 to 240, and Cozy episode minutes must be between Quick story minutes and 240.'; }
           if (key === 'storybookRecentHistoryDaysError') { return 'Recent history days must be between 0 and 365.'; }
           return key;
@@ -961,6 +964,7 @@ function loadViewHarness(options) {
   );
   assert.strictEqual(harness.buttons.childName.disabled, true);
   assert.strictEqual(harness.buttons.reducedMotion.disabled, true);
+  assert.strictEqual(harness.buttons.soundsEnabled.disabled, true);
   assert.strictEqual(harness.buttons.save.disabled, true);
   assert.strictEqual(harness.buttons.reset.disabled, false);
   assert.strictEqual(harness.buttons.reset.style.display, 'inline-block');
@@ -1007,6 +1011,7 @@ function loadViewHarness(options) {
   assert.strictEqual(harness.buttons.settingsWarning.textContent, '');
   assert.strictEqual(harness.buttons.childName.disabled, false);
   assert.strictEqual(harness.buttons.reducedMotion.disabled, false);
+  assert.strictEqual(harness.buttons.soundsEnabled.disabled, false);
   assert.strictEqual(harness.buttons.save.disabled, false);
   assert.strictEqual(harness.buttons.reset.disabled, true);
   assert.strictEqual(harness.buttons.reset.style.display, 'none');
@@ -1125,8 +1130,32 @@ function loadViewHarness(options) {
       cozyMaxMinutes: 25
     },
     recentHistoryDays: 3,
-    reducedMotion: false
+    reducedMotion: false,
+    soundsEnabled: true
   });
+}());
+
+(function settingsFillsLocksAndEmitsSoundPreference() {
+  var harness = loadViewHarness();
+
+  harness.view.renderSettings(
+    [{ Id: 'kids', Name: 'Kids' }],
+    settingsPreferences({ soundsEnabled: false }),
+    [],
+    null
+  );
+  assert.strictEqual(harness.buttons.soundsEnabled.checked, false);
+  harness.buttons.soundsEnabled.checked = true;
+  harness.buttons.save.click();
+  assert.strictEqual(harness.preferenceChanges().slice(-1)[0].soundsEnabled, true);
+
+  harness.view.renderSettings(
+    [{ Id: 'kids', Name: 'Kids' }],
+    settingsPreferences({ soundsEnabled: true }),
+    [],
+    { needsRecovery: true, type: 'malformed' }
+  );
+  assert.strictEqual(harness.buttons.soundsEnabled.disabled, true);
 }());
 
 (function settingsRejectsInvalidDurationThresholdsAndKeepsFocusOnCozyField() {

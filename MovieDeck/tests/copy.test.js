@@ -152,6 +152,13 @@ var copy = load('js/copy.js', { window: {} }).RawiCopy;
   assert.strictEqual(copy.get('storybookLittleMenuTitle'), "Tonight's Little Menu");
 }());
 
+(function exposesStorybookSoundSettingCopyDefault() {
+  assert.strictEqual(
+    copy.get('storybookSoundsEnabledLabel'),
+    'Play gentle Storybook sounds'
+  );
+}());
+
 (function exposesStorybookMagicPickCopyDefaults() {
   assert.strictEqual(copy.get('storybookMagicPickButton'), 'Magic Pick');
   assert.strictEqual(copy.get('storybookMagicPickTitle'), 'Magic Pick');

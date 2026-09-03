@@ -1324,7 +1324,8 @@
       categoryTags: nextPreferences.categoryTags,
       durationLabels: nextPreferences.durationLabels,
       recentHistoryDays: nextPreferences.recentHistoryDays,
-      reducedMotion: nextPreferences.reducedMotion
+      reducedMotion: nextPreferences.reducedMotion,
+      soundsEnabled: nextPreferences.soundsEnabled
     });
     if (saveResult.blocked) {
       renderStorybookSettings();

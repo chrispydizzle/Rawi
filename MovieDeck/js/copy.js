@@ -60,6 +60,7 @@
     storybookChildNameLabel: "Child's name",
     storybookLibrariesLabel: 'Visible libraries',
     storybookReducedMotionLabel: 'Use less motion',
+    storybookSoundsEnabledLabel: 'Play gentle Storybook sounds',
     storybookGreeting: 'What should we watch tonight, {child}?',
     storybookGreetingWithoutName: 'What should we watch tonight?',
     storybookContinueTitle: "Continue {child}'s Story",
