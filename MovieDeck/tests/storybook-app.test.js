@@ -906,8 +906,20 @@ function loadAppHarness(options) {
         playerCallbacks = options || {};
       },
       isPlaying: function () { return isPlayingState; },
+      // The real player only assigns its current stream inside the
+      // getPlaybackInfo continuation, so isPlaying() stays false for the whole
+      // synchronous turn. options.asyncPlayer reproduces that timing; the call
+      // is still recorded synchronously either way.
       play: function (item, fromBeginning) {
         playCalls.push({ id: item.Id, fromBeginning: fromBeginning });
+        if (options.asyncPlayer) {
+          return Promise.resolve().then(function () { isPlayingState = true; });
+        }
+        if (options.asyncPlayerRejects) {
+          return Promise.resolve().then(function () {
+            throw new Error('Playback info failed.');
+          });
+        }
         isPlayingState = true;
       },
       stop: function (completed) {
@@ -1046,6 +1058,9 @@ function loadAppHarness(options) {
     },
     playerCallbacks: function () {
       return playerCallbacks;
+    },
+    playerPlaying: function () {
+      return isPlayingState;
     },
     rawStorybookStorage: function () {
       return rawStorybookStorage;
@@ -4473,6 +4488,11 @@ asyncTest('playbackEntryAndActivePlaybackSilenceStorybookCues', function () {
     assert.deepStrictEqual(harness.soundCalls(), ['confirm']);
     assert(harness.soundStopCalls() > stopsBeforePlay);
     assert.deepStrictEqual(harness.playCalls(), [{ id: 'story-1', fromBeginning: false }]);
+    // This harness keeps the synchronous player double on purpose, so it pins
+    // the non-thenable compatibility path: a player that is already playing
+    // when play() returns is synced on the same turn.
+    assert.strictEqual(harness.playerPlaying(), true);
+    assert.strictEqual(harness.soundEnabledChanges().slice(-1)[0], false);
 
     harness.setPlayerPlaying(false);
     harness.playerCallbacks().onStop(false);
@@ -4513,6 +4533,9 @@ asyncTest('signOutStopsStorybookAudioWithoutPlayingACue', function () {
     assert.strictEqual(harness.screenActive('setup-screen'), true);
     assert(harness.soundStopCalls() > stopsBeforeSignOut);
     assert.deepStrictEqual(harness.soundCalls(), ['confirm']);
+    // Setup mode gets the same defense in depth as playback: the engine is
+    // disabled outright, not merely stopped.
+    assert.strictEqual(harness.soundEnabledChanges().slice(-1)[0], false);
   });
 });
 
@@ -4673,6 +4696,7 @@ asyncTest('storybookPlaybackWithoutASelectedItemNeitherCuesNorStopsAudio', funct
 
 asyncTest('storybookSoundEngineEnableStateFollowsModeAndPlaybackTransitions', function () {
   var harness = loadAppHarness({
+    asyncPlayer: true,
     libraries: [{ Id: 'kids', Name: 'Kids' }],
     preferences: basePreferences({
       enabled: true,
@@ -4699,6 +4723,14 @@ asyncTest('storybookSoundEngineEnableStateFollowsModeAndPlaybackTransitions', fu
     harness.document.getElementById('storybook-resume-card').click();
     harness.document.getElementById('storybook-details-play').click();
     assert.strictEqual(harness.screenActive('player-screen'), true);
+    // The play call is recorded synchronously, but the player has not yet
+    // reported itself as playing, so the engine must not have been synced yet.
+    assert.deepStrictEqual(harness.playCalls(), [{ id: 'story-1', fromBeginning: false }]);
+    assert.strictEqual(harness.playerPlaying(), false);
+    assert.deepStrictEqual(harness.soundEnabledChanges(), [true]);
+    return flush(4);
+  }).then(function () {
+    assert.strictEqual(harness.playerPlaying(), true);
     assert.deepStrictEqual(harness.soundEnabledChanges(), [true, false]);
 
     harness.setPlayerPlaying(false);
@@ -4724,8 +4756,50 @@ asyncTest('storybookSoundEngineEnableStateFollowsModeAndPlaybackTransitions', fu
   });
 });
 
+asyncTest('storybookSoundEngineIsResyncedAfterAFailedPlaybackStart', function () {
+  var harness = loadAppHarness({
+    asyncPlayerRejects: true,
+    libraries: [{ Id: 'kids', Name: 'Kids' }],
+    preferences: basePreferences({
+      enabled: true,
+      lastMode: 'storybook',
+      libraryIds: ['kids']
+    }),
+    restoreSession: true,
+    resume: [
+      { Id: 'story-1', Name: 'First Story', UserData: { PlaybackPositionTicks: 600000000, PlayedPercentage: 14 } }
+    ],
+    videosByLibrary: {
+      kids: [{
+        Id: 'story-1',
+        Name: 'First Story',
+        RunTimeTicks: 7200000000,
+        UserData: { PlaybackPositionTicks: 600000000, PlayedPercentage: 14 }
+      }]
+    }
+  });
+
+  return flush(12).then(function () {
+    assert.deepStrictEqual(harness.soundEnabledChanges(), [true]);
+
+    harness.document.getElementById('storybook-resume-card').click();
+    harness.document.getElementById('storybook-details-play').click();
+    assert.strictEqual(harness.screenActive('player-screen'), true);
+    assert.deepStrictEqual(harness.playCalls(), [{ id: 'story-1', fromBeginning: false }]);
+    assert.deepStrictEqual(harness.soundEnabledChanges(), [true]);
+    return flush(12);
+  }).then(function () {
+    // The start failed, so playback never began and the sync must leave the
+    // engine enabled. The suite runner fails on any unhandled rejection, so
+    // this also pins that the rejected start promise is handled.
+    assert.strictEqual(harness.playerPlaying(), false);
+    assert.deepStrictEqual(harness.soundEnabledChanges(), [true, true]);
+  });
+});
+
 asyncTest('realSoundEngineStopsARerolledMagicCueBeforePlayback', function () {
   var harness = loadAppHarness({
+    asyncPlayer: true,
     libraries: [{ Id: 'kids', Name: 'Kids' }],
     preferences: basePreferences({
       enabled: true,
@@ -4771,8 +4845,11 @@ asyncTest('realSoundEngineStopsARerolledMagicCueBeforePlayback', function () {
 
     harness.document.getElementById('storybook-details-play').click();
     assert.strictEqual(harness.screenActive('player-screen'), true);
+    assert.strictEqual(harness.playerPlaying(), false);
+    assert.deepStrictEqual(harness.soundEnabledChanges(), [true]);
     return flush(12);
   }).then(function () {
+    assert.strictEqual(harness.playerPlaying(), true);
     assert.deepStrictEqual(harness.soundUnpausedSrcs(), []);
     assert.strictEqual(cues.confirm.pauseCalls, 1);
     assert.strictEqual(cues.confirm.currentTime, 0);

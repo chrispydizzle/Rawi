@@ -1545,12 +1545,22 @@
   }
 
   function startPlayback(fromBeginning) {
+    var started;
     if (!selectedItem) { return; }
     storybookSound.stop();
     capturePlayerReturnState();
     pendingPlaybackError = null;
     showScreen('player-screen');
-    player.play(selectedItem, fromBeginning);
+    started = player.play(selectedItem, fromBeginning);
+    // The player only reports itself as playing once its playback-info request
+    // settles, so syncing on this turn would read the pre-playback state and
+    // leave the engine enabled. Both outcomes sync: a fulfilled start has
+    // established playback, and a handled failure has returned to a state the
+    // sync should reflect.
+    if (started && typeof started.then === 'function') {
+      started.then(syncStorybookSoundPreference, syncStorybookSoundPreference);
+      return;
+    }
     syncStorybookSoundPreference();
   }
 
@@ -1570,6 +1580,7 @@
     signOutTimer = null;
     storybookSound.stop();
     api.signOut();
+    storybookSound.setEnabled(false);
     selectedItem = null;
     showScreen('setup-screen', 'server-url');
     text('setup-error', copy.get('signedOut'));

@@ -146,6 +146,14 @@ browse screen between a successful Storybook settings save and the Storybook
 home cannot clip the confirmation cue. Returning from playback re-enables the
 engine before the next user cue.
 
+Because the player only reports itself as playing once its playback-info
+request settles, the playback-entry sync runs from the settlement of the value
+returned by `play()` rather than on the calling turn; a start that fails leaves
+the engine enabled because playback never began. A runtime whose `play()`
+returns no thenable is synced synchronously. Sign-out disables the engine
+outright in addition to stopping it, so setup mode carries the same defence in
+depth as playback.
+
 Sound failure never blocks navigation, saving, or playback. The first failure
 for a cue reports a concise warning and disables only that cue for the current
 app session. Repeated failures do not generate repeated warnings.
@@ -325,6 +333,13 @@ Using a fake Audio implementation:
 - Adult Mode and player-screen keys emit no Storybook cues;
 - the engine's enabled state follows Storybook, Adult Mode, and playback
   transitions when driven through the real sound module;
+- the engine is still enabled on the turn `play()` is called and becomes
+  disabled only once the player's start settles, driven by an explicitly
+  asynchronous player double that mirrors the real `play()` contract;
+- a failed playback start resyncs the engine from the rejection path without
+  an unhandled rejection, and a player whose `play()` returns no thenable is
+  still synced synchronously;
+- sign-out disables the engine as well as stopping it;
 - a same-cue Magic reroll whose first play promise rejects still leaves the
   newer attempt stoppable, so no cue bleeds into the player;
 - a successful Storybook settings save keeps its confirmation cue audible
