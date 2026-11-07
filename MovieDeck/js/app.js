@@ -39,7 +39,6 @@
   var currentGroups = [];
   var currentLatest = [];
   var currentResume = [];
-  var defaultServer = 'http://192.168.1.2:8096';
   var previousScreen = 'browse-screen';
   var searchIndex = [];
   var searchQuery = '';
@@ -293,6 +292,11 @@
   function connect() {
     var server = byId('server-url').value;
     text('setup-error', '');
+    if (!server.trim()) {
+      text('setup-error', copy.get('serverRequired'));
+      byId('server-url').focus();
+      return;
+    }
     byId('connect-button').disabled = true;
     api.connect(server).then(function () {
       localStorage.setItem('moviedeck.server', api.server);
@@ -1435,7 +1439,7 @@
       if (error && error.status === 401) {
         api.signOut();
         byId('browse-loading').style.display = 'none';
-        byId('server-url').value = api.server || defaultServer;
+        byId('server-url').value = api.server || '';
         text('setup-error', copy.get('sessionExpired'));
         showScreen('setup-screen', 'connect-button');
         return;
@@ -1941,10 +1945,11 @@
     });
     updateClock();
     setInterval(updateClock, 30000);
-    byId('server-url').value = localStorage.getItem('moviedeck.server') || defaultServer;
+    byId('server-url').value = localStorage.getItem('moviedeck.server') || '';
     if (queryValue('preview') === 'storybook') {
       startStorybookPreview();
     } else if (api.restore()) {
+      byId('server-url').value = api.server;
       openLibrary();
     } else {
       showScreen('setup-screen', 'server-url');

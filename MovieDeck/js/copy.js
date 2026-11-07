@@ -4,10 +4,11 @@
   var defaults = {
     documentTitle: 'Rawi',
     appName: 'Rawi',
-    setupKicker: 'La Casita de Posada',
+    setupKicker: 'Your Jellyfin library',
     setupNote: 'This TV will display a Quick Connect code.',
     serverLabel: 'Host',
-    serverPlaceholder: 'http://192.168.1.10:8096',
+    serverPlaceholder: 'http://jellyfin.example:8096',
+    serverRequired: 'Enter your Jellyfin server address.',
     connectButton: 'Connect',
     quickKicker: 'Authorize this screen',
     quickTitle: 'Enter this code<br>in Jellyfin',

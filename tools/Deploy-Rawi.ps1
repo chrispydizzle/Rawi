@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
-    [string]$Target = '192.168.1.159:26101',
-    [string]$SigningProfile = 'MovieDeck',
+    [string]$Target,
+    [string]$SigningProfile,
     [switch]$PackageOnly,
     [switch]$NoVersionIncrement,
     [switch]$Launch
@@ -10,10 +10,46 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
+$localConfigPath = Join-Path $repositoryRoot 'rawi.local.json'
+if (Test-Path -LiteralPath $localConfigPath) {
+    $localConfigText = Get-Content -LiteralPath $localConfigPath -Raw -Encoding UTF8
+    if ([string]::IsNullOrWhiteSpace($localConfigText) -or -not $localConfigText.TrimStart().StartsWith('{')) {
+        throw "Local configuration '$localConfigPath' must contain a JSON object."
+    }
+    try {
+        $localConfig = $localConfigText | ConvertFrom-Json -ErrorAction Stop
+    } catch {
+        throw "Invalid JSON in '$localConfigPath': $($_.Exception.Message)"
+    }
+    foreach ($property in $localConfig.PSObject.Properties) {
+        if ($property.Name -notin @('target', 'signingProfile')) {
+            throw "Unknown local setting '$($property.Name)' in '$localConfigPath'."
+        }
+        if ($property.Value -isnot [string]) {
+            throw "Local setting '$($property.Name)' must be a string in '$localConfigPath'."
+        }
+    }
+    if (-not $PSBoundParameters.ContainsKey('Target')) {
+        $Target = $localConfig.target
+    }
+    if (-not $PSBoundParameters.ContainsKey('SigningProfile')) {
+        $SigningProfile = $localConfig.signingProfile
+    }
+}
+
+if (-not $PackageOnly -and [string]::IsNullOrWhiteSpace($Target)) {
+    throw "Specify -Target or set 'target' in rawi.local.json (for example 192.0.2.10:26101)."
+}
+if ([string]::IsNullOrWhiteSpace($SigningProfile)) {
+    throw "Specify -SigningProfile or set 'signingProfile' in rawi.local.json to a Tizen certificate profile."
+}
+
 $projectPath = Join-Path $repositoryRoot 'MovieDeck'
 $distPath = Join-Path $repositoryRoot 'dist'
 $configPath = Join-Path $projectPath 'config.xml'
 $apiPath = Join-Path $projectPath 'js\api.js'
+$licensePath = Join-Path $repositoryRoot 'LICENSE'
+$noticesPath = Join-Path $repositoryRoot 'THIRD_PARTY_NOTICES.md'
 $tizenPath = Join-Path $env:USERPROFILE 'tizen-studio\tools\ide\bin\tizen.bat'
 $sdbPath = Join-Path $env:USERPROFILE 'tizen-studio\tools\sdb.exe'
 $packageName = 'Rawi.wgt'
@@ -72,13 +108,16 @@ function Update-RawiVersion {
     return $newVersion
 }
 
-foreach ($requiredPath in @($projectPath, $configPath, $apiPath, $tizenPath, $sdbPath)) {
+foreach ($requiredPath in @($projectPath, $configPath, $apiPath, $tizenPath, $sdbPath, $licensePath, $noticesPath)) {
     if (-not (Test-Path $requiredPath)) {
         throw "Required path not found: $requiredPath"
     }
 }
 
 New-Item -ItemType Directory -Path $distPath -Force | Out-Null
+
+Copy-Item -LiteralPath $licensePath -Destination (Join-Path $projectPath 'LICENSE') -Force
+Copy-Item -LiteralPath $noticesPath -Destination (Join-Path $projectPath 'THIRD_PARTY_NOTICES.md') -Force
 
 if ($NoVersionIncrement) {
     $versionMatch = [regex]::Match(
@@ -134,13 +173,14 @@ Invoke-NativeCommand $tizenPath @(
     '--', $distPath
 )
 
-if($Launch) {
-Write-Host 'Launching Rawi...'
-	Invoke-NativeCommand $tizenPath @(
-	    'run',
-	    '-p', $applicationId,
-	    '-s', $Target
-	)
+if ($Launch) {
+    Write-Host 'Launching Rawi...'
+    Invoke-NativeCommand $tizenPath @(
+        'run',
+        '-p', $applicationId,
+        '-s', $Target
+    )
+    Write-Host "Rawi $version is installed and running."
+} else {
+    Write-Host "Rawi $version is installed. Open it on the TV or deploy with -Launch."
 }
-
-Write-Host "Rawi $version is installed and running."

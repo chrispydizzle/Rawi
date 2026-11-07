@@ -964,6 +964,10 @@ function loadAppHarness(options) {
   var discoveryWindow = load('js/storybook-discovery.js', { window: {} });
   var document = new FakeDocument();
   var localStorage = createStorage();
+  if (options.savedServer) {
+    localStorage.setItem('moviedeck.server', options.savedServer);
+  }
+  var connectionAttempts = [];
   var timers = [];
   var intervals = [];
   var motionTimers = [];
@@ -1084,6 +1088,7 @@ function loadAppHarness(options) {
     recentlyAddedCaption: 'Recently added',
     recentlyAddedTitle: 'Recently added',
     runtimeMinutes: '{minutes} min',
+    serverRequired: 'Enter your Jellyfin server address.',
     shelfItemCount: '{count} films',
     signOutConfirm: 'Press again',
     searchCount: '{count} matching titles',
@@ -1173,7 +1178,10 @@ function loadAppHarness(options) {
       quickConnectAuthentications += 1;
       return Promise.resolve();
     },
-    connect: function () { return Promise.resolve(); },
+    connect: function (server) {
+      connectionAttempts.push(server);
+      return Promise.resolve();
+    },
     getLatest: function () {
       apiCalls.getLatest += 1;
       return Promise.resolve(options.latest || []);
@@ -1409,6 +1417,7 @@ function loadAppHarness(options) {
       (windowListeners[type] || []).forEach(function (listener) { listener(); });
     },
     approveQuickConnect: function () { quickConnectApproved = true; },
+    connectionAttempts: function () { return connectionAttempts.slice(); },
     apiCalls: function () {
       return {
         getLatest: apiCalls.getLatest,
@@ -1504,6 +1513,43 @@ function loadAppHarness(options) {
     }
   };
 }
+
+(function newInstallDoesNotPrefillAnUnrelatedJellyfinServer() {
+  var harness = loadAppHarness({ restoreSession: false });
+
+  assert.strictEqual(harness.screenActive('setup-screen'), true);
+  assert.strictEqual(harness.document.getElementById('server-url').value, '');
+}());
+
+(function blankServerIsRejectedBeforeConnecting() {
+  var harness = loadAppHarness({ restoreSession: false });
+  var input = harness.document.getElementById('server-url');
+  var button = harness.document.getElementById('connect-button');
+
+  ['', ' \t '].forEach(function (server) {
+    input.value = server;
+    button.click();
+    assert.deepStrictEqual(harness.connectionAttempts(), []);
+    assert.strictEqual(
+      harness.document.getElementById('setup-error').textContent,
+      'Enter your Jellyfin server address.'
+    );
+    assert.strictEqual(harness.document.activeElement, input);
+    assert.notStrictEqual(button.disabled, true);
+  });
+}());
+
+asyncTest('savedServerStillStartsQuickConnect', function () {
+  var server = 'http://jellyfin.example:8096';
+  var harness = loadAppHarness({ restoreSession: false, savedServer: server });
+
+  assert.strictEqual(harness.document.getElementById('server-url').value, server);
+  harness.document.getElementById('connect-button').click();
+  return flush(12).then(function () {
+    assert.deepStrictEqual(harness.connectionAttempts(), [server]);
+    assert.strictEqual(harness.screenActive('quick-screen'), true);
+  });
+});
 
 function positionStoryDoors(harness) {
   var doors = harness.document.querySelectorAll('#storybook-doors .storybook-door');
@@ -4963,6 +5009,7 @@ asyncTest('reauthenticatingAfterSignOutRestoresAudibleStorybookCues', function (
     assert.strictEqual(harness.screenActive('setup-screen'), true);
     assert.strictEqual(harness.soundEnabledChanges().slice(-1)[0], false);
 
+    assert.strictEqual(harness.document.getElementById('server-url').value, 'http://example');
     harness.document.getElementById('connect-button').click();
     return flush(12);
   }).then(function () {

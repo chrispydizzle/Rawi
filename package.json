@@ -1,0 +1,20 @@
+{
+  "name": "rawi",
+  "private": true,
+  "description": "Remote-first Jellyfin browser and player for Samsung Tizen TVs",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chrispydizzle/Rawi.git"
+  },
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "test": "node MovieDeck/tests/run-tests.js",
+    "lint": "node tools/Check-JavaScript.js"
+  },
+  "devDependencies": {
+    "acorn": "8.19.0"
+  }
+}
