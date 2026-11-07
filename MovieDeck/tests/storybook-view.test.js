@@ -149,10 +149,16 @@ FakeElement.prototype.getElementsByClassName = function (className) {
 
 function FakeDocument() {
   this.activeElement = null;
+  this.listeners = {};
   this.body = new FakeElement(this, 'body');
   this.elementsById = {};
   this.modeButtons = [];
 }
+
+FakeDocument.prototype.addEventListener = function (type, listener) {
+  if (!this.listeners[type]) { this.listeners[type] = []; }
+  this.listeners[type].push(listener);
+};
 
 FakeDocument.prototype.createElement = function (tagName) {
   return new FakeElement(this, tagName);
@@ -675,6 +681,22 @@ function loadViewHarness(options) {
   assert.strictEqual(menuCards.length, 1);
   assert.strictEqual(menuCards[0].id, 'storybook-menu-card-dance');
   assert.strictEqual(favoriteCards.length, 1);
+  [
+    harness.buttons.resumeSlot.firstChild,
+    menuCards[0],
+    favoriteCards[0],
+    harness.buttons.doors.firstChild.firstChild.firstChild
+  ].forEach(function (control) {
+    var layer = control.children.filter(function (child) {
+      return child.classList.contains('storybook-fireflies');
+    })[0];
+    assert.ok(layer, 'Each Storybook choice has a decorative firefly layer');
+    assert.strictEqual(layer.getAttribute('aria-hidden'), 'true');
+    assert.strictEqual(layer.getAttribute('data-focusable'), null);
+    assert.ok(layer.children.every(function (light) {
+      return light.tagName === 'SPAN' && light.getAttribute('data-focusable') === null;
+    }));
+  });
 
   menuCards[0].click();
   assert.deepStrictEqual(JSON.parse(JSON.stringify(harness.openItems)), [{ id: 'dance', source: 'menu' }]);

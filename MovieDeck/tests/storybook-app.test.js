@@ -173,7 +173,7 @@ function FakeElement(document, tagName) {
   this.listeners = {};
   this.style = {};
   this.classList = new FakeClassList();
-  this.textContent = '';
+  this._textContent = '';
   this._innerHTML = '';
   this.value = '';
   this.checked = false;
@@ -196,6 +196,16 @@ function FakeElement(document, tagName) {
   Object.defineProperty(this, 'firstChild', {
     get: function () { return self.children.length ? self.children[0] : null; }
   });
+  Object.defineProperty(this, 'textContent', {
+    get: function () {
+      return self._textContent + self.children.map(function (child) { return child.textContent; }).join('');
+    },
+    set: function (value) {
+      self.children.forEach(function (child) { child.parentNode = null; });
+      self.children = [];
+      self._textContent = String(value);
+    }
+  });
   Object.defineProperty(this, 'innerHTML', {
     get: function () { return self._innerHTML; },
     set: function (value) {
@@ -211,6 +221,22 @@ FakeElement.prototype.appendChild = function (child) {
   this.children.push(child);
   this.ownerDocument.registerTree(child);
   return child;
+};
+
+FakeElement.prototype.removeChild = function (child) {
+  var index = this.children.indexOf(child);
+  assert.ok(index !== -1, 'Removed child must belong to its parent');
+  this.children.splice(index, 1);
+  child.parentNode = null;
+  return child;
+};
+
+FakeElement.prototype.contains = function (node) {
+  while (node) {
+    if (node === this) { return true; }
+    node = node.parentNode;
+  }
+  return false;
 };
 
 FakeElement.prototype.insertBefore = function (child, reference) {
@@ -263,6 +289,7 @@ FakeElement.prototype.focus = function () {
   if (screen && !screen.classList.contains('is-active')) { return; }
   this.ownerDocument.activeElement = this;
   this.dispatch('focus', {});
+  this.ownerDocument.dispatchEvent('focusin', { target: this });
 };
 
 FakeElement.prototype.setAttribute = function (name, value) {
@@ -437,6 +464,7 @@ function buildDom(document) {
   var setupScreen = append(document.body, 'section', 'setup-screen', 'screen');
   var quickScreen = append(document.body, 'section', 'quick-screen', 'screen');
   var browseScreen = append(document.body, 'section', 'browse-screen', 'screen');
+  var searchScreen = append(document.body, 'section', 'search-screen', 'screen');
   var storybookScreen = append(document.body, 'section', 'storybook-screen', 'screen');
   var storybookLibraryScreen = append(document.body, 'section', 'storybook-library-screen', 'screen');
   var storybookDetailsScreen = append(document.body, 'section', 'storybook-details-screen', 'screen');
@@ -470,12 +498,31 @@ function buildDom(document) {
   focusable(append(browseScreen, 'button', 'adult-mode-button', '')).setAttribute('data-mode', 'adult');
   focusable(append(browseScreen, 'button', 'storybook-mode-button', '')).setAttribute('data-mode', 'storybook');
   focusable(append(browseScreen, 'button', 'refresh-button', ''));
+  focusable(append(browseScreen, 'button', 'search-button', '')).disabled = true;
   focusable(append(browseScreen, 'button', 'profile-button', ''));
   focusable(append(browseScreen, 'button', 'storybook-settings-button', ''));
   focusable(append(browseScreen, 'button', 'hero-open', ''));
   append(browseScreen, 'div', 'browse-loading', '');
   append(browseScreen, 'div', 'browse-error', '');
   append(browseScreen, 'div', 'shelves', '');
+  focusable(append(searchScreen, 'button', 'search-back', ''));
+  var queryWrap = append(searchScreen, 'div', '', 'search-query-wrap');
+  append(queryWrap, 'div', 'search-query', 'search-query');
+  append(searchScreen, 'div', 'search-keyboard', '');
+  focusable(append(searchScreen, 'button', 'search-delete', ''));
+  focusable(append(searchScreen, 'button', 'search-clear', ''));
+  var searchResultsPanel = append(searchScreen, 'div', '', '');
+  append(searchResultsPanel, 'h2', 'search-count', '');
+  append(searchResultsPanel, 'p', 'search-warning', '');
+  append(searchResultsPanel, 'div', 'search-results', '');
+  focusable(append(searchResultsPanel, 'button', 'search-more', ''));
+
+  [storybookScreen, storybookLibraryScreen, storybookDetailsScreen, storybookMagicScreen, storybookEndingScreen].forEach(function (screen) {
+    var sky = append(screen, 'div', '', 'storybook-sky');
+    sky.setAttribute('aria-hidden', 'true');
+    var moon = append(sky, 'span', '', 'storybook-moon');
+    moon.rect = { left: 1000, top: 100, right: 1155, bottom: 255, width: 155, height: 155 };
+  });
 
   append(storybookScreen, 'div', 'storybook-greeting', '');
   append(storybookScreen, 'p', 'storybook-home-hint', '');
@@ -498,6 +545,7 @@ function buildDom(document) {
   focusable(append(storybookScreen, 'button', 'storybook-home-adult-mode-button', '')).setAttribute('data-mode', 'adult');
   focusable(append(storybookScreen, 'button', 'storybook-home-storybook-mode-button', '')).setAttribute('data-mode', 'storybook');
   focusable(append(storybookScreen, 'button', 'storybook-edit-libraries', ''));
+  focusable(append(storybookScreen, 'button', 'storybook-search-button', ''));
 
   var storybookLibraryTopbar = append(storybookLibraryScreen, 'header', '', 'storybook-topbar');
   append(storybookLibraryTopbar, 'div', '', 'storybook-wordmark');
@@ -605,6 +653,290 @@ function buildDom(document) {
   append(playerScreen, 'div', 'player-message', '');
 }
 
+asyncTest('smart search supports remote filtering, all result pages, details and playback return', function () {
+  var videos = [];
+  for (var i = 0; i < 65; i += 1) {
+    videos.push({ Id: 'story-' + i, Name: 'Story ' + i });
+  }
+  var harness = loadAppHarness({
+    libraries: [{ Id: 'movies', Name: 'Movies' }],
+    videosByLibrary: { movies: videos },
+    latest: [videos[0]],
+    resume: [videos[0]]
+  });
+  var document = harness.document;
+  assert.strictEqual(document.getElementById('search-button').disabled, true);
+  return flush().then(function () {
+    var calls = harness.apiCalls();
+    document.getElementById('search-button').click();
+    assert.ok(harness.screenActive('search-screen'));
+    assert.strictEqual(document.getElementById('search-count').textContent, '65 matching titles');
+    assert.strictEqual(document.getElementById('search-results').children.length, 30);
+    var keys = document.getElementById('search-keyboard').children;
+    var s = keys.filter(function (key) { return key.getAttribute('data-letter') === 's'; })[0];
+    var x = keys.filter(function (key) { return key.getAttribute('data-letter') === 'x'; })[0];
+    assert.strictEqual(x.disabled, true);
+    x.click();
+    assert.strictEqual(document.getElementById('search-query').textContent, 'Choose a letter');
+    s.click();
+    assert.strictEqual(document.getElementById('search-query').textContent, 's');
+    assert.strictEqual(document.activeElement.getAttribute('data-letter'), 't');
+    assert.strictEqual(document.activeElement.disabled, false);
+    document.getElementById('search-more').click();
+    assert.strictEqual(document.getElementById('search-results').children.length, 60);
+    document.getElementById('search-more').click();
+    assert.strictEqual(document.getElementById('search-results').children.length, 65);
+    assert.strictEqual(document.getElementById('search-more').disabled, true);
+    var card = document.getElementById('search-results').children[64];
+    card.click();
+    assert.ok(harness.screenActive('details-screen'));
+    document.getElementById('play-button').click();
+    assert.deepStrictEqual(harness.playCalls(), [{ id: 'story-64', fromBeginning: false }]);
+    harness.setPlayerPlaying(false);
+    harness.playerCallbacks().onStop(false);
+    document.getElementById('details-back').click();
+    assert.ok(harness.screenActive('search-screen'));
+    assert.strictEqual(document.activeElement, card);
+    assert.strictEqual(document.getElementById('search-query').textContent, 's');
+    document.dispatchEvent('keydown', { keyCode: 8 });
+    assert.strictEqual(document.getElementById('search-query').textContent, 'Choose a letter');
+    document.dispatchEvent('keydown', { keyCode: 10009 });
+    assert.ok(harness.screenActive('browse-screen'));
+    assert.strictEqual(document.activeElement.id, 'search-button');
+    document.getElementById('hero-open').click();
+    assert.strictEqual(document.getElementById('details-title').textContent, 'Story 0');
+    assert.deepStrictEqual(harness.apiCalls(), calls);
+  });
+});
+
+asyncTest('storybook search stays within selected libraries and returns through kid details', function () {
+  var harness = loadAppHarness({
+    preferences: { enabled: true, lastMode: 'storybook', libraryIds: ['kids'], reducedMotion: true },
+    libraries: [{ Id: 'kids', Name: 'Kids' }, { Id: 'adult', Name: 'Adult' }],
+    videosByLibrary: {
+      kids: [{ Id: 'kid1', Name: 'Happy Cat' }, { Id: 'kid2', Name: 'Cat Song' }],
+      adult: [{ Id: 'adult1', Name: 'Cat Crime' }, { Id: 'adult2', Name: 'Zoo' }]
+    },
+    latest: [{ Id: 'adult2', Name: 'Zoo' }],
+    resume: [{ Id: 'adult1', Name: 'Cat Crime' }]
+  });
+  var document = harness.document;
+  return flush().then(function () {
+    var calls = harness.apiCalls();
+    document.getElementById('storybook-search-button').click();
+    assert.ok(harness.screenActive('search-screen'));
+    assert.strictEqual(document.getElementById('search-count').textContent, '2 matching titles');
+    var z = document.getElementById('search-keyboard').children.filter(function (key) {
+      return key.getAttribute('data-letter') === 'z';
+    })[0];
+    assert.strictEqual(z.disabled, true);
+    var card = document.getElementById('search-results').children[0];
+    assert.strictEqual(card.getAttribute('data-item-id'), 'kid1');
+    assert.ok(card.classList.contains('storybook-menu-card'));
+    card.click();
+    assert.ok(harness.screenActive('storybook-details-screen'));
+    document.getElementById('storybook-details-play').click();
+    assert.deepStrictEqual(harness.playCalls(), [{ id: 'kid1', fromBeginning: false }]);
+    harness.setPlayerPlaying(false);
+    harness.playerCallbacks().onStop(false);
+    document.getElementById('storybook-details-back').click();
+    assert.ok(harness.screenActive('search-screen'));
+    assert.strictEqual(document.activeElement, card);
+    document.dispatchEvent('keydown', { keyCode: 10009 });
+    assert.ok(harness.screenActive('storybook-screen'));
+    assert.strictEqual(document.activeElement.id, 'storybook-search-button');
+    assert.deepStrictEqual(harness.apiCalls(), calls);
+  });
+});
+
+asyncTest('search reports partial library failures and clears its query', function () {
+  var harness = loadAppHarness({
+    libraries: [{ Id: 'good', Name: 'Good' }, { Id: 'bad', Name: 'Bad' }],
+    videosByLibrary: { good: [{ Id: '1', Name: 'AB' }, { Id: '2', Name: 'AC' }] },
+    getVideosErrors: { bad: new Error('Unavailable') }
+  });
+  var document = harness.document;
+  return flush().then(function () {
+    document.getElementById('search-button').click();
+    assert.ok(/Some libraries could not be loaded/.test(document.getElementById('search-warning').textContent));
+    var keys = document.getElementById('search-keyboard').children;
+    keys[0].click();
+    keys[1].rect = { left: 100, top: 100, width: 50, height: 50, right: 150, bottom: 150 };
+    keys[2].rect = { left: 200, top: 100, width: 50, height: 50, right: 250, bottom: 150 };
+    keys[1].focus();
+    document.dispatchEvent('keydown', { keyCode: 39 });
+    assert.strictEqual(document.activeElement, keys[2]);
+    keys[2].click();
+    assert.strictEqual(document.getElementById('search-count').textContent, '1 matching titles');
+    assert.strictEqual(document.activeElement.id, 'search-delete');
+    document.getElementById('search-clear').click();
+    assert.strictEqual(document.getElementById('search-count').textContent, '2 matching titles');
+    assert.strictEqual(document.getElementById('search-clear').disabled, true);
+    assert.strictEqual(document.activeElement.disabled, false);
+  });
+});
+
+function microinteractionHarness(options) {
+  options = options || {};
+  return loadAppHarness({
+    preferences: {
+      enabled: true,
+      lastMode: options.adult ? 'adult' : 'storybook',
+      libraryIds: ['kids'],
+      reducedMotion: options.reducedMotion === true
+    },
+    prefersReducedMotion: options.prefersReducedMotion === true,
+    libraries: [{ Id: 'kids', Name: 'Kids' }],
+    videosByLibrary: {
+      kids: [
+        { Id: 'bluey', Name: 'Bluey' },
+        { Id: 'bluebird', Name: 'Bluebird' },
+        { Id: 'unicode', Name: 'A\uD83D\uDE00 A' }
+      ]
+    }
+  });
+}
+
+function searchKey(document, letter) {
+  return document.getElementById('search-keyboard').children.filter(function (key) {
+    return key.getAttribute('data-letter') === letter;
+  })[0];
+}
+
+asyncTest('the moon follows focus, dozes after inactivity and wakes without stealing the next key', function () {
+  var harness = microinteractionHarness();
+  var document = harness.document;
+  return flush().then(function () {
+    var moon = document.getElementById('storybook-screen').getElementsByClassName('storybook-moon')[0];
+    var left = document.getElementById('storybook-search-button');
+    var right = document.getElementById('storybook-home-storybook-mode-button');
+    assert.strictEqual(moon.getElementsByClassName('storybook-moon-eye').length, 2);
+    var pupil = moon.getElementsByClassName('storybook-moon-pupil')[0];
+    left.rect = { left: 100, top: 300, right: 200, bottom: 350, width: 100, height: 50 };
+    right.rect = { left: 1500, top: 300, right: 1600, bottom: 350, width: 100, height: 50 };
+    left.focus();
+    assert.ok(/^translate\(-/.test(pupil.style.transform), 'Eyes look left toward the selected control');
+    right.focus();
+    assert.ok(/^translate\([0-9]/.test(pupil.style.transform), 'Eyes look right toward the selected control');
+    var cues = harness.soundCalls().length;
+    harness.advanceTime(11999);
+    assert.ok(moon.classList.contains('is-awake'));
+    harness.advanceTime(1);
+    assert.ok(moon.classList.contains('is-sleepy'));
+    assert.strictEqual(harness.pendingMotionTimers(), 0);
+    document.dispatchEvent('keydown', { keyCode: 13 });
+    assert.ok(moon.classList.contains('is-awake'));
+    assert.ok(!moon.classList.contains('is-sleepy'));
+    assert.strictEqual(document.activeElement, right);
+    assert.strictEqual(harness.pendingMotionTimers(), 1);
+    assert.strictEqual(harness.soundCalls().length, cues, 'The companion adds no sound cues');
+  });
+});
+
+asyncTest('moon activity stops for hidden pages, reduced motion, playback and Adult Mode', function () {
+  var harness = microinteractionHarness();
+  var document = harness.document;
+  return flush().then(function () {
+    assert.strictEqual(harness.pendingMotionTimers(), 1);
+    document.hidden = true;
+    document.dispatchEvent('visibilitychange');
+    assert.strictEqual(harness.pendingMotionTimers(), 0);
+    document.hidden = false;
+    document.dispatchEvent('visibilitychange');
+    assert.strictEqual(harness.pendingMotionTimers(), 1);
+    harness.setSystemReducedMotion(true);
+    document.dispatchEvent('keydown', { keyCode: 13 });
+    assert.strictEqual(harness.pendingMotionTimers(), 0);
+    harness.setSystemReducedMotion(false);
+    assert.strictEqual(harness.pendingMotionTimers(), 1);
+    harness.dispatchWindowEvent('pagehide');
+    assert.strictEqual(harness.pendingMotionTimers(), 0);
+    harness.dispatchWindowEvent('pageshow');
+    assert.strictEqual(harness.pendingMotionTimers(), 1);
+    document.querySelectorAll('#storybook-doors .storybook-door')[0].click();
+    document.getElementById('storybook-library-cards').firstChild.click();
+    document.getElementById('storybook-details-play').click();
+    assert.ok(harness.screenActive('player-screen'));
+    assert.strictEqual(harness.pendingMotionTimers(), 0);
+    harness.setPlayerPlaying(false);
+    harness.playerCallbacks().onStop(false);
+    assert.strictEqual(harness.pendingMotionTimers(), 1);
+    document.getElementById('storybook-details-adult-mode-button').click();
+    assert.strictEqual(harness.pendingMotionTimers(), 0);
+    document.dispatchEvent('keydown', { keyCode: 13 });
+    harness.advanceTime(20000);
+    assert.strictEqual(document.querySelectorAll('.is-awake').length, 0);
+    assert.strictEqual(document.querySelectorAll('.is-sleepy').length, 0);
+  });
+});
+
+asyncTest('search stamps only the new letter while queries, results and remote focus update immediately', function () {
+  var harness = microinteractionHarness();
+  var document = harness.document;
+  return flush().then(function () {
+    document.getElementById('storybook-search-button').click();
+    var query = document.getElementById('search-query');
+    'blue'.split('').forEach(function (letter) { searchKey(document, letter).click(); });
+    assert.strictEqual(query.textContent, 'blue');
+    assert.strictEqual(query.getElementsByClassName('is-stamping').length, 1);
+    assert.strictEqual(query.getElementsByClassName('is-stamping')[0].textContent, 'e');
+    searchKey(document, 'y').click();
+    assert.strictEqual(query.textContent, 'bluey');
+    assert.strictEqual(document.getElementById('search-results').children.length, 1);
+    assert.strictEqual(document.activeElement.id, 'search-delete');
+    document.dispatchEvent('keydown', { keyCode: 8 });
+    assert.strictEqual(query.textContent, 'blue', 'Outgoing decoration is outside the live query');
+    assert.strictEqual(document.getElementById('search-results').children.length, 2);
+    var peel = document.querySelectorAll('.storybook-search-peel')[0];
+    assert.ok(peel, 'Deleted letter peels away');
+    assert.strictEqual(peel.textContent, 'y');
+    assert.strictEqual(peel.getAttribute('aria-hidden'), 'true');
+    searchKey(document, 'y').click();
+    assert.strictEqual(document.querySelectorAll('.storybook-search-peel').length, 0);
+    peel.dispatch('animationend');
+    assert.strictEqual(query.getElementsByClassName('is-stamping').length, 1, 'Stale animation cannot clear the new stamp');
+    query.children[query.children.length - 1].dispatch('animationend');
+    assert.strictEqual(query.getElementsByClassName('is-stamping').length, 0);
+    document.getElementById('search-delete').click();
+    peel = document.querySelectorAll('.storybook-search-peel')[0];
+    peel.dispatch('animationend');
+    assert.strictEqual(document.querySelectorAll('.storybook-search-peel').length, 0);
+    document.getElementById('search-results').firstChild.click();
+    assert.strictEqual(query.getElementsByClassName('is-stamping').length, 0);
+    document.getElementById('storybook-details-back').click();
+    assert.strictEqual(query.textContent, 'blue');
+    document.getElementById('search-clear').click();
+    searchKey(document, '\uD83D\uDE00').click();
+    document.getElementById('search-delete').click();
+    assert.strictEqual(query.textContent, 'Choose a letter');
+    assert.strictEqual(document.querySelectorAll('.storybook-search-peel')[0].textContent, '\uD83D\uDE00');
+    document.getElementById('search-back').click();
+    assert.strictEqual(document.querySelectorAll('.storybook-search-peel').length, 0);
+  });
+});
+
+[
+  { label: 'parent reduced motion', reducedMotion: true },
+  { label: 'system reduced motion', prefersReducedMotion: true },
+  { label: 'Adult Mode', adult: true }
+].forEach(function (options) {
+  asyncTest('moon and search effects stay static with ' + options.label, function () {
+    var harness = microinteractionHarness(options);
+    var document = harness.document;
+    return flush().then(function () {
+      assert.strictEqual(harness.pendingMotionTimers(), 0);
+      document.getElementById(options.adult ? 'search-button' : 'storybook-search-button').click();
+      searchKey(document, 'b').click();
+      assert.strictEqual(document.getElementById('search-query').textContent, 'b');
+      assert.strictEqual(document.querySelectorAll('.is-stamping').length, 0);
+      document.getElementById('search-delete').click();
+      assert.strictEqual(document.getElementById('search-query').textContent, 'Choose a letter');
+      assert.strictEqual(document.querySelectorAll('.storybook-search-peel').length, 0);
+      assert.strictEqual(document.querySelectorAll('.is-awake').length, 0);
+    });
+  });
+});
+
 function defaultStorybookBootstrap(overrides) {
   var result = {
     nowMs: Date.parse('2026-09-02T02:00:00.000Z'),
@@ -634,6 +966,14 @@ function loadAppHarness(options) {
   var localStorage = createStorage();
   var timers = [];
   var intervals = [];
+  var motionTimers = [];
+  var motionTime = 0;
+  var windowListeners = {};
+  var motionListeners = [];
+  var motionPreference = {
+    matches: options.prefersReducedMotion === true,
+    addListener: function (listener) { motionListeners.push(listener); }
+  };
   var enteredScreens = [];
   var apiCalls = {
     getLatest: 0,
@@ -746,6 +1086,10 @@ function loadAppHarness(options) {
     runtimeMinutes: '{minutes} min',
     shelfItemCount: '{count} films',
     signOutConfirm: 'Press again',
+    searchCount: '{count} matching titles',
+    searchPlaceholder: 'Choose a letter',
+    searchEmpty: 'No titles to search. Return to the library and refresh.',
+    searchPartial: 'Some libraries could not be loaded. Results cover loaded titles only; refresh the library to try again.',
     signedOut: 'Signed out',
     storybookCategoriesTitle: 'Pick a kind of story',
     storybookCategoryAriaLabel: 'Open {category}',
@@ -901,10 +1245,19 @@ function loadAppHarness(options) {
       }
     },
     matchMedia: function (query) {
-      return {
-        matches: query === '(prefers-reduced-motion: reduce)' &&
-          options.prefersReducedMotion === true
-      };
+      return query === '(prefers-reduced-motion: reduce)' ? motionPreference : { matches: false };
+    },
+    addEventListener: function (type, listener) {
+      if (!windowListeners[type]) { windowListeners[type] = []; }
+      windowListeners[type].push(listener);
+    },
+    setTimeout: function (fn, delay) {
+      if (!delay) { fn(); return 0; }
+      motionTimers.push({ callback: fn, due: motionTime + delay, cancelled: false });
+      return motionTimers.length;
+    },
+    clearTimeout: function (id) {
+      if (motionTimers[id - 1]) { motionTimers[id - 1].cancelled = true; }
     },
     MovieDeckApi: api,
     MovieDeckPlayer: {
@@ -1026,7 +1379,7 @@ function loadAppHarness(options) {
   };
 
   vm.createContext(context);
-  ['js/storybook-view.js', 'js/app.js'].forEach(function (file) {
+  ['js/smart-search.js', 'js/storybook-view.js', 'js/app.js'].forEach(function (file) {
     vm.runInContext(
       fs.readFileSync(path.join(__dirname, '..', file), 'utf8'),
       context,
@@ -1036,6 +1389,25 @@ function loadAppHarness(options) {
   document.dispatchEvent('DOMContentLoaded', {});
 
   return {
+    advanceTime: function (milliseconds) {
+      motionTime += milliseconds;
+      motionTimers.forEach(function (timer) {
+        if (!timer.cancelled && timer.due <= motionTime) {
+          timer.cancelled = true;
+          timer.callback();
+        }
+      });
+    },
+    pendingMotionTimers: function () {
+      return motionTimers.filter(function (timer) { return !timer.cancelled; }).length;
+    },
+    setSystemReducedMotion: function (reduced) {
+      motionPreference.matches = reduced;
+      motionListeners.forEach(function (listener) { listener(motionPreference); });
+    },
+    dispatchWindowEvent: function (type) {
+      (windowListeners[type] || []).forEach(function (listener) { listener(); });
+    },
     approveQuickConnect: function () { quickConnectApproved = true; },
     apiCalls: function () {
       return {

@@ -4,6 +4,13 @@
   var copy = global.RawiCopy;
   var callbacks = {};
   var homeRenderToken = 0;
+  var presentationScreen = null;
+  var moon = null;
+  var moonIdleTimer = null;
+  var moonReducedMotion = false;
+  var searchPeel = null;
+  var motionPreference = global.matchMedia ?
+    global.matchMedia('(prefers-reduced-motion: reduce)') : null;
 
   function byId(id) { return document.getElementById(id); }
   function itemId(item) {
@@ -16,6 +23,7 @@
   function setMode(mode) {
     var storybook = mode === 'storybook';
     document.body.classList.toggle('mode-storybook', storybook);
+    if (!storybook) { stopEffects(); }
     Array.prototype.forEach.call(
       document.querySelectorAll('[data-mode]'),
       function (button) {
@@ -24,6 +32,131 @@
         button.setAttribute('aria-pressed', String(active));
       }
     );
+  }
+
+  function createMoonFace(node) {
+    var face = document.createElement('span');
+    var eyes = document.createElement('span');
+    var smile = document.createElement('span');
+    face.className = 'storybook-moon-face';
+    eyes.className = 'storybook-moon-eyes';
+    smile.className = 'storybook-moon-smile';
+    node.setAttribute('aria-hidden', 'true');
+    ['left', 'right'].forEach(function (side) {
+      var eye = document.createElement('span');
+      var pupil = document.createElement('span');
+      eye.className = 'storybook-moon-eye storybook-moon-eye-' + side;
+      pupil.className = 'storybook-moon-pupil';
+      eye.appendChild(pupil);
+      eyes.appendChild(eye);
+    });
+    face.appendChild(eyes);
+    face.appendChild(smile);
+    node.appendChild(face);
+  }
+
+  function stopEffects() {
+    clearSearchEffects();
+    if (moonIdleTimer !== null) {
+      global.clearTimeout(moonIdleTimer);
+      moonIdleTimer = null;
+    }
+    if (!moon) { return; }
+    moon.classList.remove('is-awake');
+    moon.classList.remove('is-sleepy');
+    Array.prototype.forEach.call(moon.getElementsByClassName('storybook-moon-pupil'), function (pupil) {
+      pupil.style.transform = '';
+    });
+    moon = null;
+  }
+
+  function wakeMoon(target) {
+    if (!moon || moonReducedMotion || (motionPreference && motionPreference.matches) || document.hidden) { return; }
+    moon.classList.remove('is-sleepy');
+    moon.classList.add('is-awake');
+    if (target && presentationScreen.contains(target)) {
+      var bounds = target.getBoundingClientRect();
+      var moonBounds = moon.getBoundingClientRect();
+      var dx = bounds.left + bounds.width / 2 - moonBounds.left - moonBounds.width / 2;
+      var dy = bounds.top + bounds.height / 2 - moonBounds.top - moonBounds.height / 2;
+      var distance = Math.sqrt(dx * dx + dy * dy) || 1;
+      Array.prototype.forEach.call(moon.getElementsByClassName('storybook-moon-pupil'), function (pupil) {
+        pupil.style.transform = 'translate(' + (dx * 2 / distance).toFixed(2) + 'px, ' +
+          (dy * 2 / distance).toFixed(2) + 'px)';
+      });
+    }
+    if (moonIdleTimer !== null) { global.clearTimeout(moonIdleTimer); }
+    moonIdleTimer = global.setTimeout(function () {
+      moonIdleTimer = null;
+      moon.classList.remove('is-awake');
+      moon.classList.add('is-sleepy');
+    }, 12000);
+  }
+
+  function syncMoon() {
+    stopEffects();
+    if (!presentationScreen || document.hidden || !document.body.classList.contains('mode-storybook')) { return; }
+    moon = presentationScreen.getElementsByClassName('storybook-moon')[0] || null;
+    wakeMoon(document.activeElement);
+  }
+
+  function setActiveScreen(screen, reducedMotion) {
+    presentationScreen = screen;
+    moonReducedMotion = reducedMotion === true;
+    syncMoon();
+  }
+
+  function clearSearchEffects() {
+    var query = byId('search-query');
+    if (searchPeel) {
+      if (searchPeel.parentNode) { searchPeel.parentNode.removeChild(searchPeel); }
+      searchPeel = null;
+    }
+    if (query) {
+      Array.prototype.forEach.call(query.children, function (letter) {
+        letter.classList.remove('is-stamping');
+      });
+    }
+  }
+
+  function renderSearchQuery(value, edit, reducedMotion) {
+    var query = byId('search-query');
+    var previous = query.children[query.children.length - 1];
+    var letters = global.RawiSmartSearch.characters(value);
+    var animate = !reducedMotion && !document.hidden;
+    clearSearchEffects();
+    if (animate && edit === 'delete' && previous) {
+      var bounds = previous.getBoundingClientRect();
+      var parentBounds = query.parentNode.getBoundingClientRect();
+      var peel = document.createElement('span');
+      peel.className = 'storybook-search-letter storybook-search-peel';
+      peel.textContent = previous.textContent;
+      peel.setAttribute('aria-hidden', 'true');
+      peel.style.left = (bounds.left - parentBounds.left) + 'px';
+      peel.style.top = (bounds.top - parentBounds.top) + 'px';
+      peel.addEventListener('animationend', function () {
+        if (searchPeel === peel) { clearSearchEffects(); }
+      });
+      query.parentNode.appendChild(peel);
+      searchPeel = peel;
+    }
+    query.innerHTML = '';
+    if (!letters.length) {
+      query.textContent = copy.get('searchPlaceholder');
+      return;
+    }
+    letters.forEach(function (character, index) {
+      var letter = document.createElement('span');
+      letter.className = 'storybook-search-letter';
+      letter.textContent = character;
+      if (animate && edit === 'add' && index === letters.length - 1) {
+        letter.classList.add('is-stamping');
+        letter.addEventListener('animationend', function () {
+          letter.classList.remove('is-stamping');
+        });
+      }
+      query.appendChild(letter);
+    });
   }
 
   function selectedLibraryIds() {
@@ -112,6 +245,20 @@
     return frame;
   }
 
+  function addFireflies(control) {
+    var layer = document.createElement('span');
+    var positions = ['one', 'two', 'three'];
+    control.classList.add('storybook-firefly-target');
+    layer.className = 'storybook-fireflies';
+    layer.setAttribute('aria-hidden', 'true');
+    positions.forEach(function (position) {
+      var light = document.createElement('span');
+      light.className = 'storybook-firefly storybook-firefly-' + position;
+      layer.appendChild(light);
+    });
+    control.appendChild(layer);
+  }
+
   function createStoryCard(model, className, source) {
     var card = document.createElement('button');
     var copyBlock = document.createElement('div');
@@ -156,6 +303,7 @@
     card.addEventListener('click', function () {
       callbacks.onOpenStorybookItem(model.id, source);
     });
+    addFireflies(card);
 
     return card;
   }
@@ -178,6 +326,7 @@
 
     button.appendChild(title);
     button.appendChild(subtitle);
+    addFireflies(button);
     button.addEventListener('click', function () {
       if (callbacks.onOpenCategory) {
         callbacks.onOpenCategory(model.key);
@@ -313,6 +462,7 @@
       door.addEventListener('click', function () {
         callbacks.onOpenLibrary(library.id);
       });
+      addFireflies(door);
       if (!firstChoice) { firstChoice = door; }
       strip.appendChild(door);
     });
@@ -586,6 +736,17 @@
 
   function init(options) {
     callbacks = options;
+    Array.prototype.forEach.call(document.querySelectorAll('.storybook-moon'), createMoonFace);
+    document.addEventListener('focusin', function (event) { wakeMoon(event.target); });
+    document.addEventListener('keydown', function () { wakeMoon(document.activeElement); });
+    document.addEventListener('visibilitychange', syncMoon);
+    if (motionPreference && motionPreference.addListener) {
+      motionPreference.addListener(syncMoon);
+    }
+    if (global.addEventListener) {
+      global.addEventListener('pagehide', stopEffects);
+      global.addEventListener('pageshow', syncMoon);
+    }
     Array.prototype.forEach.call(document.querySelectorAll('[data-mode]'), function (button) {
       button.addEventListener('click', function () {
         callbacks.onModeChange(button.getAttribute('data-mode'), button.id);
@@ -625,13 +786,18 @@
   }
 
   global.RawiStorybookView = {
+    createSearchCard: function (model) {
+      return createStoryCard(model, 'storybook-menu-card', 'search');
+    },
     init: init,
     renderDetails: renderDetails,
     renderEnding: renderEnding,
     renderHome: renderHome,
     renderLibrary: renderLibrary,
     renderMagicPick: renderMagicPick,
+    renderSearchQuery: renderSearchQuery,
     renderSettings: renderSettings,
+    setActiveScreen: setActiveScreen,
     setMode: setMode
   };
 }(window));

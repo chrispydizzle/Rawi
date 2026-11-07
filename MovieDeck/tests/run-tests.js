@@ -7,6 +7,7 @@ var pendingTests = [];
 var failureReported = false;
 var DEFAULT_TEST_FILES = [
   'api.test.js',
+  'smart-search.test.js',
   'animations.test.js',
   'storage.test.js',
   'run-tests-runner.test.js',

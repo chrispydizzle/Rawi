@@ -12,6 +12,7 @@
   var storybookSound = global.RawiStorybookSound;
   var storybookView = global.RawiStorybookView;
   var value = global.MovieDeckValue;
+  var smartSearch = global.RawiSmartSearch;
 
   // Application state
   var selectedItem = null;
@@ -40,6 +41,16 @@
   var currentResume = [];
   var defaultServer = 'http://192.168.1.2:8096';
   var previousScreen = 'browse-screen';
+  var searchIndex = [];
+  var searchQuery = '';
+  var searchKeys = [];
+  var searchMatches = [];
+  var searchResultLimit = 30;
+  var searchReturnCard = null;
+  var searchReturnItem = null;
+  var searchIsStorybook = false;
+  var detailsReturnScreen = 'browse-screen';
+  var detailsReturnCard = null;
   var previewStorybookFixture = null;
   var storybookLibraryState = {
     items: [],
@@ -71,6 +82,7 @@
     'storybook-ending-screen': true
   };
   var STORYBOOK_SOUND_SCREENS = {
+    'search-screen': true,
     'storybook-screen': true,
     'storybook-library-screen': true,
     'storybook-details-screen': true,
@@ -157,6 +169,9 @@
   }
 
   function shouldAnimateScreenEntry(id) {
+    if (id === 'search-screen' && searchIsStorybook) {
+      return !isStorybookReducedMotion();
+    }
     if (id === 'storybook-settings-screen') {
       return true;
     }
@@ -177,6 +192,7 @@
       screen.classList.toggle('is-active', screen.id === id);
     });
     activeScreen = id;
+    storybookView.setActiveScreen(byId(id), storybookState.reducedMotion);
     if (animations.enterScreen && shouldAnimateScreenEntry(id)) {
       animations.enterScreen(byId(id));
     }
@@ -398,7 +414,14 @@
       progress.appendChild(fill);
       card.appendChild(progress);
     }
-    card.addEventListener('focus', function () { selectItem(item, card); ensureCardVisible(card); });
+    card.addEventListener('focus', function () {
+      if (activeScreen === 'search-screen') {
+        ensureSearchVisible(card, byId('search-results').parentNode);
+        return;
+      }
+      selectItem(item, card);
+      ensureCardVisible(card);
+    });
     card.addEventListener('click', function () { openDetails(item); });
     return card;
   }
@@ -991,6 +1014,7 @@
     currentLatest = fixture.latest || [];
     currentResume = fixture.resume || [];
     currentLibraryLoadState = previewLibraryLoadState();
+    prepareSearch();
     storybookResetConfirming = false;
     storybookState = previewStorybookState(fixture);
     storybookView.setMode('storybook');
@@ -1073,6 +1097,10 @@
   }
 
   function closeStorybookDetails() {
+    if (storybookDetailsState.source === 'search') {
+      showScreen('search-screen', storybookDetailsState.focusId);
+      return;
+    }
     if (storybookDetailsState.source === 'library' && storybookDetailsState.collection) {
       openStorybookCollection(storybookDetailsState.collection, storybookDetailsState.focusId);
       return;
@@ -1159,12 +1187,144 @@
     if (action === 'pick') { playStorybookCue('confirm'); }
   }
 
+  // Smart title search
+  function ensureSearchVisible(control, container) {
+    var rect = control.getBoundingClientRect();
+    var bounds = container.getBoundingClientRect();
+    var margin = 12;
+    if (rect.top < bounds.top + margin) {
+      container.scrollTop -= bounds.top + margin - rect.top;
+    } else if (rect.bottom > bounds.bottom - margin) {
+      container.scrollTop += rect.bottom - bounds.bottom + margin;
+    }
+  }
+
+  function prepareSearch() {
+    var items = currentResume.concat(currentLatest);
+    currentGroups.forEach(function (group) { items = items.concat(group.videos || []); });
+    searchIndex = smartSearch.createIndex(items);
+    byId('search-button').disabled = false;
+  }
+
+  function focusSearchKey(preferredIndex) {
+    var best = null;
+    var distance = Infinity;
+    searchKeys.forEach(function (key, index) {
+      if (!key.disabled && Math.abs(index - preferredIndex) < distance) {
+        best = key;
+        distance = Math.abs(index - preferredIndex);
+      }
+    });
+    var fallback = byId('search-delete').disabled ? byId('search-back') : byId('search-delete');
+    (best || fallback).focus();
+  }
+
+  function renderSearchResults() {
+    var container = byId('search-results');
+    container.innerHTML = '';
+    searchMatches.slice(0, searchResultLimit).forEach(function (item, index) {
+      var card = searchIsStorybook ?
+        storybookView.createSearchCard(storybookCardModel(item)) : cardFor(item, index);
+      if (searchIsStorybook) {
+        card.addEventListener('focus', function () {
+          ensureSearchVisible(card, container.parentNode);
+        });
+      }
+      container.appendChild(card);
+    });
+    byId('search-more').disabled = searchResultLimit >= searchMatches.length;
+    byId('search-more').style.display = byId('search-more').disabled ? 'none' : 'inline-block';
+  }
+
+  function updateSearch(preferredIndex, edit) {
+    var result = smartSearch.search(searchIndex, searchQuery);
+    searchMatches = result.items;
+    searchResultLimit = 30;
+    if (searchIsStorybook) {
+      storybookView.renderSearchQuery(searchQuery, edit, isStorybookReducedMotion());
+    } else {
+      text('search-query', searchQuery || copy.get('searchPlaceholder'));
+    }
+    text('search-count', copy.get('searchCount', { count: searchMatches.length }));
+    searchKeys.forEach(function (key) {
+      key.disabled = result.letters.indexOf(key.getAttribute('data-letter')) === -1;
+    });
+    byId('search-delete').disabled = !searchQuery;
+    byId('search-clear').disabled = !searchQuery;
+    renderSearchResults();
+    byId('search-results').parentNode.scrollTop = 0;
+    if (preferredIndex !== undefined) { focusSearchKey(preferredIndex); }
+  }
+
+  function openSearch() {
+    searchIsStorybook = activeScreen === 'storybook-screen';
+    if (searchIsStorybook) {
+      var items = [];
+      buildStorybookCatalogue().selectedLibraries.forEach(function (library) {
+        items = items.concat(library.videos || []);
+      });
+      searchIndex = smartSearch.createIndex(items);
+    } else {
+      prepareSearch();
+    }
+    searchReturnCard = selectedCard;
+    searchReturnItem = selectedItem;
+    searchQuery = '';
+    searchKeys = [];
+    var container = byId('search-keyboard');
+    var letters = smartSearch.search(searchIndex, '').letters;
+    var alphabet = smartSearch.characters('abcdefghijklmnopqrstuvwxyz0123456789 ');
+    letters.forEach(function (letter) {
+      if (alphabet.indexOf(letter) === -1) { alphabet.push(letter); }
+    });
+    container.innerHTML = '';
+    container.scrollTop = 0;
+    alphabet.forEach(function (letter, index) {
+      var key = document.createElement('button');
+      key.className = 'search-key focusable';
+      key.setAttribute('data-focusable', '');
+      key.setAttribute('data-letter', letter);
+      key.textContent = letter === ' ' ? copy.get('searchSpace') : letter.toUpperCase();
+      key.addEventListener('click', function () {
+        if (key.disabled) { return; }
+        searchQuery += letter;
+        updateSearch(index, 'add');
+        playStorybookCue('confirm');
+      });
+      key.addEventListener('focus', function () { ensureSearchVisible(key, container); });
+      container.appendChild(key);
+      searchKeys.push(key);
+    });
+    var libraryIds = searchIsStorybook ? storybookState.libraryIds :
+      Object.keys(currentLibraryLoadState.videoRequests);
+    var partial = libraryIds.some(function (id) {
+      if (!currentLibraryLoadState.videoRequests[id]) { return true; }
+      return !currentLibraryLoadState.videoRequests[id].succeeded;
+    });
+    text('search-warning', !searchIndex.length ? copy.get('searchEmpty') :
+      partial ? copy.get('searchPartial') : '');
+    showScreen('search-screen');
+    byId('search-back').textContent = copy.get(searchIsStorybook ? 'storybookLibraryBackButton' : 'detailsBackButton');
+    updateSearch(0);
+    playStorybookCue('confirm');
+  }
+
+  function deleteSearchLetter() {
+    var letters = smartSearch.characters(searchQuery);
+    letters.pop();
+    searchQuery = letters.join('');
+    updateSearch(0, 'delete');
+    playStorybookCue('back');
+  }
+
   function openLibrary() {
     updateProfile();
     showScreen('browse-screen');
     byId('browse-loading').style.display = 'block';
     byId('browse-error').style.display = 'none';
     byId('shelves').innerHTML = '';
+    byId('search-button').disabled = true;
+    searchIndex = [];
     currentGroups = [];
     currentLatest = [];
     currentResume = [];
@@ -1247,6 +1407,7 @@
       currentResume = groups[0];
       currentLatest = groups[1];
       currentGroups = groups[2];
+      prepareSearch();
       maybePruneStorybookFavorites(buildStorybookCatalogue());
 
       if (storybookState.lastMode === 'storybook') {
@@ -1473,6 +1634,10 @@
 
   // Details and playback
   function openDetails(item) {
+    if (activeScreen === 'browse-screen' || activeScreen === 'search-screen') {
+      detailsReturnScreen = activeScreen;
+      detailsReturnCard = activeScreen === 'search-screen' ? document.activeElement : selectedCard;
+    }
     selectedItem = item;
     var poster = api.imageUrl(item, 'Primary', 700, 1050);
     var backdrop = api.imageUrl(item, 'Backdrop', 1920, 1080);
@@ -1660,7 +1825,24 @@
       handleCloseStorybookLibrary();
       return;
     }
-    if (activeScreen === 'details-screen') { showScreen('browse-screen'); if (selectedCard) { selectedCard.focus(); } return; }
+    if (activeScreen === 'search-screen') {
+      if (searchIsStorybook) {
+        showScreen('storybook-screen');
+        renderStorybookHome('storybook-search-button');
+        playStorybookCue('back');
+        return;
+      }
+      showScreen('browse-screen', 'search-button');
+      selectedCard = searchReturnCard;
+      selectedItem = searchReturnItem;
+      return;
+    }
+    if (activeScreen === 'details-screen') {
+      showScreen(detailsReturnScreen);
+      if (detailsReturnCard) { detailsReturnCard.focus(); }
+      else if (selectedCard) { selectedCard.focus(); }
+      return;
+    }
     if (activeScreen === 'quick-screen') { clearInterval(quickTimer); showScreen('setup-screen', 'server-url'); return; }
     if (activeScreen === 'browse-screen' && global.tizen && global.tizen.application) { global.tizen.application.getCurrentApplication().exit(); }
   }
@@ -1670,6 +1852,21 @@
     byId('server-url').addEventListener('keydown', function (event) { if (event.keyCode === 13) { connect(); } });
     byId('change-server-button').addEventListener('click', function () { clearInterval(quickTimer); showScreen('setup-screen', 'server-url'); });
     byId('refresh-button').addEventListener('click', openLibrary);
+    byId('search-button').addEventListener('click', openSearch);
+    byId('storybook-search-button').addEventListener('click', openSearch);
+    byId('search-back').addEventListener('click', handleBack);
+    byId('search-delete').addEventListener('click', deleteSearchLetter);
+    byId('search-clear').addEventListener('click', function () {
+      searchQuery = '';
+      updateSearch(0);
+    });
+    byId('search-more').addEventListener('click', function () {
+      var previousLimit = searchResultLimit;
+      searchResultLimit += 30;
+      renderSearchResults();
+      var firstNewCard = byId('search-results').children[previousLimit];
+      if (firstNewCard) { firstNewCard.focus(); }
+    });
     byId('profile-button').addEventListener('click', signOut);
     byId('hero-open').addEventListener('click', function () { if (selectedItem) { openDetails(selectedItem); } });
     byId('details-back').addEventListener('click', handleBack);
@@ -1688,6 +1885,10 @@
       else if (code === 38) { event.preventDefault(); spatialMove('up'); }
       else if (code === 39) { event.preventDefault(); spatialMove('right'); }
       else if (code === 40) { event.preventDefault(); spatialMove('down'); }
+      else if (code === 8 && activeScreen === 'search-screen' && searchQuery) {
+        event.preventDefault();
+        deleteSearchLetter();
+      }
       else if (code === 10009 || code === 8) { event.preventDefault(); handleBack(); }
     });
   }

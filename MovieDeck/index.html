@@ -46,6 +46,7 @@
         <div class="wordmark"><span class="wordmark-dot"></span><b data-copy="appName">Rawi</b></div>
         <div class="selection-title"><span data-copy="selectedLabel">Selected</span><b id="selection-title" data-copy="chooseVideo">Choose a video</b></div>
         <div class="topbar-actions">
+          <button id="search-button" class="text-button focusable" data-focusable data-copy="searchTitle" disabled>Search</button>
           <div id="mode-toggle" class="mode-toggle" role="group" aria-label="Display mode">
             <button id="adult-mode-button"
                     class="mode-option focusable"
@@ -89,6 +90,32 @@
       </div>
     </section>
 
+    <section id="search-screen" class="screen search-screen" aria-labelledby="search-title">
+      <header class="search-header">
+        <button id="search-back" class="text-button focusable" data-focusable data-copy="detailsBackButton">Library</button>
+        <h1 id="search-title" data-copy="searchTitle">Search</h1>
+      </header>
+      <div class="search-layout">
+        <div class="search-input-panel">
+          <div class="search-query-wrap">
+            <div id="search-query" class="search-query" role="status" aria-live="polite" aria-atomic="true"></div>
+          </div>
+          <p class="search-hint" data-copy="searchHint">Pick letters with the arrows and OK. Only matching letters are available.</p>
+          <div id="search-keyboard" class="search-keyboard" role="group" data-copy-aria-label="searchKeyboard" aria-label="Search keyboard"></div>
+          <div class="search-edit-actions">
+            <button id="search-delete" class="button button-secondary focusable" data-focusable data-copy="searchDelete">Delete</button>
+            <button id="search-clear" class="button button-secondary focusable" data-focusable data-copy="searchClear">Clear</button>
+          </div>
+        </div>
+        <div class="search-results-panel">
+          <h2 id="search-count" aria-live="polite"></h2>
+          <p id="search-warning" class="inline-error" role="status"></p>
+          <div id="search-results" class="search-results"></div>
+          <button id="search-more" class="button button-secondary focusable" data-focusable data-copy="searchMore" disabled>More results</button>
+        </div>
+      </div>
+    </section>
+
     <section id="storybook-screen"
              class="screen storybook-screen"
              aria-labelledby="storybook-greeting">
@@ -100,6 +127,7 @@
       </div>
       <header class="storybook-topbar">
         <div class="storybook-wordmark"><i>/</i> <span data-copy="appName">Rawi</span></div>
+        <button id="storybook-search-button" class="storybook-edit focusable" data-focusable data-copy="searchTitle">Search</button>
         <div class="mode-toggle" role="group" aria-label="Display mode">
           <button id="storybook-home-adult-mode-button"
                   class="mode-option focusable"
@@ -450,6 +478,7 @@
   <script src="js/vendor/gsap.min.js"></script>
   <script src="js/animations.js"></script>
   <script src="js/api.js"></script>
+  <script src="js/smart-search.js"></script>
   <script src="js/player.js"></script>
   <script src="js/storybook-view.js"></script>
   <script src="js/preview-fixtures.js"></script>

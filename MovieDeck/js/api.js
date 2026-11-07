@@ -2,7 +2,7 @@
   'use strict';
 
   var CLIENT_NAME = 'Rawi';
-  var CLIENT_VERSION = '0.1.13';
+  var CLIENT_VERSION = '0.1.21';
   var copy = global.RawiCopy;
   var storage = global.RawiStorage;
   var STORAGE_KEY = 'moviedeck.session';

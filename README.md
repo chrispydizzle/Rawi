@@ -20,6 +20,8 @@ The JavaScript intentionally remains ES5-compatible for older Samsung firmware.
 - Poster, backdrop, synopsis, year, rating, runtime, and genre metadata.
 - Sticky selected-title display while browsing.
 - Remote-first spatial navigation.
+- Smart title search in Adult and Storybook modes, with partial-title matches
+  and a remote keyboard that skips letters which cannot match.
 - GPU-composited vertical shelf scrolling with a small bounce.
 - Resume playback or restart from the beginning.
 - Direct play when the TV supports the source format.
@@ -29,6 +31,17 @@ The JavaScript intentionally remains ES5-compatible for older Samsung firmware.
 - Deterministic Storybook mock preview for browser validation without Jellyfin.
 
 ## Storybook Mode
+
+**Search** is available on both mode home screens. Pick letters with the remote
+arrows and OK; unavailable letters are dimmed and cannot receive focus. Matches
+can occur anywhere in a title, without entering its full name. Delete and Clear
+let you broaden the search, and More results reveals further matches.
+
+Storybook search includes only titles from parent-selected, currently visible
+libraries and opens the usual Storybook details and player flow. Adult search
+uses all loaded video libraries. Search stays local after library loading; it
+does not send a request for each letter. If a library fails to load, search shows
+a warning rather than presenting its results as complete.
 
 Storybook Mode is a parent-guided preschool interface over selected Jellyfin
 libraries. Adult Mode remains available through the visible top-bar toggle.
@@ -45,6 +58,26 @@ libraries. Adult Mode remains available through the visible top-bar toggle.
 Storybook selection is curation, not access control. Configure the Jellyfin
 user's library permissions to enforce actual content restrictions.
 
+Storybook artwork keeps its original proportions inside fixed-size cards.
+Portrait, square, and landscape images are centered with dark padding where
+needed, rather than stretched or cropped. Small images are not upscaled.
+
+Focused Storybook cards, category shortcuts, and Story Doors briefly attract
+three golden fireflies. The decoration is silent, never intercepts input, and
+fades after about 1.5 seconds or immediately when focus moves. Parent-selected
+reduced motion and the system reduced-motion preference both disable it.
+Adult Mode and playback remain unchanged.
+
+The Storybook moon has a small face that looks toward the focused control and
+occasionally blinks. After 12 seconds without input it dozes off; the next remote
+press wakes it while still performing its usual action. Hidden screens and
+playback stop the companion's activity.
+
+Search letters land with a brief ink-stamp squash, and Delete or Backspace peels
+the last letter away. Queries, available keys, and results update immediately;
+rapid input replaces unfinished effects rather than queuing them. These effects
+add no sounds and respect both parent-selected and system reduced motion.
+
 ### Preview without Jellyfin
 
 ```powershell
@@ -53,6 +86,36 @@ user's library permissions to enforce actual content restrictions.
 
 The deterministic preview opens directly into Whimsical Watercolor Storybook
 Mode with local fixture data. It does not authenticate or contact Jellyfin.
+
+With the preview running (`-NoBrowser` avoids opening a window), check artwork
+sizing in a headless browser:
+
+```powershell
+agent-browser --session rawi-artwork --headed false open 'http://127.0.0.1:4173/?preview=storybook'
+agent-browser --session rawi-artwork set viewport 1920 1080
+$script = Get-Content -Raw .\tools\Test-StorybookArtwork.js
+$encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($script))
+agent-browser --session rawi-artwork eval -b $encoded
+agent-browser --session rawi-artwork close
+```
+
+The check uses the real renderer and CSS for all six artwork surfaces, including
+missing/broken-image fallbacks. It replaces preview content; reload afterward.
+
+`tools\Test-SmartSearch.js` uses the same browser `eval -b` pattern on a fresh
+Storybook preview. It checks both search modes, partial matches, all 105 fixture
+results across pages, details-return focus, and exclusion of adult-only titles
+from Storybook search. It replaces preview content; reload afterward.
+
+`tools\Test-StorybookFireflies.js` uses that same pattern to verify visible
+fireflies, finite fade-out, focus-change cleanup, non-intercepting decoration,
+and parent/system reduced motion. For the system preference check, first run
+`agent-browser --session rawi-fireflies set media reduced-motion`.
+
+`tools\Test-StorybookMicrointeractions.js` uses the same browser evaluation
+pattern to check the moon's visible blink, 12-second doze, remote wake-up,
+letter stamps, backspace peels, rapid edits, and unchanged Adult search. Run it
+again with system reduced motion enabled to check that preference as well.
 
 ### Storybook Phase 2 preview routes
 

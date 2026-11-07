@@ -3,7 +3,8 @@ param(
     [string]$Target = '192.168.1.159:26101',
     [string]$SigningProfile = 'MovieDeck',
     [switch]$PackageOnly,
-    [switch]$NoVersionIncrement
+    [switch]$NoVersionIncrement,
+    [switch]$Launch
 )
 
 $ErrorActionPreference = 'Stop'
@@ -133,11 +134,13 @@ Invoke-NativeCommand $tizenPath @(
     '--', $distPath
 )
 
+if($Launch) {
 Write-Host 'Launching Rawi...'
-Invoke-NativeCommand $tizenPath @(
-    'run',
-    '-p', $applicationId,
-    '-s', $Target
-)
+	Invoke-NativeCommand $tizenPath @(
+	    'run',
+	    '-p', $applicationId,
+	    '-s', $Target
+	)
+}
 
 Write-Host "Rawi $version is installed and running."
